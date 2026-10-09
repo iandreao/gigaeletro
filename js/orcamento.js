@@ -20,6 +20,8 @@
   var restritaErro = document.querySelector("[data-restrita-erro]");
   var enviar = document.querySelector("[data-enviar]");
   var status = document.querySelector("[data-cart-status]");
+  var formCliente = document.querySelector("[data-cliente]");
+  var consultaCnpj = 0;
   var sugestaoAtiva = -1;
 
   if (buscaEl) {
@@ -134,6 +136,35 @@
     setRestrita(false);
   });
 
+  if (formCliente) {
+    formCliente.addEventListener("input", function (event) {
+      var alvo = event.target;
+      if (alvo && alvo.name === "uf") {
+        var posicao = alvo.selectionStart;
+        alvo.value = alvo.value.replace(/[^a-zA-Z]/g, "").slice(0, 2).toUpperCase();
+        if (alvo.setSelectionRange && posicao !== null) alvo.setSelectionRange(posicao, posicao);
+      }
+      if (alvo && alvo.name === "tipo") {
+        atualizarRotuloDocumento();
+        if (formCliente.elements.documento) aplicarMascaraDocumento(formCliente.elements.documento);
+        atualizarAvisoDocumento(false);
+        consultarCnpjSeCompleto();
+      }
+      if (alvo && alvo.name === "documento") {
+        aplicarMascaraDocumento(alvo);
+        atualizarAvisoDocumento(false);
+        consultarCnpjSeCompleto();
+      }
+      liberarEnvio();
+    });
+    if (formCliente.elements.documento) {
+      formCliente.elements.documento.addEventListener("blur", function () {
+        atualizarAvisoDocumento(true);
+      });
+    }
+    atualizarRotuloDocumento();
+  }
+
   if (enviar) enviar.addEventListener("click", enviarWhatsApp);
 
   renderCatalogo();
@@ -155,6 +186,7 @@
     }
     salvarPedido();
     renderResumo();
+    liberarEnvio();
     var campo = acharQuantidade(codigo);
     if (campo) {
       campo.focus();
@@ -307,7 +339,7 @@
         if (item) el.textContent = moeda(item.preco * item.qtd);
       });
     }
-    if (enviar) enviar.disabled = selecionados.length === 0;
+    liberarEnvio();
     if (subtotalEl) subtotalEl.textContent = moeda(subtotal);
   }
 
@@ -322,35 +354,357 @@
 
   function enviarWhatsApp() {
     if (!selecionados.length) {
-      if (avisoEnvio) {
-        avisoEnvio.hidden = false;
-        avisoEnvio.textContent = "Adicione ao menos um produto ao orçamento.";
-      }
+      mostrarAviso("Adicione ao menos um produto ao orçamento.");
       return;
     }
-    var linhas = selecionados.map(function (item, indice) {
-      var estoque = item.estoque === undefined || item.estoque === null || String(item.estoque).trim() === ""
-        ? "não informado"
-        : String(item.estoque);
-      return (
-        (indice + 1) + ". " + item.qtd + "x " + item.produto + "\n" +
-        "   Código (SKU): " + item.codigo + "\n" +
-        "   Preço unitário: " + moeda(item.preco) + "\n" +
-        "   Estoque no site: " + estoque
-      );
-    });
+    var cliente = lerCliente();
+    var erro = validarCliente(cliente);
+    if (erro) {
+      mostrarAviso(erro);
+      return;
+    }
     var subtotal = selecionados.reduce(function (soma, item) { return soma + item.preco * item.qtd; }, 0);
     var texto = [
-      "Olá! Segue o orçamento que montei na Gigaeletro:",
+      "Olá!!",
+      "Segue orçamento no valor de " + moeda(subtotal) + ", cujos itens estão listados no anexo.",
+      "Aguardamos o retorno. Desde já agradecemos a atenção de sempre.",
       "",
-      linhas.join("\n\n"),
-      "",
-      "Subtotal: " + moeda(subtotal),
-      "",
-      "Peço a confirmação do valor final, do estoque e do frete."
+      cliente.nome + " – Contato: " + cliente.celular
     ].join("\n");
+    var arquivo;
+    try {
+      arquivo = new File([gerarPdf(cliente, subtotal)], "Pedido-de-Orcamento-Gigaeletro.pdf", { type: "application/pdf" });
+    } catch (falha) {
+      mostrarAviso("Não foi possível gerar o PDF do orçamento.");
+      return;
+    }
     if (avisoEnvio) avisoEnvio.hidden = true;
+    if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+      navigator.share({
+        files: [arquivo],
+        text: texto,
+        title: "Pedido de Orçamento"
+      }).catch(function (falha) {
+        if (falha && falha.name === "AbortError") return;
+        baixarEAbrirWhatsApp(arquivo, texto);
+      });
+      return;
+    }
+    baixarEAbrirWhatsApp(arquivo, texto);
+  }
+
+  function mostrarAviso(texto) {
+    if (!avisoEnvio) return;
+    avisoEnvio.hidden = false;
+    avisoEnvio.textContent = texto;
+  }
+
+  function baixarEAbrirWhatsApp(arquivo, texto) {
+    var url = URL.createObjectURL(arquivo);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = arquivo.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    mostrarAviso("O PDF foi baixado. Anexe esse arquivo na conversa do WhatsApp.");
     window.open("https://wa.me/" + WHATSAPP + "?text=" + encodeURIComponent(texto), "_blank", "noopener");
+  }
+
+  function lerCliente() {
+    var dados = formCliente ? new FormData(formCliente) : new FormData();
+    return {
+      nome: String(dados.get("nome") || "").trim(),
+      documento: String(dados.get("documento") || "").trim(),
+      celular: String(dados.get("celular") || "").trim(),
+      endereco: String(dados.get("endereco") || "").trim(),
+      numero: String(dados.get("numero") || "").trim(),
+      bairro: String(dados.get("bairro") || "").trim(),
+      cidade: String(dados.get("cidade") || "").trim(),
+      uf: String(dados.get("uf") || "").trim().toUpperCase(),
+      cep: String(dados.get("cep") || "").trim()
+    };
+  }
+
+  function validarCliente(cliente) {
+    if (!cliente.nome || !cliente.celular || !cliente.endereco || !cliente.numero || !cliente.bairro || !cliente.cidade || !cliente.uf || !cliente.cep) {
+      return "Preencha nome, celular e o endereço completo.";
+    }
+    if (cliente.uf.length !== 2) return "Informe a UF com duas letras.";
+    var digitos = apenasDigitos(cliente.documento);
+    var campo = formCliente && formCliente.elements.documento;
+    if (tipoPessoa() === "pf") {
+      if (!cpfValido(digitos)) {
+        if (campo) campo.classList.add("is-invalido");
+        return "CPF inválido.";
+      }
+      if (campo) campo.classList.remove("is-invalido");
+      return "";
+    }
+    if (digitos.length !== 14) {
+      if (campo) campo.classList.add("is-invalido");
+      return "Informe um CNPJ com 14 dígitos.";
+    }
+    if (campo) campo.classList.remove("is-invalido");
+    return "";
+  }
+
+  function apenasDigitos(valor) {
+    return String(valor || "").replace(/\D/g, "");
+  }
+
+  function cpfValido(cpf) {
+    if (!/^\d{11}$/.test(cpf) || /^(\d)\1{10}$/.test(cpf)) return false;
+    return digitoCpf(cpf, 9) === Number(cpf.charAt(9)) && digitoCpf(cpf, 10) === Number(cpf.charAt(10));
+  }
+
+  function digitoCpf(cpf, tamanho) {
+    var soma = 0;
+    var i;
+    for (i = 0; i < tamanho; i += 1) soma += Number(cpf.charAt(i)) * (tamanho + 1 - i);
+    var resto = soma % 11;
+    return resto < 2 ? 0 : 11 - resto;
+  }
+
+  function tipoPessoa() {
+    var marcado = formCliente && formCliente.querySelector('input[name="tipo"]:checked');
+    return marcado && marcado.value === "pj" ? "pj" : "pf";
+  }
+
+  function limiteDocumento() {
+    return tipoPessoa() === "pj" ? 14 : 11;
+  }
+
+  function mascaraDocumento(digitos) {
+    var d = String(digitos || "").slice(0, limiteDocumento());
+    if (tipoPessoa() === "pj") {
+      var cnpj = d.slice(0, 2);
+      if (d.length > 2) cnpj += "." + d.slice(2, 5);
+      if (d.length > 5) cnpj += "." + d.slice(5, 8);
+      if (d.length > 8) cnpj += "/" + d.slice(8, 12);
+      if (d.length > 12) cnpj += "-" + d.slice(12, 14);
+      return cnpj;
+    }
+    var cpf = d.slice(0, 3);
+    if (d.length > 3) cpf += "." + d.slice(3, 6);
+    if (d.length > 6) cpf += "." + d.slice(6, 9);
+    if (d.length > 9) cpf += "-" + d.slice(9, 11);
+    return cpf;
+  }
+
+  function posicaoAposDigitos(texto, quantidade) {
+    if (quantidade <= 0) return 0;
+    var vistos = 0;
+    var i;
+    for (i = 0; i < texto.length; i += 1) {
+      if (/\d/.test(texto.charAt(i))) {
+        vistos += 1;
+        if (vistos === quantidade) return i + 1;
+      }
+    }
+    return texto.length;
+  }
+
+  function aplicarMascaraDocumento(campo) {
+    if (!campo) return;
+    var inicio = campo.selectionStart;
+    var digitosAntes = apenasDigitos(String(campo.value || "").slice(0, inicio == null ? 0 : inicio)).length;
+    var limite = limiteDocumento();
+    if (digitosAntes > limite) digitosAntes = limite;
+    var formatado = mascaraDocumento(apenasDigitos(campo.value));
+    if (campo.value !== formatado) campo.value = formatado;
+    if (document.activeElement === campo && campo.setSelectionRange) {
+      var nova = posicaoAposDigitos(campo.value, digitosAntes);
+      campo.setSelectionRange(nova, nova);
+    }
+  }
+
+  function atualizarRotuloDocumento() {
+    if (!formCliente) return;
+    var rotulo = formCliente.querySelector("[data-doc-rotulo]");
+    var campo = formCliente.elements.documento;
+    var pj = tipoPessoa() === "pj";
+    if (rotulo) rotulo.textContent = pj ? "CNPJ" : "CPF";
+    if (!campo) return;
+    campo.placeholder = pj ? "00.000.000/0000-00" : "000.000.000-00";
+    campo.removeAttribute("maxlength");
+  }
+
+  function consultarCnpjSeCompleto() {
+    var campo = formCliente && formCliente.elements.documento;
+    if (!campo || tipoPessoa() !== "pj") return;
+    var digitos = apenasDigitos(campo.value);
+    if (digitos.length === 14) consultarCnpj(digitos);
+  }
+
+  function atualizarAvisoDocumento(aoSair) {
+    var campo = formCliente && formCliente.elements.documento;
+    var aviso = formCliente && formCliente.querySelector("[data-doc-aviso]");
+    if (!campo) return;
+    var digitos = apenasDigitos(campo.value);
+    var mensagem = "";
+    if (tipoPessoa() === "pf") {
+      if (digitos.length === 11 && !cpfValido(digitos)) mensagem = "CPF inválido.";
+      else if (aoSair && digitos.length > 0 && !cpfValido(digitos)) mensagem = "Informe um CPF com 11 dígitos.";
+    } else if (aoSair && digitos.length > 0 && digitos.length !== 14) {
+      mensagem = "Informe um CNPJ com 14 dígitos.";
+    }
+    campo.classList.toggle("is-invalido", mensagem !== "");
+    if (!aviso) return;
+    aviso.hidden = mensagem === "";
+    aviso.textContent = mensagem;
+  }
+
+  function formularioPreenchido() {
+    if (!formCliente) return false;
+    var nomes = ["nome", "documento", "celular", "endereco", "numero", "bairro", "cidade", "uf", "cep"];
+    var i;
+    for (i = 0; i < nomes.length; i += 1) {
+      var campo = formCliente.elements[nomes[i]];
+      if (!campo || !String(campo.value || "").trim()) return false;
+    }
+    return true;
+  }
+
+  function liberarEnvio() {
+    if (!enviar) return;
+    enviar.disabled = selecionados.length === 0 || !formularioPreenchido();
+  }
+
+  function consultarCnpj(cnpj) {
+    var ticket = consultaCnpj + 1;
+    consultaCnpj = ticket;
+    mostrarAviso("Consultando o CNPJ…");
+    fetch("https://brasilapi.com.br/api/cnpj/v1/" + cnpj).then(function (resposta) {
+      if (!resposta.ok) throw new Error("nao encontrado");
+      return resposta.json();
+    }).then(function (dados) {
+      if (ticket !== consultaCnpj || !formCliente || !dados) return;
+      preencherSeVier("endereco", dados.logradouro);
+      preencherSeVier("numero", dados.numero);
+      preencherSeVier("bairro", dados.bairro);
+      preencherSeVier("cidade", dados.municipio);
+      preencherSeVier("uf", dados.uf ? String(dados.uf).toUpperCase() : "");
+      preencherSeVier("cep", formatarCep(dados.cep));
+      var nome = formCliente.elements.nome;
+      if (nome && !String(nome.value || "").trim() && dados.razao_social) nome.value = dados.razao_social;
+      if (avisoEnvio) avisoEnvio.hidden = true;
+      atualizarTotais();
+    }).catch(function () {
+      if (ticket !== consultaCnpj) return;
+      mostrarAviso("Não consegui consultar o CNPJ. Preencha o endereço.");
+    });
+  }
+
+  function preencherSeVier(nome, valor) {
+    var campo = formCliente && formCliente.elements[nome];
+    if (!campo || valor === undefined || valor === null || String(valor).trim() === "") return;
+    campo.value = String(valor).trim();
+  }
+
+  function formatarCep(valor) {
+    var digitos = apenasDigitos(valor);
+    if (digitos.length !== 8) return String(valor || "").trim();
+    return digitos.slice(0, 5) + "-" + digitos.slice(5);
+  }
+
+  function gerarPdf(cliente, subtotal) {
+    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("jspdf");
+    var doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
+    var margem = 12;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(26, 26, 26);
+    doc.text("PEDIDO DE ORÇAMENTO", doc.internal.pageSize.getWidth() / 2, 16, { align: "center" });
+    doc.autoTable({
+      startY: 20,
+      margin: { left: margem, right: margem },
+      theme: "grid",
+      styles: {
+        font: "helvetica",
+        fontSize: 8,
+        textColor: [26, 26, 26],
+        lineColor: [26, 26, 26],
+        lineWidth: 0.25,
+        cellPadding: 1.5,
+        valign: "middle"
+      },
+      body: [
+        [
+          { content: "Nome: " + cliente.nome, styles: { fontStyle: "bold" } },
+          { content: "CPF/CNPJ: " + cliente.documento, styles: { fontStyle: "bold" } },
+          { content: "Celular: " + cliente.celular, styles: { fontStyle: "bold" } }
+        ],
+        [
+          { content: "End: " + cliente.endereco },
+          { content: "Nr: " + cliente.numero },
+          { content: "Bairro: " + cliente.bairro }
+        ],
+        [
+          { content: "Cidade: " + cliente.cidade },
+          { content: "UF: " + cliente.uf },
+          { content: "CEP: " + cliente.cep }
+        ]
+      ]
+    });
+    doc.autoTable({
+      startY: doc.lastAutoTable.finalY + 3,
+      margin: { left: margem, right: margem },
+      theme: "grid",
+      styles: {
+        font: "helvetica",
+        fontSize: 8,
+        textColor: [26, 26, 26],
+        lineColor: [26, 26, 26],
+        lineWidth: 0.25,
+        cellPadding: 1.4,
+        overflow: "linebreak"
+      },
+      headStyles: { fillColor: [252, 216, 0], textColor: [26, 26, 26], fontStyle: "bold" },
+      head: [["Itens", "Código", "Nome", "Qte", "Pr.Unitário", "Valor"]],
+      body: selecionados.map(function (item, indice) {
+        return [
+          String(indice + 1),
+          String(item.codigo),
+          String(item.produto),
+          String(item.qtd),
+          moeda(item.preco),
+          moeda(item.preco * item.qtd)
+        ];
+      }),
+      columnStyles: {
+        0: { cellWidth: 14, halign: "center" },
+        1: { cellWidth: 28 },
+        3: { cellWidth: 14, halign: "right" },
+        4: { cellWidth: 28, halign: "right" },
+        5: { cellWidth: 28, halign: "right" }
+      }
+    });
+    var y = doc.lastAutoTable.finalY + 4;
+    var largura = doc.internal.pageSize.getWidth();
+    var caixa = 46;
+    var xCaixa = largura - margem - caixa;
+    if (y > 270) {
+      doc.addPage();
+      y = 16;
+    }
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.text(
+      "Obs: O PRAZO DE VALIDADE DESTE ORÇAMENTO É DE 15 (QUINZE) DIAS A CONTAR DA DATA DO SEU ENVIO.",
+      margem,
+      y + 5,
+      { maxWidth: xCaixa - margem - 4 }
+    );
+    doc.setDrawColor(26, 26, 26);
+    doc.setLineWidth(0.3);
+    doc.rect(xCaixa, y, caixa, 16);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text("Valor Total", xCaixa + caixa / 2, y + 6, { align: "center" });
+    doc.text(moeda(subtotal), xCaixa + caixa / 2, y + 12, { align: "center" });
+    return doc.output("blob");
   }
 
   function setRestrita(aberto) {

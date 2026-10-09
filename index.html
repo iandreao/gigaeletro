@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gigaeletro | Catálogo e orçamento pelo WhatsApp</title>
   <meta name="description" content="Monte o orçamento de materiais elétricos da Gigaeletro e envie a lista pelo WhatsApp. Fios, iluminação, infraestrutura e proteção em Venda Nova do Imigrante.">
-  <meta name="theme-color" content="#fcfcfc">
+  <meta name="theme-color" content="#fefce8">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="preload" as="image" href="assets/hero-materiais.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=7">
+  <link rel="stylesheet" href="css/site.css?v=12">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -56,13 +56,59 @@
   <main>
     <section class="hero" id="inicio">
       <div class="wrap hero-grid">
-        <div class="hero-inner">
-          <p class="kicker">Venda Nova do Imigrante</p>
+        <div class="hero-copy">
           <h1>A energia que move sua obra está na Gigaeletro</h1>
           <p>Materiais elétricos residenciais, comerciais e industriais. Monte o orçamento no catálogo e envie a lista pelo WhatsApp.</p>
-          <a class="btn btn-lg" href="#produtos">Ver Catálogo de Produtos</a>
         </div>
         <img class="hero-photo" src="assets/hero-materiais.jpg" alt="Materiais elétricos organizados sobre uma bancada">
+        <div class="hero-acao">
+          <form class="cliente-form" data-cliente novalidate>
+            <label>Nome/Razão Social
+              <input name="nome" required autocomplete="organization" maxlength="120">
+            </label>
+            <fieldset class="tipo-pessoa">
+              <legend>Tipo de Pessoa</legend>
+              <div class="tipo-opcoes">
+                <label><input type="radio" name="tipo" value="pf" checked> Pessoa Física (CPF)</label>
+                <label><input type="radio" name="tipo" value="pj"> Pessoa Jurídica (CNPJ)</label>
+              </div>
+            </fieldset>
+            <div class="cliente-grid">
+              <label class="doc-campo"><span data-doc-rotulo>CPF</span>
+                <input name="documento" type="text" required inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="000.000.000-00">
+                <span class="doc-aviso" data-doc-aviso hidden>CPF inválido.</span>
+              </label>
+              <label>Celular
+                <input name="celular" required inputmode="tel" autocomplete="tel" maxlength="16">
+              </label>
+            </div>
+            <div class="cliente-grid cliente-end">
+              <label>Endereço
+                <input name="endereco" required autocomplete="street-address" maxlength="120">
+              </label>
+              <label>Número
+                <input name="numero" required maxlength="12">
+              </label>
+            </div>
+            <div class="cliente-grid">
+              <label>Bairro
+                <input name="bairro" required maxlength="80">
+              </label>
+              <label>Cidade
+                <input name="cidade" required maxlength="80">
+              </label>
+            </div>
+            <div class="cliente-grid cliente-uf">
+              <label>UF
+                <input name="uf" required maxlength="2" autocomplete="address-level1">
+              </label>
+              <label>CEP
+                <input name="cep" required inputmode="numeric" autocomplete="postal-code" maxlength="9">
+              </label>
+            </div>
+          </form>
+          <a class="btn btn-lg" href="#produtos">Ver Catálogo de Produtos</a>
+        </div>
       </div>
     </section>
 
@@ -87,8 +133,10 @@
       <div class="wrap">
         <div class="contact-block">
           <div class="contact-copy" id="quem-somos">
-            <p class="kicker">Contato</p>
-            <h2 id="titulo-contato">Fale com o balcão</h2>
+            <div class="section-head contact-head">
+              <p class="kicker">Contato</p>
+              <h2 id="titulo-contato">Fale com o balcão</h2>
+            </div>
             <p>A Gigaeletro atende eletricistas, construtoras e o cliente final em Venda Nova do Imigrante.</p>
             <div class="phones">
               <a href="tel:+552835462723">(28) 3546-2723</a>
@@ -151,11 +199,13 @@
       <p class="subtotal estimado">Total estimado: <strong data-subtotal>R$ 0,00</strong></p>
       <p class="legal">Os preços são do catálogo do dia. O valor final, o estoque e o frete são confirmados no WhatsApp.</p>
       <p class="aviso" data-envio-aviso hidden></p>
-      <button class="btn" type="button" data-enviar disabled>Enviar Orçamento para o WhatsApp</button>
+      <button class="btn btn-lg" type="button" data-enviar disabled>Enviar Orçamento</button>
     </div>
   </aside>
 
+  <script src="js/vendor/jspdf.umd.min.js"></script>
+  <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
   <script src="js/site.js?v=6"></script>
-  <script src="js/orcamento.js?v=8"></script>
+  <script src="js/orcamento.js?v=12"></script>
 </body>
 </html>
