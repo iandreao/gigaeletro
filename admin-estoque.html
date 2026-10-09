@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Estoque | Gigaeletro</title>
+  <link rel="icon" href="assets/logo.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/site.css?v=5">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="brand" href="/">
+        <img src="assets/logo.png?v=2" width="148" height="40" alt="Gigaeletro Material Elétrico">
+      </a>
+    </div>
+  </header>
+  <main class="section">
+    <div class="wrap admin-page">
+      <p class="kicker">Área interna</p>
+      <h1>Atualização de estoque</h1>
+      <form class="admin-body panel" data-admin-arquivo hidden>
+        <p class="muted">Arraste a Tabela de Produtos. As colunas lidas são Código, Nome, Estoque e PrVenda. Esta ação substitui o catálogo inteiro. Se a leitura falhar, a lista anterior permanece.</p>
+        <ol class="mapa">
+          <li><span>1</span> Código</li>
+          <li><span>2</span> Nome</li>
+          <li><span>3</span> Estoque</li>
+          <li><span>4</span> PrVenda</li>
+        </ol>
+        <label class="drop drop-cliente" data-drop-admin for="planilha">
+          <span class="upload-badge" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none" stroke="#1a1a1a" stroke-width="2.4">
+              <path d="M24 32V10"/><path d="M15 18l9-9 9 9"/><path d="M10 30v8h28v-8"/>
+            </svg>
+          </span>
+          <span class="drop-texto">Arraste sua lista de materiais aqui ou clique para selecionar o arquivo (Aceitamos Excel, PDF ou Foto)</span>
+          <input id="planilha" name="planilha" type="file" accept=".csv,.txt,.xlsx,.xls,.pdf,.png,.jpg,.jpeg,.webp,text/csv">
+        </label>
+        <p class="file-name" data-admin-arquivo-nome hidden></p>
+        <p class="aviso" data-admin-status hidden></p>
+        <div class="auditoria" data-auditoria hidden>
+          <p>Produtos no catálogo: <strong data-audit-catalogo></strong></p>
+          <p>Total de linhas lidas no Excel: <strong data-audit-linhas></strong></p>
+          <p>Total de produtos inseridos com sucesso no banco de dados: <strong data-audit-inseridos></strong></p>
+          <p>Erros ou pulados:</p>
+          <ul data-audit-pulados></ul>
+          <p>Data e hora da última atualização: <strong data-audit-quando></strong></p>
+        </div>
+        <button class="btn btn-amarelo" type="button" data-processar disabled>Processar e Atualizar Estoque no Site</button>
+        <button class="btn btn-line" type="button" data-sair>Sair</button>
+      </form>
+    </div>
+  </main>
+  <script src="js/admin.js?v=8"></script>
+</body>
+</html>

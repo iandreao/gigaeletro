@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["gru1"],
+  "builds": [
+    { "src": "*.html", "use": "@vercel/static" },
+    { "src": "css/**/*", "use": "@vercel/static" },
+    { "src": "js/**/*", "use": "@vercel/static" },
+    { "src": "assets/**/*", "use": "@vercel/static" },
+    { "src": "data/catalogo.json", "use": "@vercel/static" },
+    {
+      "src": "api/**/*.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["servidor.py", "data/catalogo.json"]
+      }
+    }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1.py" },
+    { "src": "/admin-estoque", "dest": "/admin-estoque.html" },
+    { "handle": "filesystem" }
+  ]
+}
