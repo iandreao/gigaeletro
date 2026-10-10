@@ -1,5 +1,5 @@
 (function () {
-  var painel = document.querySelector(".quote-side");
+  var painel = document.querySelector("[data-catalogo-modal]");
   if (painel) {
     var arrastando = false;
     var origemX = 0;
@@ -8,7 +8,7 @@
     var baseY = 0;
 
     function podeArrastar(alvo) {
-      return !alvo.closest("button, a, input, textarea, select, label, .cart-list");
+      return !alvo.closest("button, a, input, textarea, select, label, .catalog-list, .suggest");
     }
 
     function soltar() {
