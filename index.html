@@ -63,9 +63,6 @@
         <img class="hero-photo" src="assets/hero-materiais.jpg" alt="Materiais elétricos organizados sobre uma bancada">
         <div class="hero-acao">
           <form class="cliente-form" data-cliente novalidate>
-            <label>Nome/Razão Social
-              <input name="nome" required autocomplete="organization" maxlength="120">
-            </label>
             <fieldset class="tipo-pessoa">
               <legend>Tipo de Pessoa</legend>
               <div class="tipo-opcoes">
@@ -73,39 +70,34 @@
                 <label><input type="radio" name="tipo" value="pj"> Pessoa Jurídica (CNPJ)</label>
               </div>
             </fieldset>
-            <div class="cliente-grid">
-              <label class="doc-campo"><span data-doc-rotulo>CPF</span>
-                <input name="documento" type="text" required inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="000.000.000-00">
-                <span class="doc-aviso" data-doc-aviso hidden>CPF inválido.</span>
-              </label>
-              <label>Celular
-                <input name="celular" required inputmode="tel" autocomplete="tel" maxlength="16">
-              </label>
-            </div>
-            <div class="cliente-grid cliente-end">
-              <label>Endereço
-                <input name="endereco" required autocomplete="street-address" maxlength="120">
-              </label>
-              <label>Número
-                <input name="numero" required maxlength="12">
-              </label>
-            </div>
-            <div class="cliente-grid">
-              <label>Bairro
-                <input name="bairro" required maxlength="80">
-              </label>
-              <label>Cidade
-                <input name="cidade" required maxlength="80">
-              </label>
-            </div>
-            <div class="cliente-grid cliente-uf">
-              <label>UF
-                <input name="uf" required maxlength="2" autocomplete="address-level1">
-              </label>
-              <label>CEP
-                <input name="cep" required inputmode="numeric" autocomplete="postal-code" maxlength="9">
-              </label>
-            </div>
+            <label class="doc-campo"><span data-doc-rotulo>CPF</span>
+              <input name="documento" type="text" required inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="000.000.000-00">
+              <span class="doc-aviso" data-doc-aviso hidden>CPF inválido.</span>
+            </label>
+            <label>CEP
+              <input name="cep" required inputmode="numeric" autocomplete="postal-code" maxlength="9" placeholder="00000-000">
+            </label>
+            <label>Nome/Razão Social
+              <input name="nome" required autocomplete="organization" maxlength="120">
+            </label>
+            <label>Endereço
+              <input name="endereco" required autocomplete="street-address" maxlength="120">
+            </label>
+            <label>Número
+              <input name="numero" required maxlength="12">
+            </label>
+            <label>Bairro
+              <input name="bairro" required maxlength="80">
+            </label>
+            <label>Cidade
+              <input name="cidade" required maxlength="80">
+            </label>
+            <label>Estado / UF
+              <input name="uf" required maxlength="2" autocomplete="address-level1">
+            </label>
+            <label>Telefone / Celular
+              <input name="celular" required inputmode="tel" autocomplete="tel" maxlength="16">
+            </label>
           </form>
           <a class="btn btn-lg" href="#produtos">Ver Catálogo de Produtos</a>
         </div>
@@ -206,6 +198,6 @@
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
   <script src="js/site.js?v=6"></script>
-  <script src="js/orcamento.js?v=16"></script>
+  <script src="js/orcamento.js?v=17"></script>
 </body>
 </html>

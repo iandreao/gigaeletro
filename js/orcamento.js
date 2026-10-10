@@ -22,6 +22,8 @@
   var status = document.querySelector("[data-cart-status]");
   var formCliente = document.querySelector("[data-cliente]");
   var consultaCnpj = 0;
+  var consultaCep = 0;
+  var cepPedido = "";
   var envioEmCurso = false;
   var sugestaoAtiva = -1;
 
@@ -155,6 +157,11 @@
         aplicarMascaraDocumento(alvo);
         atualizarAvisoDocumento(false);
         consultarCnpjSeCompleto();
+      }
+      if (alvo && alvo.name === "cep") {
+        aplicarMascaraCep(alvo);
+        var digitosCep = apenasDigitos(alvo.value);
+        if (digitosCep.length === 8) consultarCep(digitosCep);
       }
       liberarEnvio();
     });
@@ -582,16 +589,19 @@
       return resposta.json();
     }).then(function (dados) {
       if (ticket !== consultaCnpj || !formCliente || !dados) return;
+      preencherSeVier("nome", dados.razao_social || dados.nome);
       preencherSeVier("endereco", dados.logradouro);
       preencherSeVier("numero", dados.numero);
       preencherSeVier("bairro", dados.bairro);
       preencherSeVier("cidade", dados.municipio);
       preencherSeVier("uf", dados.uf ? String(dados.uf).toUpperCase() : "");
-      preencherSeVier("cep", formatarCep(dados.cep));
-      var nome = formCliente.elements.nome;
-      if (nome && !String(nome.value || "").trim() && dados.razao_social) nome.value = dados.razao_social;
+      var cep = apenasDigitos(dados.cep);
+      if (cep.length === 8) preencherSeVier("cep", formatarCep(cep));
       if (avisoEnvio) avisoEnvio.hidden = true;
       atualizarTotais();
+      var endereco = formCliente.elements.endereco;
+      if (cep.length === 8 && endereco && !String(endereco.value || "").trim()) consultarCep(cep);
+      else focarAposConsulta();
     }).catch(function () {
       if (ticket !== consultaCnpj) return;
       mostrarAviso("Não consegui consultar o CNPJ. Preencha o endereço.");
@@ -605,9 +615,66 @@
   }
 
   function formatarCep(valor) {
-    var digitos = apenasDigitos(valor);
-    if (digitos.length !== 8) return String(valor || "").trim();
+    var digitos = apenasDigitos(valor).slice(0, 8);
+    if (digitos.length < 6) return digitos;
     return digitos.slice(0, 5) + "-" + digitos.slice(5);
+  }
+
+  function aplicarMascaraCep(campo) {
+    if (!campo) return;
+    var inicio = campo.selectionStart;
+    var digitosAntes = apenasDigitos(String(campo.value || "").slice(0, inicio == null ? 0 : inicio)).length;
+    if (digitosAntes > 8) digitosAntes = 8;
+    var formatado = formatarCep(campo.value);
+    if (campo.value !== formatado) campo.value = formatado;
+    if (document.activeElement === campo && campo.setSelectionRange) {
+      var nova = posicaoAposDigitos(campo.value, digitosAntes);
+      campo.setSelectionRange(nova, nova);
+    }
+  }
+
+  function focarAposConsulta() {
+    if (!formCliente) return;
+    var campo = formCliente.elements[tipoPessoa() === "pf" ? "nome" : "numero"];
+    if (campo) campo.focus();
+  }
+
+  function aplicarEnderecoCep(dados) {
+    preencherSeVier("endereco", dados.logradouro || dados.street);
+    preencherSeVier("bairro", dados.bairro || dados.neighborhood);
+    preencherSeVier("cidade", dados.localidade || dados.city);
+    preencherSeVier("uf", dados.uf || dados.state);
+  }
+
+  function consultarCep(cep) {
+    if (!cep || cep === cepPedido) return;
+    cepPedido = cep;
+    var ticket = consultaCep + 1;
+    consultaCep = ticket;
+    mostrarAviso("Consultando o CEP…");
+    fetch("https://viacep.com.br/ws/" + cep + "/json/").then(function (resposta) {
+      if (!resposta.ok) throw new Error("viacep");
+      return resposta.json();
+    }).then(function (dados) {
+      if (dados && dados.erro) throw new Error("viacep");
+      return dados;
+    }).catch(function () {
+      return fetch("https://brasilapi.com.br/api/cep/v2/" + cep).then(function (resposta) {
+        if (!resposta.ok) throw new Error("brasilapi");
+        return resposta.json();
+      });
+    }).then(function (dados) {
+      if (ticket !== consultaCep || !formCliente || !dados) return;
+      aplicarEnderecoCep(dados);
+      preencherSeVier("cep", formatarCep(cep));
+      if (avisoEnvio) avisoEnvio.hidden = true;
+      atualizarTotais();
+      focarAposConsulta();
+    }).catch(function () {
+      if (ticket !== consultaCep) return;
+      cepPedido = "";
+      mostrarAviso("Não consegui consultar o CEP. Preencha o endereço.");
+    });
   }
 
   function gerarPdf(cliente, subtotal) {
