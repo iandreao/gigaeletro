@@ -365,9 +365,10 @@
     }
     var subtotal = selecionados.reduce(function (soma, item) { return soma + item.preco * item.qtd; }, 0);
     var texto = [
-      "Olá!!",
-      "Segue orçamento no valor de " + moeda(subtotal) + ", cujos itens estão listados no anexo.",
-      "Aguardamos o retorno. Desde já agradecemos a atenção de sempre.",
+      "Olá, Gigaeletro! Acabei de gerar meu orçamento no site. ",
+      "📌 *POR FAVOR, CLIQUE NO ÍCONE DE CLIPE/MAIS ABAIXO E ANEXE O PDF QUE FOI BAIXADO NA SUA TELA.*",
+      "",
+      "Segue orçamento no valor de " + moeda(subtotal) + ", cujos itens estão listados no anexo. Aguardamos o retorno. Desde já agradecemos a atenção de sempre.",
       "",
       cliente.nome + " – Contato: " + cliente.celular
     ].join("\n");
