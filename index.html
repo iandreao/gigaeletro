@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=29">
+  <link rel="stylesheet" href="css/site.css?v=30">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -56,11 +56,12 @@
   <main>
     <section class="hero" id="inicio">
       <div class="wrap hero-grid">
+        <img class="hero-photo" src="assets/loja-gigaeletro.jpg" alt="Ilustração de uma loja de materiais elétricos, com fios, lâmpadas e ferramentas">
+        <div class="hero-centro">
         <div class="hero-copy">
           <h1>A ENERGIA QUE MOVE SUA EMPRESA ESTÁ NA GIGAELETRO</h1>
           <p>Materiais elétricos residenciais, comerciais e industriais. Monte o orçamento no catálogo e envie a lista pelo WhatsApp.</p>
         </div>
-        <img class="hero-photo" src="assets/loja-gigaeletro.jpg" alt="Ilustração de uma loja de materiais elétricos, com fios, lâmpadas e ferramentas">
         <div class="hero-acao">
           <form class="cliente-form" data-cliente novalidate>
             <div class="form-linha form-tipo">
@@ -118,6 +119,20 @@
           </form>
           <button class="btn btn-lg" type="button" data-abrir-catalogo>Ver Catálogo de Produtos</button>
         </div>
+        </div>
+        <aside class="quote-side" id="carrinho" aria-labelledby="titulo-carrinho">
+          <div class="drawer-head">
+            <h2 id="titulo-carrinho">Seu orçamento</h2>
+          </div>
+          <p class="empty" data-resumo-vazio>Nenhum produto no orçamento.</p>
+          <ul class="cart-list" data-resumo></ul>
+          <div class="drawer-foot">
+            <p class="subtotal estimado">Total estimado: <strong data-subtotal>R$ 0,00</strong></p>
+            <p class="legal">Os preços são do catálogo do dia. O valor final, o estoque e o frete são confirmados no WhatsApp.</p>
+            <p class="aviso" data-envio-aviso hidden></p>
+            <button class="btn btn-lg" type="button" data-enviar disabled>Enviar Orçamento</button>
+          </div>
+        </aside>
       </div>
     </section>
 
@@ -176,20 +191,6 @@
       <button class="btn btn-preto" type="submit">Entrar</button>
     </form>
   </div>
-
-  <aside class="quote-side" id="carrinho" aria-labelledby="titulo-carrinho">
-    <div class="drawer-head">
-      <h2 id="titulo-carrinho">Seu orçamento</h2>
-    </div>
-    <p class="empty" data-resumo-vazio>Nenhum produto no orçamento.</p>
-    <ul class="cart-list" data-resumo></ul>
-    <div class="drawer-foot">
-      <p class="subtotal estimado">Total estimado: <strong data-subtotal>R$ 0,00</strong></p>
-      <p class="legal">Os preços são do catálogo do dia. O valor final, o estoque e o frete são confirmados no WhatsApp.</p>
-      <p class="aviso" data-envio-aviso hidden></p>
-      <button class="btn btn-lg" type="button" data-enviar disabled>Enviar Orçamento</button>
-    </div>
-  </aside>
 
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
