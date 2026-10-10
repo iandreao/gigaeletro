@@ -78,37 +78,41 @@ body.home .hero-grid {
   flex: 1;
   min-height: 0;
   height: 100%;
-  padding: 0.55rem 0 0.45rem;
-  gap: 0.45rem 1.3rem;
+  margin-top: 0;
+  padding: 0 0 4px;
+  gap: 0.2rem 1.3rem;
   grid-template-rows: auto minmax(0, 1fr);
 }
 body.home .hero-copy {
   container-type: inline-size;
   min-width: 0;
+  margin-top: 0;
 }
 body.home .hero h1 {
   width: 100%;
   max-width: none;
-  margin: 0 0 14px;
+  margin: 0 0 4px;
   white-space: normal;
   text-align: center;
   font-size: clamp(0.92rem, 3.55cqi, 1.42rem);
   font-weight: 800;
   letter-spacing: 0;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 body.home .hero p {
   max-width: none;
-  margin-top: 0;
+  margin: 0;
   font-size: 1.2rem;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.3;
   color: var(--gray-900);
+  text-align: center;
 }
 body.home .hero-photo {
   height: 100%;
-  min-height: 0;
-  max-height: 100%;
+  min-height: 100%;
+  max-height: none;
+  align-self: stretch;
   object-fit: cover;
   object-position: center;
   border-radius: 1rem;
@@ -117,18 +121,32 @@ body.home .hero-acao {
   min-height: 0;
   min-width: 0;
   align-self: stretch;
-  align-content: stretch;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 0.7rem;
+  align-content: end;
+  grid-template-rows: auto auto;
+  gap: 0.4rem;
   overflow: hidden;
 }
 body.home .cliente-form {
-  height: 100%;
+  height: auto;
   min-height: 0;
   overflow: hidden;
-  align-content: start;
+  align-content: end;
+  align-self: end;
   gap: 0;
   padding-right: 0;
+}
+@media (min-width: 981px) {
+  body.home { --header: 38px; }
+  body.home .bar {
+    min-height: 38px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    gap: 0.55rem;
+  }
+  body.home .brand img { height: 32px; max-height: 32px; }
+  body.home .nav { gap: 0.85rem; }
+  body.home .nav a,
+  body.home .nav button { font-size: 0.84rem; line-height: 1; }
 }
 body.home .hero-acao .btn { align-self: stretch; height: auto; min-height: 56px; }
 body.home .site-footer { flex: none; padding: 6px 0 8px; }
