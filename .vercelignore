@@ -4,3 +4,5 @@ data/*.db-wal
 data/*.db-shm
 __pycache__/
 *.py[cod]
+uploads/*.pdf
+uploads/*.part

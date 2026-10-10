@@ -26,6 +26,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent
 FONTE_CATALOGO = ROOT / "data" / "catalogo.json"
@@ -34,6 +35,10 @@ COOKIE_ADMIN = "gigaeletro_admin"
 SEGREDO_SESSAO = b"gigaeletro-sessao-local"
 SESSAO_SEGUNDOS = 12 * 60 * 60
 LIMITE_ENVIO = 30 * 1024 * 1024
+LIMITE_PDF = 2 * 1024 * 1024
+VALIDADE_PDF = 7 * 24 * 60 * 60
+PDFS = {}
+PDF_LOCK = threading.Lock()
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 IMPORTACAO = threading.Lock()
 
@@ -64,6 +69,12 @@ def caminho_catalogo():
 
 def caminho_auditoria():
     return diretorio_gravavel() / "auditoria.json"
+
+
+def diretorio_pdf():
+    if em_vercel():
+        return diretorio_gravavel() / "uploads"
+    return ROOT / "uploads"
 
 
 def conectar(banco=None):
@@ -584,6 +595,182 @@ def responder_logout(saida):
     escrever_json(saida, {"ok": True}, extra=[("Set-Cookie", cabecalho_logout())])
 
 
+def slug_cliente(nome):
+    texto = unicodedata.normalize("NFKD", str(nome or ""))
+    texto = "".join(caractere for caractere in texto if not unicodedata.combining(caractere))
+    texto = re.sub(r"[^a-zA-Z0-9]+", "-", texto).strip("-").lower()
+    return (texto or "cliente")[:40]
+
+
+def id_pdf_valido(ident):
+    return bool(re.fullmatch(r"[a-z0-9-]{1,80}", ident or ""))
+
+
+def parametro_consulta(caminho, chave):
+    valores = parse_qs(urlparse(caminho).query)
+    return (valores.get(chave) or [""])[0]
+
+
+def host_publico(saida):
+    bruto = saida.headers.get("X-Forwarded-Host") or saida.headers.get("Host") or "127.0.0.1:8765"
+    host = bruto.split(",")[0].strip()
+    if not re.fullmatch(r"[A-Za-z0-9.:-]+", host):
+        return "127.0.0.1:8765"
+    return host
+
+
+def url_publica(saida, caminho):
+    proto = (saida.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower()
+    if proto not in ("http", "https"):
+        proto = "https" if em_vercel() else "http"
+    return proto + "://" + host_publico(saida) + caminho
+
+
+def ler_campos_formulario(content_type, corpo):
+    match = re.search(r"boundary=([^;]+)", content_type or "", re.I)
+    if not match:
+        return {}, {}
+    limite = match.group(1).strip().strip('"').encode("utf-8", "ignore")
+    campos = {}
+    arquivos = {}
+    for pedaco in (corpo or b"").split(b"--" + limite):
+        if pedaco.startswith(b"\r\n"):
+            pedaco = pedaco[2:]
+        if pedaco.endswith(b"\r\n"):
+            pedaco = pedaco[:-2]
+        if pedaco.endswith(b"--"):
+            pedaco = pedaco[:-2]
+            if pedaco.endswith(b"\r\n"):
+                pedaco = pedaco[:-2]
+        if not pedaco:
+            continue
+        cabecalho, separador, dados = pedaco.partition(b"\r\n\r\n")
+        if not separador:
+            continue
+        texto = cabecalho.decode("utf-8", "replace")
+        achado = re.search(r'name="([^"]+)"', texto)
+        if not achado:
+            continue
+        if "filename=" in texto:
+            arquivos[achado.group(1)] = dados
+        else:
+            campos[achado.group(1)] = dados.decode("utf-8", "replace").strip()
+    return campos, arquivos
+
+
+def novo_id_pdf(nome):
+    base = slug_cliente(nome) + "-" + str(int(time.time()))
+    ident = base
+    pasta = diretorio_pdf()
+    numero = 0
+    while (pasta / (ident + ".pdf")).exists() or ident in PDFS:
+        numero += 1
+        ident = base + "-" + str(numero)
+        if numero > 20:
+            ident = base + "-" + secrets.token_hex(2)
+            break
+    return ident
+
+
+def limpar_pdfs_antigos(pasta):
+    limite = time.time() - VALIDADE_PDF
+    try:
+        arquivos = list(pasta.glob("*.pdf"))
+    except OSError:
+        return
+    for arquivo in arquivos:
+        try:
+            if arquivo.stat().st_mtime < limite:
+                arquivo.unlink()
+        except OSError:
+            continue
+    with PDF_LOCK:
+        for ident, item in list(PDFS.items()):
+            if item[1] < limite:
+                PDFS.pop(ident, None)
+
+
+def guardar_pdf(nome, conteudo):
+    if not conteudo or not conteudo.startswith(b"%PDF") or len(conteudo) > LIMITE_PDF:
+        raise ValueError("pdf")
+    pasta = diretorio_pdf()
+    pasta.mkdir(parents=True, exist_ok=True)
+    ident = novo_id_pdf(nome)
+    destino = pasta / (ident + ".pdf")
+    temporario = pasta / (ident + ".part")
+    temporario.write_bytes(conteudo)
+    temporario.replace(destino)
+    with PDF_LOCK:
+        PDFS[ident] = (conteudo, time.time())
+    limpar_pdfs_antigos(pasta)
+    return ident
+
+
+def ler_pdf_guardado(ident):
+    if not id_pdf_valido(ident):
+        return None
+    agora = time.time()
+    with PDF_LOCK:
+        item = PDFS.get(ident)
+    if item and agora - item[1] <= VALIDADE_PDF:
+        return item[0]
+    arquivo = diretorio_pdf() / (ident + ".pdf")
+    if not arquivo.is_file():
+        return None
+    try:
+        if agora - arquivo.stat().st_mtime > VALIDADE_PDF:
+            arquivo.unlink()
+            return None
+        conteudo = arquivo.read_bytes()
+    except OSError:
+        return None
+    if not conteudo.startswith(b"%PDF"):
+        return None
+    with PDF_LOCK:
+        PDFS[ident] = (conteudo, agora)
+    return conteudo
+
+
+def responder_orcamento_pdf(saida):
+    corpo = ler_corpo(saida)
+    if corpo is None:
+        escrever_json(saida, {"ok": False, "erro": "Não foi possível guardar o PDF."}, 400)
+        return
+    tipo = saida.headers.get("Content-Type", "")
+    nome = parametro_consulta(saida.path, "nome")
+    arquivo = corpo
+    if "multipart/form-data" in tipo.lower():
+        campos, arquivos = ler_campos_formulario(tipo, corpo)
+        nome = campos.get("nome") or nome
+        arquivo = arquivos.get("arquivo") or b""
+    try:
+        ident = guardar_pdf(nome, arquivo)
+    except (ValueError, OSError):
+        escrever_json(saida, {"ok": False, "erro": "Não foi possível guardar o PDF."}, 400)
+        return
+    escrever_json(saida, {
+        "ok": True,
+        "id": ident,
+        "url": url_publica(saida, "/api/ver-pdf?id=" + ident)
+    })
+
+
+def responder_ver_pdf(saida):
+    ident = parametro_consulta(saida.path, "id")
+    conteudo = ler_pdf_guardado(ident)
+    if not conteudo:
+        saida.send_error(404)
+        return
+    saida.send_response(200)
+    saida.send_header("Content-Type", "application/pdf")
+    saida.send_header("Content-Length", str(len(conteudo)))
+    saida.send_header("Content-Disposition", 'inline; filename="Pedido-de-Orcamento-Gigaeletro.pdf"')
+    saida.send_header("X-Content-Type-Options", "nosniff")
+    saida.send_header("Cache-Control", "private, max-age=86400")
+    saida.end_headers()
+    saida.wfile.write(conteudo)
+
+
 def responder_upload(saida):
     corpo = ler_corpo(saida)
     if corpo is None:
@@ -629,6 +816,9 @@ class Handler(SimpleHTTPRequestHandler):
         if caminho == "/api/auditoria":
             responder_auditoria(self)
             return
+        if caminho == "/api/ver-pdf":
+            responder_ver_pdf(self)
+            return
         if caminho == "/admin-estoque":
             self.path = "/admin-estoque.html"
         super().do_GET()
@@ -640,6 +830,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if caminho == "/api/logout":
             responder_logout(self)
+            return
+        if caminho == "/api/orcamento-pdf":
+            responder_orcamento_pdf(self)
             return
         if caminho != "/api/catalogo":
             self.send_error(404)

@@ -22,6 +22,7 @@
   var status = document.querySelector("[data-cart-status]");
   var formCliente = document.querySelector("[data-cliente]");
   var consultaCnpj = 0;
+  var envioEmCurso = false;
   var sugestaoAtiva = -1;
 
   if (buscaEl) {
@@ -363,15 +364,8 @@
       mostrarAviso(erro);
       return;
     }
+    if (envioEmCurso) return;
     var subtotal = selecionados.reduce(function (soma, item) { return soma + item.preco * item.qtd; }, 0);
-    var texto = [
-      "Olá, Gigaeletro! Acabei de gerar meu orçamento no site. ",
-      "📌 *POR FAVOR, CLIQUE NO ÍCONE DE CLIPE/MAIS ABAIXO E ANEXE O PDF QUE FOI BAIXADO NA SUA TELA.*",
-      "",
-      "Segue orçamento no valor de " + moeda(subtotal) + ", cujos itens estão listados no anexo. Aguardamos o retorno. Desde já agradecemos a atenção de sempre.",
-      "",
-      cliente.nome + " – Contato: " + cliente.celular
-    ].join("\n");
     var arquivo;
     try {
       arquivo = new File([gerarPdf(cliente, subtotal)], "Pedido-de-Orcamento-Gigaeletro.pdf", { type: "application/pdf" });
@@ -379,36 +373,44 @@
       mostrarAviso("Não foi possível gerar o PDF do orçamento.");
       return;
     }
+    var dados = new FormData();
+    dados.append("nome", cliente.nome);
+    dados.append("arquivo", arquivo, "Pedido-de-Orcamento-Gigaeletro.pdf");
+    envioEmCurso = true;
+    if (enviar) enviar.disabled = true;
     if (avisoEnvio) avisoEnvio.hidden = true;
-    baixarEAbrirWhatsApp(arquivo, texto);
-    if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
-      navigator.share({
-        files: [arquivo],
-        text: texto,
-        title: "Pedido de Orçamento"
-      }).catch(function (falha) {
-        if (falha && falha.name === "AbortError") return;
-      });
-    }
+    var janela = window.open("", "_blank");
+    fetch("/api/orcamento-pdf", { method: "POST", body: dados }).then(function (resposta) {
+      if (!resposta.ok) throw new Error("upload");
+      return resposta.json();
+    }).then(function (publicado) {
+      if (!publicado || !publicado.url) throw new Error("upload");
+      var texto = [
+        "Olá, Gigaeletro! Montei meu orçamento no site.",
+        "",
+        "📄 *CLIQUE NO LINK ABAIXO PARA ABRIR O PDF DO PEDIDO:*",
+        publicado.url,
+        "",
+        "Segue orçamento no valor de " + moeda(subtotal) + ", cujos itens estão listados no anexo. Aguardamos o retorno. Desde já agradecemos a atenção de sempre.",
+        "",
+        cliente.nome + " – Contato: " + cliente.celular
+      ].join("\n");
+      var destino = "https://api.whatsapp.com/send?phone=" + WHATSAPP + "&text=" + encodeURIComponent(texto);
+      if (janela && !janela.closed) janela.location = destino;
+      else window.location.assign(destino);
+    }).catch(function () {
+      if (janela && !janela.closed) janela.close();
+      mostrarAviso("Não consegui publicar o PDF. Tente enviar de novo.");
+    }).then(function () {
+      envioEmCurso = false;
+      liberarEnvio();
+    });
   }
 
   function mostrarAviso(texto) {
     if (!avisoEnvio) return;
     avisoEnvio.hidden = false;
     avisoEnvio.textContent = texto;
-  }
-
-  function baixarEAbrirWhatsApp(arquivo, texto) {
-    var url = URL.createObjectURL(arquivo);
-    var link = document.createElement("a");
-    link.href = url;
-    link.download = arquivo.name;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-    mostrarAviso("O PDF foi baixado. Anexe esse arquivo na conversa do WhatsApp.");
-    window.open("https://api.whatsapp.com/send?phone=" + WHATSAPP + "&text=" + encodeURIComponent(texto), "_blank", "noopener");
   }
 
   function lerCliente() {
@@ -567,7 +569,7 @@
   }
 
   function liberarEnvio() {
-    if (!enviar) return;
+    if (!enviar || envioEmCurso) return;
     enviar.disabled = selecionados.length === 0 || !formularioPreenchido();
   }
 
