@@ -426,6 +426,7 @@
       nome: String(dados.get("nome") || "").trim(),
       documento: String(dados.get("documento") || "").trim(),
       celular: String(dados.get("celular") || "").trim(),
+      email: String(dados.get("email") || "").trim(),
       endereco: String(dados.get("endereco") || "").trim(),
       numero: String(dados.get("numero") || "").trim(),
       bairro: String(dados.get("bairro") || "").trim(),
@@ -436,9 +437,10 @@
   }
 
   function validarCliente(cliente) {
-    if (!cliente.nome || !cliente.celular || !cliente.endereco || !cliente.numero || !cliente.bairro || !cliente.cidade || !cliente.uf || !cliente.cep) {
-      return "Preencha nome, celular e o endereço completo.";
+    if (!cliente.nome || !cliente.celular || !cliente.email || !cliente.endereco || !cliente.numero || !cliente.bairro || !cliente.cidade || !cliente.uf || !cliente.cep) {
+      return "Preencha nome, celular, e-mail e o endereço completo.";
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cliente.email)) return "Informe um e-mail válido.";
     if (cliente.uf.length !== 2) return "Informe a UF com duas letras.";
     var digitos = apenasDigitos(cliente.documento);
     var campo = formCliente && formCliente.elements.documento;
@@ -566,7 +568,7 @@
 
   function formularioPreenchido() {
     if (!formCliente) return false;
-    var nomes = ["nome", "documento", "celular", "endereco", "numero", "bairro", "cidade", "uf", "cep"];
+    var nomes = ["nome", "documento", "celular", "email", "endereco", "numero", "bairro", "cidade", "uf", "cep"];
     var i;
     for (i = 0; i < nomes.length; i += 1) {
       var campo = formCliente.elements[nomes[i]];
@@ -726,7 +728,7 @@
           { content: "Cidade: " + cliente.cidade }
         ],
         [
-          { content: "Celular: " + cliente.celular + "    UF: " + cliente.uf + "    CEP: " + cliente.cep, colSpan: 6, styles: { fontStyle: "bold" } }
+          { content: "Celular: " + cliente.celular + "    E-mail: " + cliente.email + "    UF: " + cliente.uf + "    CEP: " + cliente.cep, colSpan: 6, styles: { fontStyle: "bold" } }
         ]
       ]
     });
