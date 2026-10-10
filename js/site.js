@@ -1,4 +1,56 @@
 (function () {
+  var painel = document.querySelector(".quote-side");
+  if (painel) {
+    var arrastando = false;
+    var origemX = 0;
+    var origemY = 0;
+    var baseX = 0;
+    var baseY = 0;
+
+    function podeArrastar(alvo) {
+      return !alvo.closest("button, a, input, textarea, select, label, .cart-list");
+    }
+
+    function soltar() {
+      arrastando = false;
+      painel.classList.remove("is-arrastando");
+    }
+
+    painel.addEventListener("pointerdown", function (evento) {
+      if (evento.button !== 0 || !podeArrastar(evento.target)) return;
+      arrastando = true;
+      painel.classList.add("is-arrastando");
+      var caixa = painel.getBoundingClientRect();
+      origemX = evento.clientX;
+      origemY = evento.clientY;
+      baseX = caixa.left;
+      baseY = caixa.top;
+      try {
+        if (painel.setPointerCapture) painel.setPointerCapture(evento.pointerId);
+      } catch (erro) {}
+      evento.preventDefault();
+    });
+
+    painel.addEventListener("pointermove", function (evento) {
+      if (!arrastando) return;
+      var largura = painel.offsetWidth;
+      var altura = painel.offsetHeight;
+      var x = baseX + (evento.clientX - origemX);
+      var y = baseY + (evento.clientY - origemY);
+      var maxX = Math.max(8, window.innerWidth - largura - 8);
+      var maxY = Math.max(8, window.innerHeight - altura - 8);
+      x = Math.min(Math.max(8, x), maxX);
+      y = Math.min(Math.max(8, y), maxY);
+      painel.style.left = x + "px";
+      painel.style.top = y + "px";
+      painel.style.right = "auto";
+      painel.style.bottom = "auto";
+    });
+
+    painel.addEventListener("pointerup", soltar);
+    painel.addEventListener("pointercancel", soltar);
+  }
+
   var numero = "5527998021221";
 
   document.querySelectorAll("[data-wa]").forEach(function (el) {
