@@ -1,5 +1,5 @@
 (function () {
-  var WHATSAPP = "5527998021221";
+  var WHATSAPP = "5527999821221";
   var CHAVE_PEDIDO = "gigaeletro-orcamento";
 
   var catalogo = [];
@@ -379,6 +379,7 @@
       return;
     }
     if (avisoEnvio) avisoEnvio.hidden = true;
+    baixarEAbrirWhatsApp(arquivo, texto);
     if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
       navigator.share({
         files: [arquivo],
@@ -386,11 +387,8 @@
         title: "Pedido de Orçamento"
       }).catch(function (falha) {
         if (falha && falha.name === "AbortError") return;
-        baixarEAbrirWhatsApp(arquivo, texto);
       });
-      return;
     }
-    baixarEAbrirWhatsApp(arquivo, texto);
   }
 
   function mostrarAviso(texto) {
@@ -409,7 +407,7 @@
     link.remove();
     window.setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
     mostrarAviso("O PDF foi baixado. Anexe esse arquivo na conversa do WhatsApp.");
-    window.open("https://wa.me/" + WHATSAPP + "?text=" + encodeURIComponent(texto), "_blank", "noopener");
+    window.open("https://api.whatsapp.com/send?phone=" + WHATSAPP + "&text=" + encodeURIComponent(texto), "_blank", "noopener");
   }
 
   function lerCliente() {
@@ -617,9 +615,18 @@
     doc.setFontSize(14);
     doc.setTextColor(26, 26, 26);
     doc.text("PEDIDO DE ORÇAMENTO", doc.internal.pageSize.getWidth() / 2, 16, { align: "center" });
+    var larguraUtil = doc.internal.pageSize.getWidth() - margem * 2;
+    var baseCliente = larguraUtil / 6;
+    var wNome = baseCliente * 0.5;
+    var wDocumento = baseCliente * 0.4;
+    var wNumero = baseCliente * 0.5;
+    var wBairro = baseCliente * 0.9;
+    var wCidade = baseCliente * 0.9;
+    var wEndereco = larguraUtil - (wNome + wDocumento + wNumero + wBairro + wCidade);
     doc.autoTable({
       startY: 20,
       margin: { left: margem, right: margem },
+      tableWidth: larguraUtil,
       theme: "grid",
       styles: {
         font: "helvetica",
@@ -628,23 +635,28 @@
         lineColor: [26, 26, 26],
         lineWidth: 0.25,
         cellPadding: 1.5,
-        valign: "middle"
+        valign: "middle",
+        overflow: "linebreak"
+      },
+      columnStyles: {
+        0: { cellWidth: wNome },
+        1: { cellWidth: wDocumento },
+        2: { cellWidth: wEndereco },
+        3: { cellWidth: wNumero },
+        4: { cellWidth: wBairro },
+        5: { cellWidth: wCidade }
       },
       body: [
         [
           { content: "Nome: " + cliente.nome, styles: { fontStyle: "bold" } },
           { content: "CPF/CNPJ: " + cliente.documento, styles: { fontStyle: "bold" } },
-          { content: "Celular: " + cliente.celular, styles: { fontStyle: "bold" } }
-        ],
-        [
           { content: "End: " + cliente.endereco },
           { content: "Nr: " + cliente.numero },
-          { content: "Bairro: " + cliente.bairro }
+          { content: "Bairro: " + cliente.bairro },
+          { content: "Cidade: " + cliente.cidade }
         ],
         [
-          { content: "Cidade: " + cliente.cidade },
-          { content: "UF: " + cliente.uf },
-          { content: "CEP: " + cliente.cep }
+          { content: "Celular: " + cliente.celular + "    UF: " + cliente.uf + "    CEP: " + cliente.cep, colSpan: 6, styles: { fontStyle: "bold" } }
         ]
       ]
     });
