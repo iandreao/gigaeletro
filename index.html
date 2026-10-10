@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=13">
+  <link rel="stylesheet" href="css/site.css?v=15">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -31,7 +31,7 @@
   }
   </script>
 </head>
-<body>
+<body class="home">
   <a class="skip" href="#inicio">Ir para o conteúdo</a>
   <p class="sr-only" data-cart-status aria-live="polite"></p>
   <header class="site-header">
@@ -41,7 +41,7 @@
       </a>
       <nav id="menu" class="nav" aria-label="Seções">
         <a href="#inicio">Início</a>
-        <a href="#produtos">Produtos</a>
+        <button type="button" data-abrir-catalogo>Produtos</button>
         <a href="#quem-somos">Quem Somos</a>
         <a href="#carrinho">Enviar Lista</a>
         <button type="button" data-abrir-restrita>Área Restrita</button>
@@ -67,8 +67,8 @@
               <fieldset class="tipo-pessoa">
                 <legend>Tipo de Pessoa</legend>
                 <div class="tipo-opcoes">
-                  <label><input type="radio" name="tipo" value="pf" checked> Pessoa Física (CPF)</label>
-                  <label><input type="radio" name="tipo" value="pj"> Pessoa Jurídica (CNPJ)</label>
+                  <label><input type="radio" name="tipo" value="pf" checked> Física</label>
+                  <label><input type="radio" name="tipo" value="pj"> Jurídica</label>
                 </div>
               </fieldset>
             </div>
@@ -101,7 +101,7 @@
               <label>Cidade
                 <input name="cidade" required maxlength="80">
               </label>
-              <label>Estado / UF
+              <label>UF
                 <input name="uf" required maxlength="2" autocomplete="address-level1">
               </label>
             </div>
@@ -114,71 +114,41 @@
               </label>
             </div>
           </form>
-          <a class="btn btn-lg" href="#produtos">Ver Catálogo de Produtos</a>
+          <button class="btn btn-lg" type="button" data-abrir-catalogo>Ver Catálogo de Produtos</button>
         </div>
       </div>
     </section>
 
-    <section class="section" id="produtos" aria-labelledby="titulo-produtos">
-      <div class="wrap">
-        <div class="section-head">
-          <h2 id="titulo-produtos">Catálogo de Produtos</h2>
-          <p class="muted">Busque pelo nome ou pelo código, monte o orçamento e envie a lista pelo WhatsApp.</p>
-        </div>
-        <div class="search-combo" data-busca-combo>
-          <label class="search-label" for="busca-produto">Buscar produto
-            <input id="busca-produto" type="search" data-busca placeholder="Nome ou código (SKU)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugestoes">
-          </label>
-          <ul class="suggest" id="sugestoes" data-sugestoes hidden role="listbox"></ul>
-        </div>
-        <p class="catalog-meta" data-catalogo-meta></p>
-        <div class="catalog-list" data-catalogo></div>
-      </div>
-    </section>
-
-    <section id="contato" aria-labelledby="titulo-contato">
-      <div class="wrap">
-        <div class="contact-block">
-          <div class="contact-copy" id="quem-somos">
-            <div class="section-head contact-head">
-              <p class="kicker">Contato</p>
-              <h2 id="titulo-contato">Fale com o balcão</h2>
-            </div>
-            <p>A Gigaeletro atende eletricistas, construtoras e o cliente final em Venda Nova do Imigrante.</p>
-            <div class="phones">
-              <a href="tel:+552835462723">(28) 3546-2723</a>
-              <a href="tel:+552835461139">(28) 3546-1139</a>
-              <a href="https://wa.me/5527998021221">WhatsApp (27) 99802-1221</a>
-            </div>
-            <address>Avenida Domingos Perim, 720 – Vila da Mata – Venda Nova do Imigrante – ES.</address>
-            <p class="fiscal">Gigaeletro Comércio de Material Elétrico Ltda | CNPJ: 08.882.111/0001-80</p>
-            <a class="btn btn-ghost" href="https://www.google.com/maps/dir/?api=1&amp;destination=Avenida+Domingos+Perim,+720,+Venda+Nova+do+Imigrante,+ES" target="_blank" rel="noopener noreferrer">Como chegar</a>
-          </div>
-          <div class="map">
-            <iframe title="Mapa da Gigaeletro na Avenida Domingos Perim, 720" src="https://maps.google.com/maps?q=Avenida%20Domingos%20Perim%20720%20Venda%20Nova%20do%20Imigrante%20ES&amp;hl=pt-BR&amp;z=16&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-          </div>
-        </div>
-      </div>
-    </section>
   </main>
 
-  <footer class="site-footer">
+  <footer class="site-footer" id="quem-somos">
     <div class="wrap foot">
-      <a class="brand" href="#inicio">
-        <img src="assets/logo.png?v=2" width="148" height="40" alt="Gigaeletro Material Elétrico">
-      </a>
+      <p>Avenida Domingos Perim, 720 – Vila da Mata – Venda Nova do Imigrante – ES · Gigaeletro Comércio de Material Elétrico Ltda | CNPJ: 08.882.111/0001-80</p>
       <nav class="foot-nav" aria-label="Rodapé">
-        <a href="#inicio">Início</a>
-        <a href="#produtos">Produtos</a>
-        <a href="#quem-somos">Quem Somos</a>
-        <a href="#carrinho">Enviar Lista</a>
+        <a href="tel:+552835462723">(28) 3546-2723</a>
+        <a href="tel:+552835461139">(28) 3546-1139</a>
         <a href="https://wa.me/5527998021221">WhatsApp (27) 99802-1221</a>
+        <button type="button" data-abrir-catalogo>Produtos</button>
+        <a href="https://www.google.com/maps/dir/?api=1&amp;destination=Avenida+Domingos+Perim,+720,+Venda+Nova+do+Imigrante,+ES" target="_blank" rel="noopener noreferrer">Como chegar</a>
       </nav>
     </div>
-    <div class="wrap fine">
-      <p>Gigaeletro Comércio de Material Elétrico Ltda | CNPJ: 08.882.111/0001-80</p>
-    </div>
   </footer>
+
+  <div class="overlay" data-catalogo-overlay data-fechar-catalogo hidden></div>
+  <div class="catalogo-modal" data-catalogo-modal hidden role="dialog" aria-modal="true" aria-labelledby="titulo-produtos">
+    <div class="catalogo-modal-head">
+      <h2 id="titulo-produtos">Catálogo de Produtos</h2>
+      <button class="catalogo-fechar" type="button" data-fechar-catalogo>Fechar [X]</button>
+    </div>
+    <div class="search-combo" data-busca-combo>
+      <label class="search-label" for="busca-produto">Buscar produto
+        <input id="busca-produto" type="search" data-busca placeholder="Buscar produto..." autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugestoes">
+      </label>
+      <ul class="suggest" id="sugestoes" data-sugestoes hidden role="listbox"></ul>
+    </div>
+    <p class="catalog-meta" data-catalogo-meta></p>
+    <div class="catalog-list" data-catalogo></div>
+  </div>
 
   <div class="overlay" data-fechar-restrita hidden></div>
   <div class="modal" data-restrita hidden role="dialog" aria-modal="true" aria-labelledby="titulo-restrita">
@@ -213,6 +183,6 @@
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
   <script src="js/site.js?v=6"></script>
-  <script src="js/orcamento.js?v=18"></script>
+  <script src="js/orcamento.js?v=19"></script>
 </body>
 </html>

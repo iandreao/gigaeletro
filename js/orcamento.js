@@ -32,6 +32,7 @@
       busca = buscaEl.value;
       sugestaoAtiva = -1;
       renderSugestoes();
+      renderCatalogo();
     });
     buscaEl.addEventListener("keydown", function (event) {
       var opcoes = sugestoesEl ? sugestoesEl.querySelectorAll("[data-sugestao]") : [];
@@ -130,10 +131,22 @@
     });
   }
 
+  document.querySelectorAll("[data-abrir-catalogo]").forEach(function (botao) {
+    botao.addEventListener("click", function () { setCatalogo(true); });
+  });
+  document.querySelectorAll("[data-fechar-catalogo]").forEach(function (botao) {
+    botao.addEventListener("click", function () { setCatalogo(false); });
+  });
+
   document.addEventListener("keydown", function (event) {
     if (event.key !== "Escape") return;
     if (sugestoesEl && !sugestoesEl.hidden) {
       fecharSugestoes();
+      return;
+    }
+    var catalogoModal = document.querySelector("[data-catalogo-modal]");
+    if (catalogoModal && !catalogoModal.hidden) {
+      setCatalogo(false);
       return;
     }
     setRestrita(false);
@@ -229,17 +242,35 @@
     renderResumo();
   }
 
+  function setCatalogo(aberto) {
+    var modal = document.querySelector("[data-catalogo-modal]");
+    var fundo = document.querySelector("[data-catalogo-overlay]");
+    if (modal) modal.hidden = !aberto;
+    if (fundo) fundo.hidden = !aberto;
+    if (aberto && buscaEl) buscaEl.focus();
+    if (!aberto) fecharSugestoes();
+  }
+
+  function produtosVisiveis() {
+    var termo = normalizar(busca);
+    if (!termo) return catalogo;
+    return catalogo.filter(function (item) {
+      return normalizar(item.produto).indexOf(termo) >= 0 || normalizar(item.codigo).indexOf(termo) >= 0;
+    });
+  }
+
   function renderCatalogo() {
     if (!listaEl) return;
+    var visiveis = produtosVisiveis();
     if (metaEl) {
-      var total = catalogo.length;
-      metaEl.textContent = "Exibindo " + total + " produto" + (total === 1 ? "" : "s") + " cadastrado" + (total === 1 ? "" : "s");
+      var total = visiveis.length;
+      metaEl.textContent = "Exibindo " + total + " produto" + (total === 1 ? "" : "s") + (busca ? " encontrado" + (total === 1 ? "" : "s") : " cadastrado" + (total === 1 ? "" : "s"));
     }
-    if (!catalogo.length) {
-      listaEl.innerHTML = '<p class="resumo-vazio">Catálogo vazio.</p>';
+    if (!visiveis.length) {
+      listaEl.innerHTML = '<p class="resumo-vazio">' + (catalogo.length ? "Nenhum produto encontrado." : "Catálogo vazio.") + "</p>";
       return;
     }
-    listaEl.innerHTML = catalogo.map(function (item) {
+    listaEl.innerHTML = visiveis.map(function (item) {
       var estoque = item.estoque === undefined || item.estoque === null || String(item.estoque).trim() === ""
         ? "—"
         : String(item.estoque);
