@@ -149,7 +149,7 @@ body.home .cliente-form {
   body.home .nav button { font-size: 0.84rem; line-height: 1; }
 }
 body.home .hero-acao .btn { align-self: stretch; height: auto; min-height: 56px; }
-body.home .site-footer { display: none; }
+body.home .site-footer { display: block; flex: none; padding: 6px 0 8px; }
 body.home .site-footer .foot { min-height: 0; align-items: center; }
 body.home .site-footer .brand { display: none; }
 body.home .fine,
