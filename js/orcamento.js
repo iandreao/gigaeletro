@@ -160,15 +160,11 @@
         alvo.value = alvo.value.replace(/[^a-zA-Z]/g, "").slice(0, 2).toUpperCase();
         if (alvo.setSelectionRange && posicao !== null) alvo.setSelectionRange(posicao, posicao);
       }
-      if (alvo && alvo.name === "tipo") {
-        atualizarRotuloDocumento();
-        if (formCliente.elements.documento) aplicarMascaraDocumento(formCliente.elements.documento);
-        atualizarAvisoDocumento(false);
-        consultarCnpjSeCompleto();
+      if (alvo && (alvo.name === "documento" || alvo.name === "cep" || alvo.name === "email")) {
+        if (!valorInvalido(alvo)) limparAvisoCampo(alvo);
       }
       if (alvo && alvo.name === "documento") {
         aplicarMascaraDocumento(alvo);
-        atualizarAvisoDocumento(false);
         consultarCnpjSeCompleto();
       }
       if (alvo && alvo.name === "cep") {
@@ -178,13 +174,48 @@
       }
       liberarEnvio();
     });
-    if (formCliente.elements.documento) {
-      formCliente.elements.documento.addEventListener("blur", function () {
-        atualizarAvisoDocumento(true);
-      });
-    }
+    formCliente.addEventListener("change", function (event) {
+      if (event.target && event.target.name === "tipo") limparCamposCliente();
+    });
+    formCliente.addEventListener("keydown", function (event) {
+      if (event.key !== "Tab" && event.key !== "Enter") return;
+      if (!campoMonitorado(event.target) || !valorInvalido(event.target)) return;
+      event.preventDefault();
+      mostrarDadoInvalido(event.target);
+      event.target.focus();
+    });
+    formCliente.addEventListener("focusout", function (event) {
+      var campo = event.target;
+      if (!campoMonitorado(campo) || !valorInvalido(campo)) return;
+      var destino = event.relatedTarget;
+      if (destino && destino.closest && destino.closest(".tipo-pessoa")) return;
+      window.setTimeout(function () {
+        if (valorInvalido(campo) && document.activeElement !== campo) campo.focus();
+      }, 0);
+    });
     atualizarRotuloDocumento();
   }
+
+  document.addEventListener("mousedown", function (event) {
+    var ativo = document.activeElement;
+    if (!campoMonitorado(ativo) || !formCliente || !formCliente.contains(ativo) || !valorInvalido(ativo)) return;
+    if (ativo === event.target || ativo.contains(event.target)) return;
+    if (event.target.closest && event.target.closest(".tipo-pessoa")) return;
+    event.preventDefault();
+    mostrarDadoInvalido(ativo);
+    ativo.focus();
+  }, true);
+
+  document.addEventListener("click", function (event) {
+    var ativo = document.activeElement;
+    if (!campoMonitorado(ativo) || !valorInvalido(ativo)) return;
+    if (event.target.closest && event.target.closest(".tipo-pessoa")) return;
+    if (ativo.contains(event.target)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    mostrarDadoInvalido(ativo);
+    ativo.focus();
+  }, true);
 
   if (enviar) enviar.addEventListener("click", enviarWhatsApp);
 
@@ -247,6 +278,7 @@
     var fundo = document.querySelector("[data-catalogo-overlay]");
     if (modal) modal.hidden = !aberto;
     if (fundo) fundo.hidden = !aberto;
+    document.body.classList.toggle("catalogo-aberto", aberto);
     if (aberto && buscaEl) buscaEl.focus();
     if (!aberto) fecharSugestoes();
   }
@@ -413,16 +445,23 @@
     }
     var dados = new FormData();
     dados.append("nome", cliente.nome);
+    dados.append("tipo", tipoPessoa());
+    dados.append("documento", cliente.documento);
+    dados.append("email", cliente.email);
+    dados.append("cep", cliente.cep);
     dados.append("arquivo", arquivo, "Pedido-de-Orcamento-Gigaeletro.pdf");
     envioEmCurso = true;
     if (enviar) enviar.disabled = true;
     if (avisoEnvio) avisoEnvio.hidden = true;
     var janela = window.open("", "_blank");
     fetch("/api/orcamento-pdf", { method: "POST", body: dados }).then(function (resposta) {
-      if (!resposta.ok) throw new Error("upload");
-      return resposta.json();
+      return resposta.json().catch(function () { return null; }).then(function (publicado) {
+        if (!resposta.ok || !publicado || !publicado.url) {
+          throw new Error((publicado && publicado.erro) || "upload");
+        }
+        return publicado;
+      });
     }).then(function (publicado) {
-      if (!publicado || !publicado.url) throw new Error("upload");
       var texto = [
         "Olá, Gigaeletro! Montei meu orçamento no site.",
         "",
@@ -436,9 +475,9 @@
       var destino = "https://api.whatsapp.com/send?phone=" + WHATSAPP + "&text=" + encodeURIComponent(texto);
       if (janela && !janela.closed) janela.location = destino;
       else window.location.assign(destino);
-    }).catch(function () {
+    }).catch(function (falha) {
       if (janela && !janela.closed) janela.close();
-      mostrarAviso("Não consegui publicar o PDF. Tente enviar de novo.");
+      mostrarAviso(falha && falha.message === "Dado Inválido" ? "Dado Inválido" : "Não consegui publicar o PDF. Tente enviar de novo.");
     }).then(function () {
       envioEmCurso = false;
       liberarEnvio();
@@ -471,24 +510,88 @@
     if (!cliente.nome || !cliente.celular || !cliente.email || !cliente.endereco || !cliente.numero || !cliente.bairro || !cliente.cidade || !cliente.uf || !cliente.cep) {
       return "Preencha nome, celular, e-mail e o endereço completo.";
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cliente.email)) return "Informe um e-mail válido.";
+    if (!emailValido(cliente.email)) {
+      reterCampo("email");
+      return "Dado Inválido";
+    }
+    if (apenasDigitos(cliente.cep).length !== 8) {
+      reterCampo("cep");
+      return "Dado Inválido";
+    }
     if (cliente.uf.length !== 2) return "Informe a UF com duas letras.";
     var digitos = apenasDigitos(cliente.documento);
-    var campo = formCliente && formCliente.elements.documento;
-    if (tipoPessoa() === "pf") {
-      if (!cpfValido(digitos)) {
-        if (campo) campo.classList.add("is-invalido");
-        return "CPF inválido.";
-      }
-      if (campo) campo.classList.remove("is-invalido");
-      return "";
+    if (tipoPessoa() === "pf" ? !cpfValido(digitos) : !cnpjValido(digitos)) {
+      reterCampo("documento");
+      return "Dado Inválido";
     }
-    if (digitos.length !== 14) {
-      if (campo) campo.classList.add("is-invalido");
-      return "Informe um CNPJ com 14 dígitos.";
-    }
-    if (campo) campo.classList.remove("is-invalido");
+    limparAvisoCampo(formCliente && formCliente.elements.documento);
+    limparAvisoCampo(formCliente && formCliente.elements.email);
+    limparAvisoCampo(formCliente && formCliente.elements.cep);
     return "";
+  }
+
+  function emailValido(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+  }
+
+  function campoMonitorado(campo) {
+    return !!(campo && (campo.name === "documento" || campo.name === "cep" || campo.name === "email"));
+  }
+
+  function valorInvalido(campo) {
+    var valor = String(campo && campo.value || "").trim();
+    if (!valor) return false;
+    if (campo.name === "email") return !emailValido(valor);
+    if (campo.name === "cep") return apenasDigitos(valor).length !== 8;
+    var digitos = apenasDigitos(valor);
+    return tipoPessoa() === "pj" ? !cnpjValido(digitos) : !cpfValido(digitos);
+  }
+
+  function avisoDoCampo(campo) {
+    if (!campo || !formCliente) return null;
+    if (campo.name === "documento") return formCliente.querySelector("[data-doc-aviso]");
+    var label = campo.closest("label");
+    return label ? label.querySelector("[data-campo-aviso]") : null;
+  }
+
+  function mostrarDadoInvalido(campo) {
+    if (!campo) return;
+    campo.classList.add("is-invalido");
+    var aviso = avisoDoCampo(campo);
+    if (!aviso) return;
+    aviso.hidden = false;
+    aviso.textContent = "Dado Inválido";
+  }
+
+  function limparAvisoCampo(campo) {
+    if (!campo) return;
+    campo.classList.remove("is-invalido");
+    var aviso = avisoDoCampo(campo);
+    if (aviso) aviso.hidden = true;
+  }
+
+  function reterCampo(nome) {
+    var campo = formCliente && formCliente.elements[nome];
+    if (!campo) return;
+    mostrarDadoInvalido(campo);
+    campo.focus();
+  }
+
+  function limparCamposCliente() {
+    if (!formCliente) return;
+    var nomes = ["documento", "cep", "nome", "endereco", "numero", "bairro", "cidade", "uf", "celular", "email"];
+    nomes.forEach(function (nome) {
+      var campo = formCliente.elements[nome];
+      if (!campo) return;
+      campo.value = "";
+      limparAvisoCampo(campo);
+    });
+    cepPedido = "";
+    consultaCnpj += 1;
+    consultaCep += 1;
+    atualizarRotuloDocumento();
+    if (avisoEnvio) avisoEnvio.hidden = true;
+    liberarEnvio();
   }
 
   function apenasDigitos(valor) {
@@ -504,6 +607,21 @@
     var soma = 0;
     var i;
     for (i = 0; i < tamanho; i += 1) soma += Number(cpf.charAt(i)) * (tamanho + 1 - i);
+    var resto = soma % 11;
+    return resto < 2 ? 0 : 11 - resto;
+  }
+
+  function cnpjValido(cnpj) {
+    if (!/^\d{14}$/.test(cnpj) || /^(\d)\1{13}$/.test(cnpj)) return false;
+    var peso1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    var peso2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    return digitoCnpj(cnpj, peso1) === Number(cnpj.charAt(12)) && digitoCnpj(cnpj, peso2) === Number(cnpj.charAt(13));
+  }
+
+  function digitoCnpj(cnpj, pesos) {
+    var soma = 0;
+    var i;
+    for (i = 0; i < pesos.length; i += 1) soma += Number(cnpj.charAt(i)) * pesos[i];
     var resto = soma % 11;
     return resto < 2 ? 0 : 11 - resto;
   }
@@ -576,25 +694,7 @@
     var campo = formCliente && formCliente.elements.documento;
     if (!campo || tipoPessoa() !== "pj") return;
     var digitos = apenasDigitos(campo.value);
-    if (digitos.length === 14) consultarCnpj(digitos);
-  }
-
-  function atualizarAvisoDocumento(aoSair) {
-    var campo = formCliente && formCliente.elements.documento;
-    var aviso = formCliente && formCliente.querySelector("[data-doc-aviso]");
-    if (!campo) return;
-    var digitos = apenasDigitos(campo.value);
-    var mensagem = "";
-    if (tipoPessoa() === "pf") {
-      if (digitos.length === 11 && !cpfValido(digitos)) mensagem = "CPF inválido.";
-      else if (aoSair && digitos.length > 0 && !cpfValido(digitos)) mensagem = "Informe um CPF com 11 dígitos.";
-    } else if (aoSair && digitos.length > 0 && digitos.length !== 14) {
-      mensagem = "Informe um CNPJ com 14 dígitos.";
-    }
-    campo.classList.toggle("is-invalido", mensagem !== "");
-    if (!aviso) return;
-    aviso.hidden = mensagem === "";
-    aviso.textContent = mensagem;
+    if (digitos.length === 14 && cnpjValido(digitos)) consultarCnpj(digitos);
   }
 
   function formularioPreenchido() {
@@ -689,10 +789,12 @@
       if (!resposta.ok) throw new Error("viacep");
       return resposta.json();
     }).then(function (dados) {
-      if (dados && dados.erro) throw new Error("viacep");
+      if (dados && dados.erro) throw new Error("cep-invalido");
       return dados;
-    }).catch(function () {
+    }).catch(function (falha) {
+      if (falha && falha.message === "cep-invalido") throw falha;
       return fetch("https://brasilapi.com.br/api/cep/v2/" + cep).then(function (resposta) {
+        if (resposta.status === 404) throw new Error("cep-invalido");
         if (!resposta.ok) throw new Error("brasilapi");
         return resposta.json();
       });
@@ -703,9 +805,14 @@
       if (avisoEnvio) avisoEnvio.hidden = true;
       atualizarTotais();
       focarAposConsulta();
-    }).catch(function () {
+    }).catch(function (falha) {
       if (ticket !== consultaCep) return;
       cepPedido = "";
+      if (falha && falha.message === "cep-invalido") {
+        reterCampo("cep");
+        mostrarAviso("Dado Inválido");
+        return;
+      }
       mostrarAviso("Não consegui consultar o CEP. Preencha o endereço.");
     });
   }

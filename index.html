@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=25">
+  <link rel="stylesheet" href="css/site.css?v=26">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -79,6 +79,7 @@
               </label>
               <label>CEP
                 <input name="cep" required inputmode="numeric" autocomplete="postal-code" maxlength="9" placeholder="00000-000">
+                <span class="doc-aviso" data-campo-aviso hidden>Dado Inválido</span>
               </label>
             </div>
             <div class="form-linha">
@@ -111,6 +112,7 @@
               </label>
               <label>E-mail
                 <input name="email" type="email" required autocomplete="email" inputmode="email" maxlength="120">
+                <span class="doc-aviso" data-campo-aviso hidden>Dado Inválido</span>
               </label>
             </div>
           </form>
@@ -192,6 +194,6 @@
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
   <script src="js/site.js?v=6"></script>
-  <script src="js/orcamento.js?v=19"></script>
+  <script src="js/orcamento.js?v=20"></script>
 </body>
 </html>

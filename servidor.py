@@ -731,6 +731,54 @@ def ler_pdf_guardado(ident):
     return conteudo
 
 
+def apenas_digitos(valor):
+    return re.sub(r"\D", "", valor or "")
+
+
+def cpf_valido(cpf):
+    if not re.fullmatch(r"\d{11}", cpf) or cpf == cpf[0] * 11:
+        return False
+
+    def digito(base):
+        tamanho = len(base)
+        soma = sum(int(base[i]) * (tamanho + 1 - i) for i in range(tamanho))
+        resto = soma % 11
+        return 0 if resto < 2 else 11 - resto
+
+    return digito(cpf[:9]) == int(cpf[9]) and digito(cpf[:10]) == int(cpf[10])
+
+
+def cnpj_valido(cnpj):
+    if not re.fullmatch(r"\d{14}", cnpj) or cnpj == cnpj[0] * 14:
+        return False
+
+    def digito(base, pesos):
+        soma = sum(int(base[i]) * pesos[i] for i in range(len(pesos)))
+        resto = soma % 11
+        return 0 if resto < 2 else 11 - resto
+
+    primeiro = digito(cnpj[:12], [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+    segundo = digito(cnpj[:13], [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+    return primeiro == int(cnpj[12]) and segundo == int(cnpj[13])
+
+
+def email_valido(email):
+    return re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", (email or "").strip()) is not None
+
+
+def cliente_orcamento_valido(campos):
+    tipo = (campos.get("tipo") or "").strip().lower()
+    documento = apenas_digitos(campos.get("documento") or "")
+    if tipo == "pj":
+        documento_ok = cnpj_valido(documento)
+    elif tipo == "pf":
+        documento_ok = cpf_valido(documento)
+    else:
+        documento_ok = False
+    cep_ok = len(apenas_digitos(campos.get("cep") or "")) == 8
+    return documento_ok and email_valido(campos.get("email") or "") and cep_ok
+
+
 def responder_orcamento_pdf(saida):
     corpo = ler_corpo(saida)
     if corpo is None:
@@ -741,6 +789,9 @@ def responder_orcamento_pdf(saida):
     arquivo = corpo
     if "multipart/form-data" in tipo.lower():
         campos, arquivos = ler_campos_formulario(tipo, corpo)
+        if not cliente_orcamento_valido(campos):
+            escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
+            return
         nome = campos.get("nome") or nome
         arquivo = arquivos.get("arquivo") or b""
     try:
