@@ -453,7 +453,6 @@
     envioEmCurso = true;
     if (enviar) enviar.disabled = true;
     if (avisoEnvio) avisoEnvio.hidden = true;
-    var janela = window.open("", "_blank");
     fetch("/api/orcamento-pdf", { method: "POST", body: dados }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
         if (!resposta.ok || !publicado || !publicado.url) {
@@ -472,11 +471,10 @@
         "",
         cliente.nome + " – Contato: " + cliente.celular
       ].join("\n");
-      var destino = "https://api.whatsapp.com/send?phone=" + WHATSAPP + "&text=" + encodeURIComponent(texto);
-      if (janela && !janela.closed) janela.location = destino;
-      else window.location.assign(destino);
+      var destino = "https://wa.me/" + WHATSAPP + "?text=" + encodeURIComponent(texto);
+      var janela = window.open(destino, "_blank");
+      if (!janela) window.location.assign(destino);
     }).catch(function (falha) {
-      if (janela && !janela.closed) janela.close();
       mostrarAviso(falha && falha.message === "Dado Inválido" ? "Dado Inválido" : "Não consegui publicar o PDF. Tente enviar de novo.");
     }).then(function () {
       envioEmCurso = false;
