@@ -816,70 +816,99 @@
   function gerarPdf(cliente, subtotal) {
     if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("jspdf");
     var doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
-    var margem = 12;
+    var margem = 14;
+    var largura = doc.internal.pageSize.getWidth();
+    var larguraUtil = largura - margem * 2;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
     doc.setTextColor(26, 26, 26);
-    doc.text("PEDIDO DE ORÇAMENTO", doc.internal.pageSize.getWidth() / 2, 16, { align: "center" });
-    var larguraUtil = doc.internal.pageSize.getWidth() - margem * 2;
-    var baseCliente = larguraUtil / 6;
-    var wNome = baseCliente * 0.5;
-    var wDocumento = baseCliente * 0.4;
-    var wNumero = baseCliente * 0.5;
-    var wBairro = baseCliente * 0.9;
-    var wCidade = baseCliente * 0.9;
-    var wEndereco = larguraUtil - (wNome + wDocumento + wNumero + wBairro + wCidade);
+    doc.text("PEDIDO DE ORÇAMENTO", largura / 2, 16, { align: "center" });
+
+    function fatia(partes) {
+      var soma = partes.reduce(function (total, parte) { return total + parte.peso; }, 0);
+      return partes.map(function (parte) {
+        return { rotulo: parte.rotulo, valor: parte.valor, largura: larguraUtil * parte.peso / soma };
+      });
+    }
+
+    function linhaCliente(y, partes) {
+      doc.setFontSize(9);
+      doc.setTextColor(26, 26, 26);
+      var x = margem;
+      var maior = 1;
+      var desenhos = partes.map(function (parte) {
+        doc.setFont("helvetica", "bold");
+        var rotulo = parte.rotulo + " ";
+        var rotuloLargura = doc.getTextWidth(rotulo);
+        doc.setFont("helvetica", "normal");
+        var linhas = doc.splitTextToSize(String(parte.valor || ""), Math.max(12, parte.largura - rotuloLargura - 1.5));
+        if (!linhas.length) linhas = [""];
+        if (linhas.length > maior) maior = linhas.length;
+        var item = { x: x, rotulo: rotulo, rotuloLargura: rotuloLargura, linhas: linhas };
+        x += parte.largura;
+        return item;
+      });
+      desenhos.forEach(function (item) {
+        doc.setFont("helvetica", "bold");
+        doc.text(item.rotulo, item.x, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(item.linhas, item.x + item.rotuloLargura, y);
+      });
+      var yLinha = y + (maior - 1) * 4.2 + 2.2;
+      doc.setDrawColor(188, 188, 188);
+      doc.setLineWidth(0.2);
+      doc.line(margem, yLinha, margem + larguraUtil, yLinha);
+      return yLinha + 7;
+    }
+
+    var y = linhaCliente(24, fatia([
+      { rotulo: "Nome:", valor: cliente.nome, peso: 68 },
+      { rotulo: "CPF/CNPJ:", valor: cliente.documento, peso: 32 }
+    ]));
+    y = linhaCliente(y, fatia([
+      { rotulo: "End:", valor: cliente.endereco, peso: 82 },
+      { rotulo: "Nr:", valor: cliente.numero, peso: 18 }
+    ]));
+    y = linhaCliente(y, fatia([
+      { rotulo: "Cidade:", valor: cliente.cidade, peso: 38 },
+      { rotulo: "Bairro:", valor: cliente.bairro, peso: 32 },
+      { rotulo: "UF:", valor: cliente.uf, peso: 10 },
+      { rotulo: "CEP:", valor: cliente.cep, peso: 20 }
+    ]));
+    y = linhaCliente(y, fatia([
+      { rotulo: "Telefone / Celular:", valor: cliente.celular, peso: 1 },
+      { rotulo: "e-mail:", valor: cliente.email, peso: 1 }
+    ]));
+
+    var wItens = 14;
+    var wCodigo = 28;
+    var wQte = 16;
+    var wUnitario = 30;
+    var wValor = 32;
+    var wNome = larguraUtil - (wItens + wCodigo + wQte + wUnitario + wValor);
     doc.autoTable({
-      startY: 20,
+      startY: y + 6,
       margin: { left: margem, right: margem },
       tableWidth: larguraUtil,
-      theme: "grid",
+      theme: "plain",
       styles: {
         font: "helvetica",
         fontSize: 8,
         textColor: [26, 26, 26],
-        lineColor: [26, 26, 26],
-        lineWidth: 0.25,
-        cellPadding: 1.5,
-        valign: "middle",
-        overflow: "linebreak"
+        fillColor: [255, 255, 255],
+        lineColor: [210, 210, 210],
+        lineWidth: 0.15,
+        cellPadding: 1.6,
+        overflow: "linebreak",
+        valign: "middle"
       },
-      columnStyles: {
-        0: { cellWidth: wNome },
-        1: { cellWidth: wDocumento },
-        2: { cellWidth: wEndereco },
-        3: { cellWidth: wNumero },
-        4: { cellWidth: wBairro },
-        5: { cellWidth: wCidade }
-      },
-      body: [
-        [
-          { content: "Nome: " + cliente.nome, styles: { fontStyle: "bold" } },
-          { content: "CPF/CNPJ: " + cliente.documento, styles: { fontStyle: "bold" } },
-          { content: "End: " + cliente.endereco },
-          { content: "Nr: " + cliente.numero },
-          { content: "Bairro: " + cliente.bairro },
-          { content: "Cidade: " + cliente.cidade }
-        ],
-        [
-          { content: "Celular: " + cliente.celular + "    E-mail: " + cliente.email + "    UF: " + cliente.uf + "    CEP: " + cliente.cep, colSpan: 6, styles: { fontStyle: "bold" } }
-        ]
-      ]
-    });
-    doc.autoTable({
-      startY: doc.lastAutoTable.finalY + 3,
-      margin: { left: margem, right: margem },
-      theme: "grid",
-      styles: {
-        font: "helvetica",
-        fontSize: 8,
+      headStyles: {
+        fillColor: [255, 255, 255],
         textColor: [26, 26, 26],
-        lineColor: [26, 26, 26],
-        lineWidth: 0.25,
-        cellPadding: 1.4,
-        overflow: "linebreak"
+        fontStyle: "bold",
+        lineWidth: { bottom: 0.3 }
       },
-      headStyles: { fillColor: [252, 216, 0], textColor: [26, 26, 26], fontStyle: "bold" },
+      bodyStyles: { fillColor: [255, 255, 255] },
       head: [["Itens", "Código", "Nome", "Qte", "Pr.Unitário", "Valor"]],
       body: selecionados.map(function (item, indice) {
         return [
@@ -892,35 +921,38 @@
         ];
       }),
       columnStyles: {
-        0: { cellWidth: 14, halign: "center" },
-        1: { cellWidth: 28 },
-        3: { cellWidth: 14, halign: "right" },
-        4: { cellWidth: 28, halign: "right" },
-        5: { cellWidth: 28, halign: "right" }
+        0: { cellWidth: wItens, halign: "center" },
+        1: { cellWidth: wCodigo },
+        2: { cellWidth: wNome },
+        3: { cellWidth: wQte, halign: "right" },
+        4: { cellWidth: wUnitario, halign: "right" },
+        5: { cellWidth: wValor, halign: "right" }
       }
     });
-    var y = doc.lastAutoTable.finalY + 4;
-    var largura = doc.internal.pageSize.getWidth();
-    var caixa = 46;
+
+    y = doc.lastAutoTable.finalY + 10;
+    var caixa = 48;
     var xCaixa = largura - margem - caixa;
-    if (y > 270) {
+    if (y > 268) {
       doc.addPage();
-      y = 16;
+      y = 18;
     }
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
+    doc.setTextColor(26, 26, 26);
     doc.text(
       "Obs: O PRAZO DE VALIDADE DESTE ORÇAMENTO É DE 15 (QUINZE) DIAS A CONTAR DA DATA DO SEU ENVIO.",
       margem,
-      y + 5,
-      { maxWidth: xCaixa - margem - 4 }
+      y + 6,
+      { maxWidth: xCaixa - margem - 6 }
     );
     doc.setDrawColor(26, 26, 26);
     doc.setLineWidth(0.3);
     doc.rect(xCaixa, y, caixa, 16);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.text("Valor Total", xCaixa + caixa / 2, y + 6, { align: "center" });
+    doc.setFontSize(11);
     doc.text(moeda(subtotal), xCaixa + caixa / 2, y + 12, { align: "center" });
     return doc.output("blob");
   }
