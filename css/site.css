@@ -114,7 +114,7 @@ body.home .hero-copy {
 body.home .hero h1 {
   width: 100%;
   max-width: none;
-  margin: 0 0 4px;
+  margin: 0;
   white-space: normal;
   text-align: center;
   font-size: clamp(0.92rem, 1.45vw, 1.42rem);
@@ -122,6 +122,7 @@ body.home .hero h1 {
   letter-spacing: 0;
   line-height: 1.15;
 }
+body.home .hero h1 strong { font-weight: 900; }
 body.home .hero-copy p {
   max-width: none;
   margin: 0;
@@ -155,7 +156,7 @@ body.home .hero-acao {
   align-content: start;
   grid-template-rows: auto auto;
   gap: 0;
-  margin-top: 12px;
+  margin-top: 8px;
   overflow: visible;
 }
 body.home .cliente-form {
@@ -721,7 +722,7 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
     white-space: normal;
     text-align: center;
     font-size: clamp(1.28rem, 5.1vw, 1.7rem);
-    margin-bottom: 14px;
+    margin-bottom: 8px;
   }
   body.home .hero-acao {
     width: 100%;
