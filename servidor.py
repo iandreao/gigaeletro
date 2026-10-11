@@ -21,6 +21,8 @@ import sqlite3
 import threading
 import time
 import unicodedata
+import urllib.error
+import urllib.request
 import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -690,6 +692,61 @@ def limpar_pdfs_antigos(pasta):
                 PDFS.pop(ident, None)
 
 
+def token_blob():
+    return (os.environ.get("BLOB_READ_WRITE_TOKEN") or "").strip()
+
+
+def loja_blob(token):
+    partes = (token or "").split("_")
+    if len(partes) < 4 or not partes[3]:
+        return ""
+    return partes[3]
+
+
+def enviar_pdf_blob(ident, conteudo):
+    token = token_blob()
+    loja = loja_blob(token)
+    if not token or not loja:
+        return False
+    caminho = "orcamentos/" + ident + ".pdf"
+    pedido = urllib.request.Request(
+        "https://vercel.com/api/blob/?pathname=" + urllib.request.quote(caminho),
+        data=conteudo,
+        method="PUT",
+        headers={
+            "authorization": "Bearer " + token,
+            "x-api-version": "12",
+            "x-vercel-blob-store-id": loja,
+            "x-content-type": "application/pdf",
+            "x-add-random-suffix": "0",
+            "x-allow-overwrite": "1",
+            "x-vercel-blob-access": "private",
+        },
+    )
+    try:
+        with urllib.request.urlopen(pedido, timeout=20) as resposta:
+            return 200 <= resposta.status < 300
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return False
+
+
+def baixar_pdf_blob(ident):
+    token = token_blob()
+    loja = loja_blob(token)
+    if not token or not loja or not id_pdf_valido(ident):
+        return None
+    endereco = "https://%s.private.blob.vercel-storage.com/orcamentos/%s.pdf" % (loja, ident)
+    pedido = urllib.request.Request(endereco, headers={"authorization": "Bearer " + token})
+    try:
+        with urllib.request.urlopen(pedido, timeout=20) as resposta:
+            conteudo = resposta.read()
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return None
+    if not conteudo or not conteudo.startswith(b"%PDF"):
+        return None
+    return conteudo
+
+
 def guardar_pdf(nome, conteudo):
     if not conteudo or not conteudo.startswith(b"%PDF") or len(conteudo) > LIMITE_PDF:
         raise ValueError("pdf")
@@ -702,6 +759,11 @@ def guardar_pdf(nome, conteudo):
     temporario.replace(destino)
     with PDF_LOCK:
         PDFS[ident] = (conteudo, time.time())
+    if token_blob():
+        if not enviar_pdf_blob(ident, conteudo):
+            raise OSError("blob")
+    elif em_vercel():
+        raise OSError("blob")
     limpar_pdfs_antigos(pasta)
     return ident
 
@@ -715,20 +777,19 @@ def ler_pdf_guardado(ident):
     if item and agora - item[1] <= VALIDADE_PDF:
         return item[0]
     arquivo = diretorio_pdf() / (ident + ".pdf")
-    if not arquivo.is_file():
-        return None
-    try:
-        if agora - arquivo.stat().st_mtime > VALIDADE_PDF:
-            arquivo.unlink()
-            return None
-        conteudo = arquivo.read_bytes()
-    except OSError:
-        return None
-    if not conteudo.startswith(b"%PDF"):
-        return None
-    with PDF_LOCK:
-        PDFS[ident] = (conteudo, agora)
-    return conteudo
+    if arquivo.is_file():
+        try:
+            if agora - arquivo.stat().st_mtime > VALIDADE_PDF:
+                arquivo.unlink()
+            else:
+                conteudo = arquivo.read_bytes()
+                if conteudo.startswith(b"%PDF"):
+                    with PDF_LOCK:
+                        PDFS[ident] = (conteudo, agora)
+                    return conteudo
+        except OSError:
+            pass
+    return baixar_pdf_blob(ident)
 
 
 def apenas_digitos(valor):

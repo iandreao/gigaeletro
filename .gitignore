@@ -7,3 +7,4 @@ data/*.db-wal
 data/*.db-shm
 uploads/*.pdf
 uploads/*.part
+.env*

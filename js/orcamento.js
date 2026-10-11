@@ -471,9 +471,7 @@
         "",
         cliente.nome + " – Contato: " + cliente.celular
       ].join("\n");
-      var destino = "https://wa.me/" + WHATSAPP + "?text=" + encodeURIComponent(texto);
-      var janela = window.open(destino, "_blank");
-      if (!janela) window.location.assign(destino);
+      window.location.href = "https://wa.me/" + WHATSAPP + "?text=" + encodeURIComponent(texto);
     }).catch(function (falha) {
       mostrarAviso(falha && falha.message === "Dado Inválido" ? "Dado Inválido" : "Não consegui publicar o PDF. Tente enviar de novo.");
     }).then(function () {
