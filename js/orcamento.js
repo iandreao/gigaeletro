@@ -836,7 +836,7 @@
       });
     }
 
-    function linhaCliente(y, partes) {
+    function linhaCliente(y, partes, folga) {
       doc.setFontSize(9);
       doc.setTextColor(26, 26, 26);
       var x = margem;
@@ -863,7 +863,7 @@
       doc.setDrawColor(188, 188, 188);
       doc.setLineWidth(0.2);
       doc.line(margem, yLinha, margem + larguraUtil, yLinha);
-      return yLinha + 7;
+      return yLinha + (folga == null ? 7 : folga);
     }
 
     var y = linhaCliente(24, fatia([
@@ -883,16 +883,16 @@
     y = linhaCliente(y, fatia([
       { rotulo: "Telefone / Celular:", valor: cliente.celular, peso: 1 },
       { rotulo: "e-mail:", valor: cliente.email, peso: 1 }
-    ]));
+    ]), 3.5);
 
-    var wItens = 11;
-    var wCodigo = 14;
-    var wQte = 9;
+    var wItens = 14.1;
+    var wCodigo = 17.1;
+    var wQte = 12.1;
     var wUnitario = 21;
     var wValor = 22.4;
     var wNome = larguraUtil - (wItens + wCodigo + wQte + wUnitario + wValor);
     doc.autoTable({
-      startY: y + 6,
+      startY: y + 3,
       margin: { left: margem, right: margem },
       tableWidth: larguraUtil,
       theme: "plain",
