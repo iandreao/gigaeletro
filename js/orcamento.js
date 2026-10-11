@@ -1119,6 +1119,8 @@
       var editar = document.createElement("button");
       editar.type = "button";
       editar.setAttribute("data-editar-orcamento", item.id);
+      editar.setAttribute("aria-label", "Recarregar orçamento");
+      editar.title = "Recarregar orçamento";
       editar.textContent = "Editar";
       acoes.appendChild(abrir);
       acoes.appendChild(editar);
