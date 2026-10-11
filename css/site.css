@@ -694,6 +694,40 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
 .remover { padding: 0 0.7rem; margin-left: auto; }
 .drawer-foot { margin-top: auto; border-bottom: 0; border-top: 1px solid var(--line); }
 .drawer-foot .btn { width: 100%; }
+.orcamentos-recentes {
+  margin-top: 0.7rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--line);
+}
+.orcamentos-recentes h3 {
+  margin: 0 0 0.28rem;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.orcamentos-recentes ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 4.8rem;
+  overflow: auto;
+}
+.orcamentos-recentes li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0.12rem 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.orcamentos-recentes a {
+  flex: none;
+  color: var(--ink);
+  font-weight: 800;
+  text-decoration: underline;
+}
 .empty { padding: 1rem 1.1rem; color: var(--muted); }
 
 [id] { scroll-margin-top: calc(var(--header) + 12px); }

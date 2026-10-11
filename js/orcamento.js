@@ -1,6 +1,8 @@
 (function () {
   var WHATSAPP = "5527999821221";
   var CHAVE_PEDIDO = "gigaeletro-orcamento";
+  var CHAVE_RECENTES = "gigaeletro-orcamentos-recentes";
+  var SITE_PDF = "https://gigaeletro.vercel.app";
 
   var catalogo = [];
   var selecionados = carregarPedido();
@@ -221,6 +223,7 @@
 
   renderCatalogo();
   renderResumo();
+  renderRecentes();
   carregarPublicado();
 
   function adicionar(codigo) {
@@ -462,15 +465,22 @@
         return publicado;
       });
     }).then(function (publicado) {
+      var link = linkPdf(publicado);
+      var idSalvo = publicado.id ? String(publicado.id) : "";
+      if (!idSalvo) {
+        var trecho = String(link).match(/[?&]id=([^&]+)/);
+        if (trecho) idSalvo = decodeURIComponent(trecho[1]);
+      }
+      gravarRecente(idSalvo, subtotal);
+      renderRecentes();
       var texto = [
         "Olá, Gigaeletro! Montei meu orçamento no site.",
         "",
-        "📄 *CLIQUE NO LINK ABAIXO PARA ABRIR O PDF DO PEDIDO:*",
-        publicado.url,
-        "",
         "Segue orçamento no valor de " + moeda(subtotal) + ", cujos itens estão listados no anexo. Aguardamos o retorno. Desde já agradecemos a atenção de sempre.",
         "",
-        cliente.nome + " – Contato: " + cliente.celular
+        cliente.nome + " – Contato: " + cliente.celular,
+        "",
+        "📄 Link para visualizar ou baixar o PDF do meu orçamento completo: " + link
       ].join("\n");
       var textoUrl = encodeURIComponent(texto);
       var noComputador = !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
@@ -993,6 +1003,72 @@
       catalogo = [];
       renderCatalogo();
     });
+  }
+
+  function linkPdf(publicado) {
+    var id = publicado && publicado.id ? String(publicado.id) : "";
+    if (!id && publicado && publicado.url) {
+      var achado = String(publicado.url).match(/[?&]id=([^&]+)/);
+      if (achado) id = decodeURIComponent(achado[1]);
+    }
+    if (!id) return publicado && publicado.url ? String(publicado.url) : "";
+    return SITE_PDF + "/api/ver-pdf?id=" + encodeURIComponent(id);
+  }
+
+  function lerRecentes() {
+    try {
+      var dados = JSON.parse(localStorage.getItem(CHAVE_RECENTES) || "[]");
+      if (!Array.isArray(dados)) return [];
+      return dados.filter(function (item) {
+        return item && item.id && item.data;
+      });
+    } catch (erro) {
+      return [];
+    }
+  }
+
+  function gravarRecente(id, total) {
+    if (!id) return;
+    var lista = lerRecentes().filter(function (item) { return item.id !== id; });
+    lista.unshift({
+      data: new Date().toISOString(),
+      id: String(id),
+      total: Number(total) || 0
+    });
+    localStorage.setItem(CHAVE_RECENTES, JSON.stringify(lista.slice(0, 12)));
+  }
+
+  function formatarEnvio(iso) {
+    var data = new Date(iso);
+    if (isNaN(data.getTime())) return "";
+    function dois(numero) { return String(numero).padStart(2, "0"); }
+    return dois(data.getDate()) + "/" + dois(data.getMonth() + 1) + "/" + data.getFullYear() + " " + dois(data.getHours()) + ":" + dois(data.getMinutes());
+  }
+
+  function renderRecentes() {
+    var bloco = document.querySelector("[data-recentes]");
+    var lista = document.querySelector("[data-recentes-lista]");
+    if (!bloco || !lista) return;
+    var itens = lerRecentes();
+    lista.textContent = "";
+    if (!itens.length) {
+      bloco.hidden = true;
+      return;
+    }
+    itens.forEach(function (item) {
+      var linha = document.createElement("li");
+      var quando = document.createElement("span");
+      quando.textContent = formatarEnvio(item.data) + " · " + moeda(item.total);
+      var abrir = document.createElement("a");
+      abrir.href = SITE_PDF + "/api/ver-pdf?id=" + encodeURIComponent(item.id);
+      abrir.target = "_blank";
+      abrir.rel = "noopener noreferrer";
+      abrir.textContent = "Abrir PDF";
+      linha.appendChild(quando);
+      linha.appendChild(abrir);
+      lista.appendChild(linha);
+    });
+    bloco.hidden = false;
   }
 
   function carregarPedido() {
