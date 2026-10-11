@@ -885,9 +885,9 @@
       { rotulo: "e-mail:", valor: cliente.email, peso: 1 }
     ]));
 
-    var wItens = 7;
-    var wCodigo = 8.4;
-    var wQte = 4.8;
+    var wItens = 11;
+    var wCodigo = 14;
+    var wQte = 9;
     var wUnitario = 21;
     var wValor = 22.4;
     var wNome = larguraUtil - (wItens + wCodigo + wQte + wUnitario + wValor);
