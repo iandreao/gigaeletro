@@ -221,6 +221,15 @@
 
   if (enviar) enviar.addEventListener("click", enviarWhatsApp);
 
+  var recentesLista = document.querySelector("[data-recentes-lista]");
+  if (recentesLista) {
+    recentesLista.addEventListener("click", function (event) {
+      var botao = event.target.closest("[data-editar-orcamento]");
+      if (!botao) return;
+      editarRecente(botao.getAttribute("data-editar-orcamento"));
+    });
+  }
+
   renderCatalogo();
   renderResumo();
   renderRecentes();
@@ -471,8 +480,9 @@
         var trecho = String(link).match(/[?&]id=([^&]+)/);
         if (trecho) idSalvo = decodeURIComponent(trecho[1]);
       }
-      gravarRecente(idSalvo, subtotal);
+      gravarRecente(idSalvo, subtotal, selecionados);
       renderRecentes();
+      limparDepoisDoEnvio();
       var texto = [
         "Olá, Gigaeletro! Montei meu orçamento no site.",
         "",
@@ -586,6 +596,15 @@
     if (!campo) return;
     mostrarDadoInvalido(campo);
     campo.focus();
+  }
+
+  function limparDepoisDoEnvio() {
+    var fisico = formCliente && formCliente.querySelector('input[name="tipo"][value="pf"]');
+    if (fisico) fisico.checked = true;
+    limparCamposCliente();
+    selecionados = [];
+    salvarPedido();
+    renderResumo();
   }
 
   function limparCamposCliente() {
@@ -1015,27 +1034,58 @@
     return SITE_PDF + "/api/ver-pdf?id=" + encodeURIComponent(id);
   }
 
+  function copiarItens(lista) {
+    return (lista || []).map(function (item) {
+      return {
+        codigo: String(item.codigo || ""),
+        produto: String(item.produto || ""),
+        preco: Number(item.preco),
+        estoque: item.estoque,
+        qtd: Number(item.qtd)
+      };
+    }).filter(function (item) {
+      return item.codigo && item.produto && isFinite(item.preco) && item.qtd > 0;
+    });
+  }
+
   function lerRecentes() {
     try {
       var dados = JSON.parse(localStorage.getItem(CHAVE_RECENTES) || "[]");
       if (!Array.isArray(dados)) return [];
       return dados.filter(function (item) {
         return item && item.id && item.data;
+      }).sort(function (a, b) {
+        return new Date(b.data).getTime() - new Date(a.data).getTime();
       });
     } catch (erro) {
       return [];
     }
   }
 
-  function gravarRecente(id, total) {
+  function gravarRecente(id, total, itens) {
     if (!id) return;
     var lista = lerRecentes().filter(function (item) { return item.id !== id; });
     lista.unshift({
       data: new Date().toISOString(),
       id: String(id),
-      total: Number(total) || 0
+      total: Number(total) || 0,
+      itens: copiarItens(itens)
     });
     localStorage.setItem(CHAVE_RECENTES, JSON.stringify(lista.slice(0, 12)));
+  }
+
+  function editarRecente(id) {
+    var registro = lerRecentes().find(function (item) { return item.id === id; });
+    var itens = registro ? copiarItens(registro.itens) : [];
+    if (!itens.length) {
+      mostrarAviso("Este orçamento não tem itens salvos para editar. Use Abrir PDF.");
+      return;
+    }
+    selecionados = itens;
+    salvarPedido();
+    renderResumo();
+    if (avisoEnvio) avisoEnvio.hidden = true;
+    if (resumoEl) resumoEl.scrollTop = 0;
   }
 
   function formatarEnvio(iso) {
@@ -1059,13 +1109,21 @@
       var linha = document.createElement("li");
       var quando = document.createElement("span");
       quando.textContent = formatarEnvio(item.data) + " · " + moeda(item.total);
+      var acoes = document.createElement("span");
+      acoes.className = "recentes-acoes";
       var abrir = document.createElement("a");
       abrir.href = SITE_PDF + "/api/ver-pdf?id=" + encodeURIComponent(item.id);
       abrir.target = "_blank";
       abrir.rel = "noopener noreferrer";
       abrir.textContent = "Abrir PDF";
+      var editar = document.createElement("button");
+      editar.type = "button";
+      editar.setAttribute("data-editar-orcamento", item.id);
+      editar.textContent = "Editar";
+      acoes.appendChild(abrir);
+      acoes.appendChild(editar);
       linha.appendChild(quando);
-      linha.appendChild(abrir);
+      linha.appendChild(acoes);
       lista.appendChild(linha);
     });
     bloco.hidden = false;
