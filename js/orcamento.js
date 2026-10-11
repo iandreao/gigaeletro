@@ -471,7 +471,12 @@
         "",
         cliente.nome + " – Contato: " + cliente.celular
       ].join("\n");
-      window.location.href = "https://wa.me/" + WHATSAPP + "?text=" + encodeURIComponent(texto);
+      var textoUrl = encodeURIComponent(texto);
+      var destino = "https://wa.me/" + WHATSAPP + "?text=" + textoUrl;
+      var noComputador = !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+      window.location.href = noComputador
+        ? "https://web.whatsapp.com/send?phone=" + WHATSAPP + "&text=" + textoUrl
+        : destino;
     }).catch(function (falha) {
       mostrarAviso(falha && falha.message === "Dado Inválido" ? "Dado Inválido" : "Não consegui publicar o PDF. Tente enviar de novo.");
     }).then(function () {
