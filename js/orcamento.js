@@ -424,6 +424,7 @@
   }
 
   function enviarWhatsApp() {
+    setCatalogo(false);
     if (!selecionados.length) {
       mostrarAviso("Adicione ao menos um produto ao orçamento.");
       return;
@@ -472,11 +473,10 @@
         cliente.nome + " – Contato: " + cliente.celular
       ].join("\n");
       var textoUrl = encodeURIComponent(texto);
-      var destino = "https://wa.me/" + WHATSAPP + "?text=" + textoUrl;
       var noComputador = !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
       window.location.href = noComputador
-        ? "https://web.whatsapp.com/send?phone=" + WHATSAPP + "&text=" + textoUrl
-        : destino;
+        ? "whatsapp://send?phone=" + WHATSAPP + "&text=" + textoUrl
+        : "https://wa.me/" + WHATSAPP + "?text=" + textoUrl;
     }).catch(function (falha) {
       mostrarAviso(falha && falha.message === "Dado Inválido" ? "Dado Inválido" : "Não consegui publicar o PDF. Tente enviar de novo.");
     }).then(function () {
