@@ -885,11 +885,11 @@
       { rotulo: "e-mail:", valor: cliente.email, peso: 1 }
     ]));
 
-    var wItens = 14;
-    var wCodigo = 28;
-    var wQte = 16;
-    var wUnitario = 30;
-    var wValor = 32;
+    var wItens = 7;
+    var wCodigo = 8.4;
+    var wQte = 4.8;
+    var wUnitario = 21;
+    var wValor = 22.4;
     var wNome = larguraUtil - (wItens + wCodigo + wQte + wUnitario + wValor);
     doc.autoTable({
       startY: y + 6,
