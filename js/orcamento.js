@@ -27,6 +27,8 @@
   var consultaCep = 0;
   var cepPedido = "";
   var envioEmCurso = false;
+  var orcamentoEmEdicao = false;
+  var orcamentoEmEdicao = false;
   var sugestaoAtiva = -1;
 
   if (buscaEl) {
@@ -480,7 +482,8 @@
         var trecho = String(link).match(/[?&]id=([^&]+)/);
         if (trecho) idSalvo = decodeURIComponent(trecho[1]);
       }
-      gravarRecente(idSalvo, subtotal, selecionados);
+      cliente.tipo = tipoPessoa();
+      gravarRecente(idSalvo, subtotal, selecionados, cliente);
       renderRecentes();
       limparDepoisDoEnvio();
       var texto = [
@@ -605,6 +608,30 @@
     selecionados = [];
     salvarPedido();
     renderResumo();
+    orcamentoEmEdicao = false;
+    rotuloEnvio();
+  }
+
+  function rotuloEnvio() {
+    if (!enviar) return;
+    enviar.textContent = orcamentoEmEdicao ? "Atualizar Orçamento" : "Enviar Orçamento";
+  }
+
+  function preencherCliente(cliente) {
+    if (!formCliente || !cliente) return;
+    var tipo = cliente.tipo === "pj" ? "pj" : "pf";
+    var radio = formCliente.querySelector('input[name="tipo"][value="' + tipo + '"]');
+    if (radio) radio.checked = true;
+    atualizarRotuloDocumento();
+    ["documento", "cep", "nome", "endereco", "numero", "bairro", "cidade", "uf", "celular", "email"].forEach(function (nome) {
+      var campo = formCliente.elements[nome];
+      if (!campo) return;
+      campo.value = cliente[nome] || "";
+      limparAvisoCampo(campo);
+    });
+    cepPedido = apenasDigitos(cliente.cep || "");
+    consultaCnpj += 1;
+    consultaCep += 1;
   }
 
   function limparCamposCliente() {
@@ -1062,14 +1089,32 @@
     }
   }
 
-  function gravarRecente(id, total, itens) {
+  function copiarCliente(cliente) {
+    var origem = cliente || {};
+    return {
+      tipo: origem.tipo === "pj" ? "pj" : "pf",
+      nome: String(origem.nome || ""),
+      documento: String(origem.documento || ""),
+      celular: String(origem.celular || ""),
+      email: String(origem.email || ""),
+      endereco: String(origem.endereco || ""),
+      numero: String(origem.numero || ""),
+      bairro: String(origem.bairro || ""),
+      cidade: String(origem.cidade || ""),
+      uf: String(origem.uf || "").toUpperCase(),
+      cep: String(origem.cep || "")
+    };
+  }
+
+  function gravarRecente(id, total, itens, cliente) {
     if (!id) return;
     var lista = lerRecentes().filter(function (item) { return item.id !== id; });
     lista.unshift({
       data: new Date().toISOString(),
       id: String(id),
       total: Number(total) || 0,
-      itens: copiarItens(itens)
+      itens: copiarItens(itens),
+      cliente: copiarCliente(cliente)
     });
     localStorage.setItem(CHAVE_RECENTES, JSON.stringify(lista.slice(0, 12)));
   }
@@ -1084,6 +1129,10 @@
     selecionados = itens;
     salvarPedido();
     renderResumo();
+    if (registro.cliente) preencherCliente(registro.cliente);
+    orcamentoEmEdicao = true;
+    rotuloEnvio();
+    liberarEnvio();
     if (avisoEnvio) avisoEnvio.hidden = true;
     if (resumoEl) resumoEl.scrollTop = 0;
   }
