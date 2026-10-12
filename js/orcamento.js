@@ -457,16 +457,17 @@
         '<li class="cart-item">' +
           '<p class="cart-nome"><strong class="cart-prod">Prod.: </strong><span>' + escapar(item.produto) + "</span></p>" +
           '<div class="cart-compacta">' +
-            '<span class="cart-qtd"><strong>Qtd:</strong> ' +
+            '<strong class="cart-rotulo">Qtd:</strong>' +
+            '<span class="cart-seletor">' +
               '<button class="qtd-btn" type="button" data-acao="menos" data-id="' + codigo + '" aria-label="Diminuir quantidade">−</button>' +
               '<span class="qtd-num" data-qtd="' + codigo + '">' + item.qtd + "</span>" +
               '<button class="qtd-btn" type="button" data-acao="mais" data-id="' + codigo + '" aria-label="Aumentar quantidade">+</button>' +
             "</span>" +
-            '<span class="cart-unit"><strong>Vlr. Unit:</strong><span>' + numero(item.preco) + "</span></span>" +
-            '<span class="cart-fim">' +
-              '<span class="cart-valor"><strong>Valor:</strong><span data-linha-total="' + codigo + '">' + numero(item.preco * item.qtd) + "</span></span>" +
-              '<button class="remover" type="button" data-acao="remover" data-id="' + codigo + '">Remover</button>' +
-            "</span>" +
+            '<strong class="cart-rotulo">Vlr. Unit:</strong>' +
+            '<span class="cart-preco">' + numero(item.preco) + "</span>" +
+            '<strong class="cart-rotulo">Valor:</strong>' +
+            '<span class="cart-total" data-linha-total="' + codigo + '">' + numero(item.preco * item.qtd) + "</span>" +
+            '<button class="remover" type="button" data-acao="remover" data-id="' + codigo + '">Remover</button>' +
           "</div>" +
         "</li>"
       );
