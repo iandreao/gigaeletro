@@ -463,8 +463,10 @@
               '<button class="qtd-btn" type="button" data-acao="mais" data-id="' + codigo + '" aria-label="Aumentar quantidade">+</button>' +
             "</span>" +
             '<span class="cart-unit"><strong>Vlr. Unit:</strong><span>' + numero(item.preco) + "</span></span>" +
-            '<span class="cart-valor"><strong>Valor:</strong><span data-linha-total="' + codigo + '">' + numero(item.preco * item.qtd) + "</span></span>" +
-            '<button class="remover" type="button" data-acao="remover" data-id="' + codigo + '">Remover</button>' +
+            '<span class="cart-fim">' +
+              '<span class="cart-valor"><strong>Valor:</strong><span data-linha-total="' + codigo + '">' + numero(item.preco * item.qtd) + "</span></span>" +
+              '<button class="remover" type="button" data-acao="remover" data-id="' + codigo + '">Remover</button>' +
+            "</span>" +
           "</div>" +
         "</li>"
       );

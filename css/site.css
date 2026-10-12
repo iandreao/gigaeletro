@@ -1152,11 +1152,10 @@ textarea { min-height: 140px; padding: 0.75rem 0.8rem; resize: vertical; }
   height: auto;
   max-height: none;
   background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-right: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 1rem 0 0 1rem;
-  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.06);
-  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  overflow: visible;
   cursor: default;
   user-select: auto;
   touch-action: auto;
@@ -1184,6 +1183,7 @@ body.home .quote-side {
     max-height: 420px;
     border-radius: 1rem;
   }
+  body.home .quote-side .drawer-head { border-top-right-radius: 1rem; }
 }
 .quote-side .cart-list { flex: 1; min-height: 0; }
 .quote-side .drawer-head {
@@ -1191,6 +1191,8 @@ body.home .quote-side {
   padding: 0.22rem 0.7rem;
   background: var(--yellow-50);
   border-bottom: 1px solid var(--yellow-200);
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 0;
 }
 .quote-side .drawer-head h2 {
   width: 100%;
@@ -1210,9 +1212,10 @@ body.home .quote-side {
 .quote-side .cart-prod { color: #1f2937; font-weight: 700; }
 .quote-side .cart-compacta {
   display: grid;
-  grid-template-columns: 6.25rem max-content minmax(0.85rem, 1fr) max-content max-content;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
-  column-gap: 0.45rem;
+  width: 100%;
+  column-gap: 0.4rem;
   margin: 0;
   color: #374151;
   font-size: 12px;
@@ -1221,19 +1224,29 @@ body.home .quote-side {
 }
 .quote-side .cart-qtd,
 .quote-side .cart-unit,
-.quote-side .cart-valor { white-space: nowrap; }
+.quote-side .cart-valor,
+.quote-side .cart-fim { white-space: nowrap; }
 .quote-side .cart-qtd { justify-self: start; }
-.quote-side .cart-unit,
+.quote-side .cart-unit {
+  display: inline-flex;
+  align-items: baseline;
+  justify-self: start;
+  gap: 0.35rem;
+  text-align: left;
+}
+.quote-side .cart-fim {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
 .quote-side .cart-valor {
   display: inline-flex;
   align-items: baseline;
   gap: 0.35rem;
-}
-.quote-side .cart-unit { justify-self: start; text-align: left; }
-.quote-side .cart-valor {
-  justify-self: end;
   font-variant-numeric: tabular-nums;
-  text-align: right;
 }
 .quote-side .cart-qtd {
   display: inline-flex;
