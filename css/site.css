@@ -1187,25 +1187,107 @@ body.home .quote-side {
 }
 .quote-side .cart-list { flex: 1; min-height: 0; }
 .quote-side .drawer-head {
+  justify-content: center;
+  padding: 0.22rem 0.7rem;
   background: var(--yellow-50);
   border-bottom: 1px solid var(--yellow-200);
 }
-.quote-side .drawer-head h2 { font-size: 1.25rem; }
-.quote-side .cart-linha strong { font-size: 13px; }
-.quote-side .qtd-label input { font-size: 14px; }
+.quote-side .drawer-head h2 {
+  width: 100%;
+  font-size: 1.05rem;
+  line-height: 1.1;
+  text-align: center;
+}
+.quote-side .cart-list { padding: 0.1rem 0.7rem 0.15rem; }
+.quote-side .cart-item { padding: 0.32rem 0; }
+.quote-side .cart-nome {
+  margin: 0 0 0.12rem;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.quote-side .cart-compacta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.18rem 0.32rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.quote-side .cart-qtd {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+}
+.quote-side .qtd-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--gray-200);
+  border-radius: 0.3rem;
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+.quote-side .qtd-btn:hover { background: var(--yellow-50); }
+.quote-side .qtd-num {
+  min-width: 1rem;
+  color: var(--ink);
+  font-weight: 800;
+  text-align: center;
+}
+.quote-side .cart-div { color: var(--line); }
+.quote-side .cart-compacta strong { color: var(--ink); font-weight: 800; }
+.quote-side .cart-item .remover {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-decoration: underline;
+}
 .quote-side .estimado {
   margin: 0;
   color: var(--muted);
+  font-size: 13px;
   font-weight: 600;
+  line-height: 1.2;
 }
 .quote-side .estimado strong { color: var(--ink); font-size: 13px; }
-body.home .quote-side .empty { font-size: 14px; }
-body.home .quote-side .cart-nome { font-size: 13px; }
-body.home .quote-side .cart-sku { font-size: 11px; }
-body.home .quote-side .cart-fact { font-size: 11px; }
-body.home .quote-side .qtd-label { font-size: 11px; }
-body.home .quote-side .estimado { font-size: 13px; }
-body.home .quote-side .legal { margin: 0.7rem 0; font-size: 11px; font-weight: 600; }
+.quote-side .drawer-foot { padding: 0.28rem 0.7rem 0.4rem; }
+.quote-side .legal {
+  margin: 0.22rem 0 0.18rem;
+  padding: 0.22rem 0.4rem;
+  border: 1px solid var(--yellow-400);
+  border-left: 1px solid var(--yellow-400);
+  background: #fff8cc;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+}
+.quote-side .drawer-foot .btn {
+  min-height: 34px;
+  margin-top: 0;
+  padding: 0.2rem 0.7rem;
+  border-radius: 0.55rem;
+}
+.quote-side .empty { padding: 0.45rem 0.7rem; font-size: 13px; }
 .qtd-label {
   display: grid;
   gap: 0.3rem;

@@ -310,10 +310,8 @@
     renderResumo();
     liberarEnvio();
     var campo = acharQuantidade(codigo);
-    if (campo) {
-      campo.focus();
-      campo.select();
-    }
+    var linha = campo && campo.closest ? campo.closest(".cart-item") : null;
+    if (linha && linha.scrollIntoView) linha.scrollIntoView({ block: "nearest" });
     if (status) status.textContent = produto.produto + " entrou no orçamento. Informe a quantidade desejada.";
   }
 
@@ -457,14 +455,19 @@
       var codigo = escapar(item.codigo);
       return (
         '<li class="cart-item">' +
-          '<p class="cart-sku">Código (SKU): ' + codigo + "</p>" +
           '<p class="cart-nome">' + escapar(item.produto) + "</p>" +
-          '<label class="qtd-label">Quantidade desejada' +
-            '<input type="number" min="1" step="1" inputmode="numeric" value="' + item.qtd + '" data-qtd="' + codigo + '">' +
-          "</label>" +
-          '<p class="cart-fact"><span>Preço unitário</span><strong>' + moeda(item.preco) + "</strong></p>" +
-          '<p class="cart-fact cart-linha"><span>Total do item</span><strong data-linha-total="' + codigo + '">' + moeda(item.preco * item.qtd) + "</strong></p>" +
-          '<button class="remover" type="button" data-acao="remover" data-id="' + codigo + '">Remover</button>' +
+          '<div class="cart-compacta">' +
+            '<span class="cart-qtd">Qtd: ' +
+              '<button class="qtd-btn" type="button" data-acao="menos" data-id="' + codigo + '" aria-label="Diminuir quantidade">−</button>' +
+              '<span class="qtd-num" data-qtd="' + codigo + '">' + item.qtd + "</span>" +
+              '<button class="qtd-btn" type="button" data-acao="mais" data-id="' + codigo + '" aria-label="Aumentar quantidade">+</button>' +
+            "</span>" +
+            '<span class="cart-div" aria-hidden="true">|</span>' +
+            "<span>Un: " + moeda(item.preco) + "</span>" +
+            '<span class="cart-div" aria-hidden="true">|</span>' +
+            '<span>Total: <strong data-linha-total="' + codigo + '">' + moeda(item.preco * item.qtd) + "</strong></span>" +
+            '<button class="remover" type="button" data-acao="remover" data-id="' + codigo + '">Remover</button>' +
+          "</div>" +
         "</li>"
       );
     }).join("");
