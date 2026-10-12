@@ -1152,7 +1152,7 @@ textarea { min-height: 140px; padding: 0.75rem 0.8rem; resize: vertical; }
   height: auto;
   max-height: none;
   background: var(--white);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid #000;
   border-radius: 1rem 0 0 1rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
   overflow: visible;
@@ -1215,10 +1215,10 @@ body.home .quote-side {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
   width: 100%;
-  column-gap: 0.4rem;
+  column-gap: 0.35rem;
   margin: 0;
   color: #374151;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 400;
   line-height: 1.15;
 }
@@ -1226,32 +1226,37 @@ body.home .quote-side {
 .quote-side .cart-unit,
 .quote-side .cart-valor,
 .quote-side .cart-fim { white-space: nowrap; }
-.quote-side .cart-qtd { justify-self: start; }
-.quote-side .cart-unit {
+.quote-side .cart-qtd {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   justify-self: start;
-  gap: 0.35rem;
+  gap: 0.3rem;
+  width: auto;
   text-align: left;
 }
+.quote-side .cart-unit {
+  display: block;
+  width: 100%;
+  justify-self: stretch;
+  text-align: right;
+}
+.quote-side .cart-unit strong { margin-right: 0.28rem; }
 .quote-side .cart-fim {
   display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  align-items: stretch;
+  justify-self: stretch;
   width: 100%;
   min-width: 0;
 }
 .quote-side .cart-valor {
-  display: inline-flex;
+  display: flex;
+  justify-content: space-between;
   align-items: baseline;
+  width: 100%;
+  padding-right: 0.5rem;
   gap: 0.35rem;
   font-variant-numeric: tabular-nums;
-}
-.quote-side .cart-qtd {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
 }
 .quote-side .qtd-btn {
   display: inline-grid;
@@ -1279,10 +1284,10 @@ body.home .quote-side {
 }
 .quote-side .cart-compacta strong { color: #111827; font-weight: 700; }
 .quote-side .cart-item .remover {
-  justify-self: end;
+  align-self: flex-end;
   width: auto;
   min-height: 0;
-  margin: 0;
+  margin: 0.1rem 0 0;
   padding: 0;
   border: 0;
   background: transparent;
