@@ -223,32 +223,12 @@
 
   if (enviar) enviar.addEventListener("click", enviarWhatsApp);
 
-  var menuOrcamentos = document.querySelector("[data-menu-orcamentos]");
-  var menuOrcamentosBtn = menuOrcamentos && menuOrcamentos.querySelector(".nav-drop-btn");
-  var menuOrcamentosPainel = document.getElementById("menu-orcamentos");
-
-  function fecharMenuOrcamentos() {
-    if (!menuOrcamentosBtn || !menuOrcamentosPainel) return;
-    menuOrcamentosPainel.hidden = true;
-    menuOrcamentosBtn.setAttribute("aria-expanded", "false");
-  }
-
   function setHistorico(aberto) {
     var modal = document.querySelector("[data-historico]");
     var fundo = document.querySelector("[data-historico-overlay]");
     if (modal) modal.hidden = !aberto;
     if (fundo) fundo.hidden = !aberto;
-    if (!aberto) return;
-    fecharMenuOrcamentos();
-    renderRecentes();
-  }
-
-  if (menuOrcamentosBtn && menuOrcamentosPainel) {
-    menuOrcamentosBtn.addEventListener("click", function () {
-      var abrir = menuOrcamentosPainel.hidden;
-      menuOrcamentosPainel.hidden = !abrir;
-      menuOrcamentosBtn.setAttribute("aria-expanded", abrir ? "true" : "false");
-    });
+    if (aberto) renderRecentes();
   }
 
   document.querySelectorAll("[data-abrir-historico]").forEach(function (botao) {
@@ -258,15 +238,9 @@
     botao.addEventListener("click", function () { setHistorico(false); });
   });
 
-  document.addEventListener("click", function (event) {
-    if (menuOrcamentos && menuOrcamentos.contains(event.target)) return;
-    fecharMenuOrcamentos();
-  });
-
   document.addEventListener("keydown", function (event) {
     if (event.key !== "Escape") return;
     setHistorico(false);
-    fecharMenuOrcamentos();
   });
 
   var recentesLista = document.querySelector("[data-recentes-lista]");
@@ -1212,7 +1186,7 @@
       var editar = document.createElement("button");
       editar.type = "button";
       editar.setAttribute("data-editar-orcamento", item.id);
-      editar.textContent = "Editar/Recarregar";
+      editar.textContent = "Alterar";
       acoes.appendChild(abrir);
       acoes.appendChild(editar);
       linha.appendChild(quando);
