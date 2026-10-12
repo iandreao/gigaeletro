@@ -233,12 +233,21 @@
     });
   }
 
+  var documentoConsulta = "";
+
   function setHistorico(aberto) {
     var modal = document.querySelector("[data-historico]");
     var fundo = document.querySelector("[data-historico-overlay]");
     if (modal) modal.hidden = !aberto;
     if (fundo) fundo.hidden = !aberto;
-    if (aberto) renderRecentes();
+    if (!aberto) return;
+    documentoConsulta = "";
+    var campoBusca = document.querySelector("[data-historico-documento]");
+    var erroBusca = document.querySelector("[data-historico-erro]");
+    if (campoBusca) campoBusca.value = "";
+    if (erroBusca) erroBusca.hidden = true;
+    renderRecentes();
+    if (campoBusca) window.setTimeout(function () { campoBusca.focus(); }, 0);
   }
 
   document.querySelectorAll("[data-abrir-historico]").forEach(function (botao) {
@@ -252,6 +261,17 @@
     if (event.key !== "Escape") return;
     setHistorico(false);
   });
+
+  var buscaHistorico = document.querySelector("[data-historico-busca]");
+  if (buscaHistorico) {
+    var campoBusca = buscaHistorico.querySelector("[data-historico-documento]");
+    if (campoBusca) {
+      campoBusca.addEventListener("input", function () {
+        aplicarMascaraBusca(campoBusca);
+      });
+    }
+    buscaHistorico.addEventListener("submit", buscarHistorico);
+  }
 
   var recentesLista = document.querySelector("[data-recentes-lista]");
   if (recentesLista) {
@@ -1154,9 +1174,60 @@
     };
   }
 
-  function documentoDigitado() {
-    var campo = formCliente && formCliente.elements.documento;
-    return apenasDigitos(campo ? campo.value : "");
+  function mascaraBuscaDocumento(digitos) {
+    var d = String(digitos || "").replace(/\D/g, "").slice(0, 14);
+    if (d.length <= 11) {
+      var cpf = d.slice(0, 3);
+      if (d.length > 3) cpf += "." + d.slice(3, 6);
+      if (d.length > 6) cpf += "." + d.slice(6, 9);
+      if (d.length > 9) cpf += "-" + d.slice(9, 11);
+      return cpf;
+    }
+    var cnpj = d.slice(0, 2);
+    if (d.length > 2) cnpj += "." + d.slice(2, 5);
+    if (d.length > 5) cnpj += "." + d.slice(5, 8);
+    if (d.length > 8) cnpj += "/" + d.slice(8, 12);
+    if (d.length > 12) cnpj += "-" + d.slice(12, 14);
+    return cnpj;
+  }
+
+  function aplicarMascaraBusca(campo) {
+    if (!campo) return;
+    var inicio = campo.selectionStart;
+    var digitosAntes = apenasDigitos(String(campo.value || "").slice(0, inicio == null ? 0 : inicio)).length;
+    if (digitosAntes > 14) digitosAntes = 14;
+    var formatado = mascaraBuscaDocumento(campo.value);
+    if (campo.value !== formatado) campo.value = formatado;
+    if (document.activeElement === campo && campo.setSelectionRange) {
+      var nova = posicaoAposDigitos(campo.value, digitosAntes);
+      campo.setSelectionRange(nova, nova);
+    }
+  }
+
+  function documentoBuscaValido(digitos) {
+    if (digitos.length === 11) return cpfValido(digitos);
+    if (digitos.length === 14) return cnpjValido(digitos);
+    return false;
+  }
+
+  function buscarHistorico(event) {
+    if (event) event.preventDefault();
+    var campo = document.querySelector("[data-historico-documento]");
+    var erro = document.querySelector("[data-historico-erro]");
+    var digitos = apenasDigitos(campo ? campo.value : "");
+    if (!documentoBuscaValido(digitos)) {
+      documentoConsulta = "";
+      if (erro) {
+        erro.hidden = false;
+        erro.textContent = "CPF ou CNPJ inválido";
+      }
+      renderRecentes();
+      if (campo) campo.focus();
+      return;
+    }
+    documentoConsulta = digitos;
+    if (erro) erro.hidden = true;
+    renderRecentes();
   }
 
   function documentoDoRegistro(item) {
@@ -1215,20 +1286,16 @@
     var vazio = document.querySelector("[data-historico-vazio]");
     if (!lista) return;
     lista.textContent = "";
-    var documento = documentoDigitado();
-    if (!documento) {
-      if (vazio) {
-        vazio.hidden = false;
-        vazio.textContent = "Por favor, digite seu CPF ou CNPJ no formulário para consultar seu histórico de orçamentos.";
-      }
+    if (!documentoConsulta) {
+      if (vazio) vazio.hidden = true;
       return;
     }
     var itens = lerRecentes().filter(function (item) {
-      return documentoDoRegistro(item) === documento;
+      return documentoDoRegistro(item) === documentoConsulta;
     });
     if (vazio) {
       vazio.hidden = itens.length > 0;
-      vazio.textContent = "Nenhum orçamento salvo para este CPF/CNPJ.";
+      vazio.textContent = "Nenhum orçamento salvo para este CPF/CNPJ";
     }
     itens.forEach(function (item) {
       var linha = document.createElement("li");

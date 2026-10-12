@@ -696,6 +696,12 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
 .drawer-foot .btn { width: 100%; }
 .historico-modal { width: min(560px, calc(100% - 1.5rem)); }
 .historico-corpo { padding: 0.35rem 1.1rem 1.1rem; }
+.historico-instrucao { margin: 0.7rem 0 0.75rem; color: var(--ink); font-size: 0.95rem; font-weight: 700; line-height: 1.45; }
+.historico-busca-linha { display: flex; align-items: center; gap: 0.6rem; }
+.historico-busca-linha input { flex: 1; min-width: 0; }
+.historico-busca-linha .btn { flex: none; min-height: 48px; }
+.historico-erro { margin: 0.45rem 0 0; color: #b91c1c; font-size: 0.85rem; font-weight: 700; }
+.historico-erro[hidden] { display: none; }
 .historico-vazio { margin: 0.85rem 0; color: var(--muted); font-size: 0.95rem; font-weight: 600; line-height: 1.45; }
 .historico-vazio[hidden] { display: none; }
 .historico-lista {
