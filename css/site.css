@@ -817,16 +817,6 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
   .hero-photo { display: none; }
   .hero-acao { order: 2; grid-column: 1; grid-row: auto; align-self: stretch; }
   body.home .hero { overflow: auto; }
-  .catalogo-modal {
-    top: 12px;
-    left: 12px;
-    right: auto;
-    bottom: auto;
-    transform: none;
-    width: min(520px, calc(100vw - var(--orcamento) - 24px));
-    height: min(70vh, 640px);
-    max-height: none;
-  }
   .grid { grid-template-columns: 1fr; }
   .tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 0.3rem; }
   .tabs button { flex: none; }
@@ -1438,3 +1428,62 @@ body { padding-bottom: 0; }
 .admin-page h1 { font-size: clamp(1.8rem, 3vw, 2.6rem); margin-bottom: 0.4rem; }
 .admin-page .admin-body { margin-top: 1rem; }
 .admin-page .drop-cliente { margin-top: 0.2rem; }
+
+@media (max-width: 760px) {
+  body.home {
+    --fecho-mobile: 11.25rem;
+    padding-bottom: calc(var(--fecho-mobile) + env(safe-area-inset-bottom, 0px));
+  }
+  .catalogo-modal {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: auto;
+    transform: none;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: min(65vh, calc(100dvh - var(--fecho-mobile) - env(safe-area-inset-bottom, 0px)));
+    border-radius: 0 0 1rem 1rem;
+    overflow: hidden;
+  }
+  .catalogo-modal .catalog-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow: auto;
+    align-content: start;
+  }
+  .catalogo-modal .catalog-list > .resumo-vazio { grid-column: 1 / -1; }
+  .catalogo-modal .catalog-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+    min-width: 0;
+    padding: 0.45rem;
+  }
+  .catalogo-modal .catalog-buy {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.28rem;
+  }
+  .catalogo-modal .catalog-row .preco strong { white-space: normal; }
+  .catalogo-modal .add-mini { width: 100%; white-space: normal; }
+  body.home .quote-side .drawer-foot {
+    position: fixed;
+    z-index: 48;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0.4rem 0.75rem calc(0.45rem + env(safe-area-inset-bottom, 0px));
+    background: var(--white);
+    border-top: 1px solid #000;
+    box-shadow: 0 -6px 16px rgba(17, 24, 39, 0.12);
+  }
+  body.home .quote-side .drawer-foot .btn { width: 100%; }
+}

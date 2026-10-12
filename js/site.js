@@ -16,8 +16,21 @@
       painel.classList.remove("is-arrastando");
     }
 
+    var celular = window.matchMedia("(max-width: 760px)");
+
+    function limparArraste() {
+      if (!celular.matches) return;
+      painel.style.left = "";
+      painel.style.top = "";
+      painel.style.right = "";
+      painel.style.bottom = "";
+    }
+
+    limparArraste();
+    if (celular.addEventListener) celular.addEventListener("change", limparArraste);
+
     painel.addEventListener("pointerdown", function (evento) {
-      if (evento.button !== 0 || !podeArrastar(evento.target)) return;
+      if (celular.matches || evento.button !== 0 || !podeArrastar(evento.target)) return;
       arrastando = true;
       painel.classList.add("is-arrastando");
       var caixa = painel.getBoundingClientRect();
