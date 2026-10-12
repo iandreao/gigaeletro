@@ -497,6 +497,67 @@
     return null;
   }
 
+  function destinoWhatsApp() {
+    var digitos = String(WHATSAPP).replace(/\D/g, "");
+    if (digitos.indexOf("55") !== 0) digitos = "55" + digitos;
+    return digitos;
+  }
+
+  function textoOrcamento(cliente, subtotal, link) {
+    var endereco = [cliente.endereco, cliente.numero, cliente.bairro, cliente.cidade, cliente.uf, cliente.cep].filter(Boolean).join(", ");
+    var linhas = [
+      "Olá, Gigaeletro! Montei meu orçamento no site.",
+      "",
+      "Cliente: " + cliente.nome,
+      "Documento: " + cliente.documento,
+      "Celular: " + cliente.celular,
+      "E-mail: " + cliente.email,
+      "Endereço: " + endereco,
+      "",
+      "Produtos:"
+    ];
+    selecionados.forEach(function (item, indice) {
+      linhas.push(
+        (indice + 1) + ". " + item.produto +
+        " — Cód: " + item.codigo +
+        " — Qtd: " + item.qtd +
+        " — Vlr. Unit: " + numero(item.preco) +
+        " — Valor: " + numero(item.preco * item.qtd)
+      );
+    });
+    linhas.push(
+      "",
+      "Total estimado: " + moeda(subtotal),
+      "",
+      "Segue orçamento no valor de " + moeda(subtotal) + ", cujos itens estão listados no anexo. Aguardamos o retorno. Desde já agradecemos a atenção de sempre.",
+      "",
+      "📄 Link para visualizar ou baixar o PDF do meu orçamento completo: " + link
+    );
+    return linhas.join("\n");
+  }
+
+  function urlWhatsApp(texto) {
+    return "https://wa.me/" + destinoWhatsApp() + "?text=" + encodeURIComponent(texto);
+  }
+
+  function abrirJanelaWhatsApp() {
+    try {
+      return window.open("about:blank", "_blank");
+    } catch (erro) {
+      return null;
+    }
+  }
+
+  function dispararWhatsApp(texto, janela) {
+    var url = urlWhatsApp(texto);
+    if (janela && !janela.closed) {
+      janela.location.href = url;
+      return;
+    }
+    var aberta = window.open(url, "_blank");
+    if (!aberta) window.location.href = url;
+  }
+
   function enviarWhatsApp() {
     setCatalogo(false);
     if (!selecionados.length) {
@@ -528,6 +589,7 @@
     envioEmCurso = true;
     if (enviar) enviar.disabled = true;
     if (avisoEnvio) avisoEnvio.hidden = true;
+    var janelaWhatsApp = abrirJanelaWhatsApp();
     fetch("/api/orcamento-pdf", { method: "POST", body: dados }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
         if (!resposta.ok || !publicado || !publicado.url) {
@@ -545,22 +607,13 @@
       cliente.tipo = tipoPessoa();
       gravarRecente(idSalvo, subtotal, selecionados, cliente);
       renderRecentes();
+      var texto = textoOrcamento(cliente, subtotal, link);
       limparDepoisDoEnvio();
-      var texto = [
-        "Olá, Gigaeletro! Montei meu orçamento no site.",
-        "",
-        "Segue orçamento no valor de " + moeda(subtotal) + ", cujos itens estão listados no anexo. Aguardamos o retorno. Desde já agradecemos a atenção de sempre.",
-        "",
-        cliente.nome + " – Contato: " + cliente.celular,
-        "",
-        "📄 Link para visualizar ou baixar o PDF do meu orçamento completo: " + link
-      ].join("\n");
-      var textoUrl = encodeURIComponent(texto);
-      var noComputador = !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
-      window.location.href = noComputador
-        ? "whatsapp://send?phone=" + WHATSAPP + "&text=" + textoUrl
-        : "https://wa.me/" + WHATSAPP + "?text=" + textoUrl;
+      dispararWhatsApp(texto, janelaWhatsApp);
+      janelaWhatsApp = null;
     }).catch(function (falha) {
+      if (janelaWhatsApp && !janelaWhatsApp.closed) janelaWhatsApp.close();
+      janelaWhatsApp = null;
       mostrarAviso(falha && falha.message === "Dado Inválido" ? "Dado Inválido" : "Não consegui publicar o PDF. Tente enviar de novo.");
     }).then(function () {
       envioEmCurso = false;
