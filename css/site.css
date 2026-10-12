@@ -1202,19 +1202,21 @@ body.home .quote-side {
 .quote-side .cart-item { padding: 0.32rem 0; }
 .quote-side .cart-nome {
   margin: 0 0 0.12rem;
-  font-size: 13px;
-  font-weight: 700;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 300;
   line-height: 1.15;
 }
+.quote-side .cart-prod { color: #1f2937; font-weight: 700; }
 .quote-side .cart-compacta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.18rem 0.32rem;
   margin: 0;
-  color: var(--muted);
+  color: #374151;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.15;
 }
 .quote-side .cart-qtd {
@@ -1242,24 +1244,26 @@ body.home .quote-side {
 .quote-side .qtd-btn:hover { background: var(--yellow-50); }
 .quote-side .qtd-num {
   min-width: 1rem;
-  color: var(--ink);
-  font-weight: 800;
+  color: #374151;
+  font-weight: 400;
   text-align: center;
 }
 .quote-side .cart-div { color: var(--line); }
-.quote-side .cart-compacta strong { color: var(--ink); font-weight: 800; }
+.quote-side .cart-compacta strong { color: #111827; font-weight: 700; }
 .quote-side .cart-item .remover {
   min-height: 0;
-  margin: 0;
+  margin: 0 0 0 auto;
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--muted);
+  color: #ef4444;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.15;
-  text-decoration: underline;
+  text-decoration: none;
 }
+.quote-side .cart-item .remover:hover,
+.quote-side .cart-item .remover:focus-visible { text-decoration: underline; }
 .quote-side .estimado {
   margin: 0;
   color: var(--muted);

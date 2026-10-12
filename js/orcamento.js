@@ -455,17 +455,17 @@
       var codigo = escapar(item.codigo);
       return (
         '<li class="cart-item">' +
-          '<p class="cart-nome">' + escapar(item.produto) + "</p>" +
+          '<p class="cart-nome"><strong class="cart-prod">Prod.: </strong><span>' + escapar(item.produto) + "</span></p>" +
           '<div class="cart-compacta">' +
-            '<span class="cart-qtd">Qtd: ' +
+            '<span class="cart-qtd"><strong>Qtd:</strong> ' +
               '<button class="qtd-btn" type="button" data-acao="menos" data-id="' + codigo + '" aria-label="Diminuir quantidade">−</button>' +
               '<span class="qtd-num" data-qtd="' + codigo + '">' + item.qtd + "</span>" +
               '<button class="qtd-btn" type="button" data-acao="mais" data-id="' + codigo + '" aria-label="Aumentar quantidade">+</button>' +
             "</span>" +
             '<span class="cart-div" aria-hidden="true">|</span>' +
-            "<span>Un: " + moeda(item.preco) + "</span>" +
+            "<span><strong>Un:</strong> " + moeda(item.preco) + "</span>" +
             '<span class="cart-div" aria-hidden="true">|</span>' +
-            '<span>Total: <strong data-linha-total="' + codigo + '">' + moeda(item.preco * item.qtd) + "</strong></span>" +
+            '<span><strong>Total:</strong> <span data-linha-total="' + codigo + '">' + moeda(item.preco * item.qtd) + "</span></span>" +
             '<button class="remover" type="button" data-acao="remover" data-id="' + codigo + '">Remover</button>' +
           "</div>" +
         "</li>"
