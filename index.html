@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=50">
+  <link rel="stylesheet" href="css/site.css?v=51">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -36,8 +36,18 @@
   <p class="sr-only" data-cart-status aria-live="polite"></p>
   <header class="site-header">
     <div class="wrap bar">
-      <a class="brand" href="#inicio">
-        <img src="assets/logo.png?v=2" width="148" height="40" alt="Gigaeletro Material Elétrico">
+      <a class="brand" href="#inicio" aria-label="Gigaeletro Material Elétrico">
+        <svg class="logo-placa" viewBox="0 -8 448 128" role="img" aria-hidden="true">
+          <text class="logo-g" x="0" y="84" textLength="66" lengthAdjust="spacing">G</text>
+          <path class="logo-raio" d="M56 26 L42 52 H54 L38 82 L70 46 H56 Z"/>
+          <text class="logo-nome" x="74" y="84" textLength="296" lengthAdjust="spacing">gaEletr</text>
+          <g class="logo-tomada" transform="translate(404 52)">
+            <circle cx="0" cy="0" r="22"/>
+            <rect x="17" y="-9" width="15" height="5.5" rx="1.5"/>
+            <rect x="17" y="3.5" width="15" height="5.5" rx="1.5"/>
+          </g>
+          <text class="logo-sub" x="162" y="114" textLength="230" lengthAdjust="spacing">Material Elétrico</text>
+        </svg>
       </a>
       <nav id="menu" class="nav" aria-label="Seções">
         <a href="#inicio">Início</a>
