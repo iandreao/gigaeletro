@@ -1049,8 +1049,8 @@
           String(item.codigo),
           String(item.produto),
           String(item.qtd),
-          moeda(item.preco),
-          moeda(item.preco * item.qtd)
+          numero(item.preco),
+          numero(item.preco * item.qtd)
         ];
       }),
       columnStyles: {
