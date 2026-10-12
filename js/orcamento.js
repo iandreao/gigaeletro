@@ -462,8 +462,8 @@
               '<span class="qtd-num" data-qtd="' + codigo + '">' + item.qtd + "</span>" +
               '<button class="qtd-btn" type="button" data-acao="mais" data-id="' + codigo + '" aria-label="Aumentar quantidade">+</button>' +
             "</span>" +
-            '<span class="cart-unit"><strong>Vlr. Unit:</strong> ' + moeda(item.preco) + "</span>" +
-            '<span class="cart-valor"><strong>Valor:</strong> <span data-linha-total="' + codigo + '">' + moeda(item.preco * item.qtd) + "</span></span>" +
+            '<span class="cart-unit"><strong>Vlr. Unit:</strong><span>' + numero(item.preco) + "</span></span>" +
+            '<span class="cart-valor"><strong>Valor:</strong><span data-linha-total="' + codigo + '">' + numero(item.preco * item.qtd) + "</span></span>" +
             '<button class="remover" type="button" data-acao="remover" data-id="' + codigo + '">Remover</button>' +
           "</div>" +
         "</li>"
@@ -478,7 +478,7 @@
       Array.prototype.forEach.call(resumoEl.querySelectorAll("[data-linha-total]"), function (el) {
         var codigo = el.getAttribute("data-linha-total");
         var item = selecionados.find(function (atual) { return atual.codigo === codigo; });
-        if (item) el.textContent = moeda(item.preco * item.qtd);
+        if (item) el.textContent = numero(item.preco * item.qtd);
       });
     }
     liberarEnvio();
@@ -1343,10 +1343,14 @@
     sessionStorage.setItem(CHAVE_PEDIDO, JSON.stringify(selecionados));
   }
 
-  function moeda(valor) {
+  function numero(valor) {
     var partes = Math.abs(Number(valor) || 0).toFixed(2).split(".");
     var inteiro = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    return "R$ " + inteiro + "," + partes[1];
+    return inteiro + "," + partes[1];
+  }
+
+  function moeda(valor) {
+    return "R$ " + numero(valor);
   }
 
   function normalizar(valor) {
