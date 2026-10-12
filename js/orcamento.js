@@ -529,33 +529,23 @@
       "",
       "Total estimado: " + moeda(subtotal),
       "",
-      "Segue orçamento no valor de " + moeda(subtotal) + ", cujos itens estão listados no anexo. Aguardamos o retorno. Desde já agradecemos a atenção de sempre.",
-      "",
-      "📄 Link para visualizar ou baixar o PDF do meu orçamento completo: " + link
+      "Segue orçamento no valor de " + moeda(subtotal) + ", cujos itens estão listados no anexo. Aguardamos o retorno. Desde já agradecemos a atenção de sempre."
     );
+    if (link) {
+      linhas.push(
+        "",
+        "📄 Link para visualizar ou baixar o PDF do meu orçamento completo: " + link
+      );
+    }
     return linhas.join("\n");
   }
 
   function urlWhatsApp(texto) {
-    return "https://wa.me/" + destinoWhatsApp() + "?text=" + encodeURIComponent(texto);
+    return "https://api.whatsapp.com/send/?phone=" + destinoWhatsApp() + "&text=" + encodeURIComponent(texto) + "&type=phone_number&app_absent=0";
   }
 
-  function abrirJanelaWhatsApp() {
-    try {
-      return window.open("about:blank", "_blank");
-    } catch (erro) {
-      return null;
-    }
-  }
-
-  function dispararWhatsApp(texto, janela) {
-    var url = urlWhatsApp(texto);
-    if (janela && !janela.closed) {
-      janela.location.href = url;
-      return;
-    }
-    var aberta = window.open(url, "_blank");
-    if (!aberta) window.location.href = url;
+  function dispararWhatsApp(texto) {
+    window.location.assign(urlWhatsApp(texto));
   }
 
   function enviarWhatsApp() {
@@ -589,7 +579,7 @@
     envioEmCurso = true;
     if (enviar) enviar.disabled = true;
     if (avisoEnvio) avisoEnvio.hidden = true;
-    var janelaWhatsApp = abrirJanelaWhatsApp();
+    var textoSemPdf = textoOrcamento(cliente, subtotal, "");
     fetch("/api/orcamento-pdf", { method: "POST", body: dados }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
         if (!resposta.ok || !publicado || !publicado.url) {
@@ -609,12 +599,10 @@
       renderRecentes();
       var texto = textoOrcamento(cliente, subtotal, link);
       limparDepoisDoEnvio();
-      dispararWhatsApp(texto, janelaWhatsApp);
-      janelaWhatsApp = null;
-    }).catch(function (falha) {
-      if (janelaWhatsApp && !janelaWhatsApp.closed) janelaWhatsApp.close();
-      janelaWhatsApp = null;
-      mostrarAviso(falha && falha.message === "Dado Inválido" ? "Dado Inválido" : "Não consegui publicar o PDF. Tente enviar de novo.");
+      dispararWhatsApp(texto);
+    }, function () {
+      limparDepoisDoEnvio();
+      dispararWhatsApp(textoSemPdf);
     }).then(function () {
       envioEmCurso = false;
       liberarEnvio();
