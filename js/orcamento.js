@@ -27,8 +27,6 @@
   var consultaCep = 0;
   var cepPedido = "";
   var envioEmCurso = false;
-  var orcamentoEmEdicao = false;
-  var orcamentoEmEdicao = false;
   var sugestaoAtiva = -1;
 
   if (buscaEl) {
@@ -221,7 +219,17 @@
     ativo.focus();
   }, true);
 
-  if (enviar) enviar.addEventListener("click", enviarWhatsApp);
+  if (enviar) {
+    enviar.textContent = "Enviar Orçamento";
+    enviar.addEventListener("click", enviarWhatsApp);
+  }
+
+  var inicio = document.querySelector('.nav a[href="#inicio"]');
+  if (inicio) {
+    inicio.addEventListener("click", function () {
+      limparDepoisDoEnvio();
+    });
+  }
 
   function setHistorico(aberto) {
     var modal = document.querySelector("[data-historico]");
@@ -629,13 +637,7 @@
     selecionados = [];
     salvarPedido();
     renderResumo();
-    orcamentoEmEdicao = false;
-    rotuloEnvio();
-  }
-
-  function rotuloEnvio() {
-    if (!enviar) return;
-    enviar.textContent = orcamentoEmEdicao ? "Atualizar Orçamento" : "Enviar Orçamento";
+    if (enviar) enviar.textContent = "Enviar Orçamento";
   }
 
   function preencherCliente(cliente) {
@@ -1151,8 +1153,7 @@
     salvarPedido();
     renderResumo();
     if (registro.cliente) preencherCliente(registro.cliente);
-    orcamentoEmEdicao = true;
-    rotuloEnvio();
+    if (enviar) enviar.textContent = "Enviar Orçamento";
     liberarEnvio();
     if (avisoEnvio) avisoEnvio.hidden = true;
     if (resumoEl) resumoEl.scrollTop = 0;
