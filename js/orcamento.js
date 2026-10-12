@@ -1054,12 +1054,17 @@
         ];
       }),
       columnStyles: {
-        0: { cellWidth: wItens, halign: "center" },
-        1: { cellWidth: wCodigo },
-        2: { cellWidth: wNome },
-        3: { cellWidth: wQte, halign: "right" },
+        0: { cellWidth: wItens, halign: "left" },
+        1: { cellWidth: wCodigo, halign: "left" },
+        2: { cellWidth: wNome, halign: "left" },
+        3: { cellWidth: wQte, halign: "center" },
         4: { cellWidth: wUnitario, halign: "right" },
         5: { cellWidth: wValor, halign: "right" }
+      },
+      didParseCell: function (data) {
+        if (data.section !== "head" && data.section !== "body") return;
+        var alinhamento = ["left", "left", "left", "center", "right", "right"];
+        data.cell.styles.halign = alinhamento[data.column.index] || "left";
       }
     });
 
