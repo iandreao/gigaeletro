@@ -80,6 +80,7 @@
   });
 
   menu.querySelectorAll("a, button").forEach(function (link) {
+    if (link.classList.contains("nav-drop-btn")) return;
     link.addEventListener("click", function () {
       setOpen(false);
     });

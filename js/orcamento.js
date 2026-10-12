@@ -223,12 +223,59 @@
 
   if (enviar) enviar.addEventListener("click", enviarWhatsApp);
 
+  var menuOrcamentos = document.querySelector("[data-menu-orcamentos]");
+  var menuOrcamentosBtn = menuOrcamentos && menuOrcamentos.querySelector(".nav-drop-btn");
+  var menuOrcamentosPainel = document.getElementById("menu-orcamentos");
+
+  function fecharMenuOrcamentos() {
+    if (!menuOrcamentosBtn || !menuOrcamentosPainel) return;
+    menuOrcamentosPainel.hidden = true;
+    menuOrcamentosBtn.setAttribute("aria-expanded", "false");
+  }
+
+  function setHistorico(aberto) {
+    var modal = document.querySelector("[data-historico]");
+    var fundo = document.querySelector("[data-historico-overlay]");
+    if (modal) modal.hidden = !aberto;
+    if (fundo) fundo.hidden = !aberto;
+    if (!aberto) return;
+    fecharMenuOrcamentos();
+    renderRecentes();
+  }
+
+  if (menuOrcamentosBtn && menuOrcamentosPainel) {
+    menuOrcamentosBtn.addEventListener("click", function () {
+      var abrir = menuOrcamentosPainel.hidden;
+      menuOrcamentosPainel.hidden = !abrir;
+      menuOrcamentosBtn.setAttribute("aria-expanded", abrir ? "true" : "false");
+    });
+  }
+
+  document.querySelectorAll("[data-abrir-historico]").forEach(function (botao) {
+    botao.addEventListener("click", function () { setHistorico(true); });
+  });
+  document.querySelectorAll("[data-fechar-historico]").forEach(function (botao) {
+    botao.addEventListener("click", function () { setHistorico(false); });
+  });
+
+  document.addEventListener("click", function (event) {
+    if (menuOrcamentos && menuOrcamentos.contains(event.target)) return;
+    fecharMenuOrcamentos();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape") return;
+    setHistorico(false);
+    fecharMenuOrcamentos();
+  });
+
   var recentesLista = document.querySelector("[data-recentes-lista]");
   if (recentesLista) {
     recentesLista.addEventListener("click", function (event) {
       var botao = event.target.closest("[data-editar-orcamento]");
       if (!botao) return;
       editarRecente(botao.getAttribute("data-editar-orcamento"));
+      setHistorico(false);
     });
   }
 
@@ -1145,39 +1192,33 @@
   }
 
   function renderRecentes() {
-    var bloco = document.querySelector("[data-recentes]");
     var lista = document.querySelector("[data-recentes-lista]");
-    if (!bloco || !lista) return;
+    var vazio = document.querySelector("[data-historico-vazio]");
+    if (!lista) return;
     var itens = lerRecentes();
     lista.textContent = "";
-    if (!itens.length) {
-      bloco.hidden = true;
-      return;
-    }
+    if (vazio) vazio.hidden = itens.length > 0;
     itens.forEach(function (item) {
       var linha = document.createElement("li");
       var quando = document.createElement("span");
       quando.textContent = formatarEnvio(item.data) + " · " + moeda(item.total);
       var acoes = document.createElement("span");
-      acoes.className = "recentes-acoes";
+      acoes.className = "historico-acoes";
       var abrir = document.createElement("a");
       abrir.href = SITE_PDF + "/api/ver-pdf?id=" + encodeURIComponent(item.id);
       abrir.target = "_blank";
       abrir.rel = "noopener noreferrer";
-      abrir.textContent = "Abrir PDF";
+      abrir.textContent = "Visualizar";
       var editar = document.createElement("button");
       editar.type = "button";
       editar.setAttribute("data-editar-orcamento", item.id);
-      editar.setAttribute("aria-label", "Recarregar orçamento");
-      editar.title = "Recarregar orçamento";
-      editar.textContent = "Editar";
+      editar.textContent = "Editar/Recarregar";
       acoes.appendChild(abrir);
       acoes.appendChild(editar);
       linha.appendChild(quando);
       linha.appendChild(acoes);
       lista.appendChild(linha);
     });
-    bloco.hidden = false;
   }
 
   function carregarPedido() {

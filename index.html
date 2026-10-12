@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=37">
+  <link rel="stylesheet" href="css/site.css?v=38">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -43,7 +43,12 @@
         <a href="#inicio">Início</a>
         <button type="button" data-abrir-catalogo>Produtos</button>
         <a href="#quem-somos">Quem Somos</a>
-        <a href="#carrinho">Enviar Lista</a>
+        <div class="nav-drop" data-menu-orcamentos>
+          <button type="button" class="nav-drop-btn" aria-expanded="false" aria-haspopup="true" aria-controls="menu-orcamentos">Meus Orçamentos</button>
+          <div class="nav-drop-painel" id="menu-orcamentos" hidden>
+            <button type="button" data-abrir-historico>Histórico de Orçamentos</button>
+          </div>
+        </div>
         <button type="button" data-abrir-restrita>Área Restrita</button>
       </nav>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="menu">
@@ -130,12 +135,6 @@
             <p class="legal">Os preços são do catálogo do dia. O valor final, o estoque e o frete são confirmados no WhatsApp.</p>
             <p class="aviso" data-envio-aviso hidden></p>
             <button class="btn btn-lg" type="button" data-enviar disabled>Enviar Orçamento</button>
-            <section class="orcamentos-recentes" data-recentes hidden>
-              <h3>Orçamentos Recentes</h3>
-              <div class="recentes-rolagem" data-recentes-rolagem>
-                <ul data-recentes-lista></ul>
-              </div>
-            </section>
           </div>
         </aside>
         <footer class="site-footer" id="quem-somos">
@@ -180,6 +179,18 @@
     <div class="catalog-list" data-catalogo></div>
   </div>
 
+  <div class="overlay" data-historico-overlay data-fechar-historico hidden></div>
+  <div class="modal historico-modal" data-historico hidden role="dialog" aria-modal="true" aria-labelledby="titulo-historico">
+    <div class="drawer-head">
+      <h2 id="titulo-historico">Histórico de Orçamentos</h2>
+      <button type="button" data-fechar-historico aria-label="Fechar">×</button>
+    </div>
+    <div class="historico-corpo">
+      <p class="historico-vazio" data-historico-vazio>Nenhum orçamento salvo neste navegador.</p>
+      <ul class="historico-lista" data-recentes-lista></ul>
+    </div>
+  </div>
+
   <div class="overlay" data-fechar-restrita hidden></div>
   <div class="modal" data-restrita hidden role="dialog" aria-modal="true" aria-labelledby="titulo-restrita">
     <div class="drawer-head">
@@ -198,7 +209,7 @@
 
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
-  <script src="js/site.js?v=8"></script>
-  <script src="js/orcamento.js?v=32"></script>
+  <script src="js/site.js?v=9"></script>
+  <script src="js/orcamento.js?v=33"></script>
 </body>
 </html>
