@@ -192,7 +192,7 @@
       var campo = event.target;
       if (!campoMonitorado(campo) || !valorInvalido(campo)) return;
       var destino = event.relatedTarget;
-      if (destino && destino.closest && (destino.closest(".tipo-pessoa") || destino.closest("[data-historico]") || destino.closest("[data-editar-orcamento]"))) return;
+      if (destino && destino.closest && (destino.closest(".tipo-pessoa") || destino.closest("[data-historico]") || destino.closest("[data-editar-orcamento]") || destino.closest("[data-abrir-historico]"))) return;
       window.setTimeout(function () {
         if (valorInvalido(campo) && document.activeElement !== campo) campo.focus();
       }, 0);
@@ -204,7 +204,7 @@
     var ativo = document.activeElement;
     if (!campoMonitorado(ativo) || !formCliente || !formCliente.contains(ativo) || !valorInvalido(ativo)) return;
     if (ativo === event.target || ativo.contains(event.target)) return;
-    if (event.target.closest && (event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]"))) return;
+    if (event.target.closest && (event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
     event.preventDefault();
     mostrarDadoInvalido(ativo);
     ativo.focus();
@@ -213,7 +213,7 @@
   document.addEventListener("click", function (event) {
     var ativo = document.activeElement;
     if (!campoMonitorado(ativo) || !valorInvalido(ativo)) return;
-    if (event.target.closest && (event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]"))) return;
+    if (event.target.closest && (event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
     if (ativo.contains(event.target)) return;
     event.preventDefault();
     event.stopPropagation();
@@ -1154,12 +1154,24 @@
     };
   }
 
+  function documentoDigitado() {
+    var campo = formCliente && formCliente.elements.documento;
+    return apenasDigitos(campo ? campo.value : "");
+  }
+
+  function documentoDoRegistro(item) {
+    if (!item) return "";
+    return apenasDigitos(item.documento || (item.cliente && item.cliente.documento) || "");
+  }
+
   function gravarRecente(id, total, itens, cliente) {
     if (!id) return;
+    var documento = apenasDigitos(cliente && cliente.documento);
     var lista = lerRecentes().filter(function (item) { return item.id !== id; });
     lista.unshift({
       data: new Date().toISOString(),
       id: String(id),
+      documento: documento,
       total: Number(total) || 0,
       itens: copiarItens(itens),
       cliente: copiarCliente(cliente)
@@ -1202,9 +1214,22 @@
     var lista = document.querySelector("[data-recentes-lista]");
     var vazio = document.querySelector("[data-historico-vazio]");
     if (!lista) return;
-    var itens = lerRecentes();
     lista.textContent = "";
-    if (vazio) vazio.hidden = itens.length > 0;
+    var documento = documentoDigitado();
+    if (!documento) {
+      if (vazio) {
+        vazio.hidden = false;
+        vazio.textContent = "Por favor, digite seu CPF ou CNPJ no formulário para consultar seu histórico de orçamentos.";
+      }
+      return;
+    }
+    var itens = lerRecentes().filter(function (item) {
+      return documentoDoRegistro(item) === documento;
+    });
+    if (vazio) {
+      vazio.hidden = itens.length > 0;
+      vazio.textContent = "Nenhum orçamento salvo para este CPF/CNPJ.";
+    }
     itens.forEach(function (item) {
       var linha = document.createElement("li");
       var quando = document.createElement("span");
