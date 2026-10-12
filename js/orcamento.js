@@ -27,6 +27,7 @@
   var consultaCep = 0;
   var cepPedido = "";
   var envioEmCurso = false;
+  var restaurandoCliente = false;
   var sugestaoAtiva = -1;
 
   if (buscaEl) {
@@ -177,6 +178,7 @@
       liberarEnvio();
     });
     formCliente.addEventListener("change", function (event) {
+      if (restaurandoCliente) return;
       if (event.target && event.target.name === "tipo") limparCamposCliente();
     });
     formCliente.addEventListener("keydown", function (event) {
@@ -190,7 +192,7 @@
       var campo = event.target;
       if (!campoMonitorado(campo) || !valorInvalido(campo)) return;
       var destino = event.relatedTarget;
-      if (destino && destino.closest && destino.closest(".tipo-pessoa")) return;
+      if (destino && destino.closest && (destino.closest(".tipo-pessoa") || destino.closest("[data-historico]") || destino.closest("[data-editar-orcamento]"))) return;
       window.setTimeout(function () {
         if (valorInvalido(campo) && document.activeElement !== campo) campo.focus();
       }, 0);
@@ -202,7 +204,7 @@
     var ativo = document.activeElement;
     if (!campoMonitorado(ativo) || !formCliente || !formCliente.contains(ativo) || !valorInvalido(ativo)) return;
     if (ativo === event.target || ativo.contains(event.target)) return;
-    if (event.target.closest && event.target.closest(".tipo-pessoa")) return;
+    if (event.target.closest && (event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]"))) return;
     event.preventDefault();
     mostrarDadoInvalido(ativo);
     ativo.focus();
@@ -211,7 +213,7 @@
   document.addEventListener("click", function (event) {
     var ativo = document.activeElement;
     if (!campoMonitorado(ativo) || !valorInvalido(ativo)) return;
-    if (event.target.closest && event.target.closest(".tipo-pessoa")) return;
+    if (event.target.closest && (event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]"))) return;
     if (ativo.contains(event.target)) return;
     event.preventDefault();
     event.stopPropagation();
@@ -642,19 +644,37 @@
 
   function preencherCliente(cliente) {
     if (!formCliente || !cliente) return;
-    var tipo = cliente.tipo === "pj" ? "pj" : "pf";
+    restaurandoCliente = true;
+    var tipo = String(cliente.tipo || "").toLowerCase() === "pj" ? "pj" : "pf";
     var radio = formCliente.querySelector('input[name="tipo"][value="' + tipo + '"]');
     if (radio) radio.checked = true;
     atualizarRotuloDocumento();
-    ["documento", "cep", "nome", "endereco", "numero", "bairro", "cidade", "uf", "celular", "email"].forEach(function (nome) {
+    var campos = {
+      documento: cliente.documento,
+      cep: cliente.cep,
+      nome: cliente.nome,
+      endereco: cliente.endereco,
+      numero: cliente.numero,
+      bairro: cliente.bairro,
+      cidade: cliente.cidade,
+      uf: cliente.uf,
+      celular: cliente.celular || cliente.telefone,
+      email: cliente.email
+    };
+    Object.keys(campos).forEach(function (nome) {
       var campo = formCliente.elements[nome];
       if (!campo) return;
-      campo.value = cliente[nome] || "";
+      campo.value = String(campos[nome] || "");
+      if (nome === "documento") aplicarMascaraDocumento(campo);
+      if (nome === "cep") aplicarMascaraCep(campo);
+      if (nome === "uf") campo.value = String(campo.value || "").toUpperCase();
       limparAvisoCampo(campo);
     });
-    cepPedido = apenasDigitos(cliente.cep || "");
+    cepPedido = apenasDigitos(campos.cep || "");
     consultaCnpj += 1;
     consultaCep += 1;
+    restaurandoCliente = false;
+    liberarEnvio();
   }
 
   function limparCamposCliente() {
@@ -1115,7 +1135,7 @@
   function copiarCliente(cliente) {
     var origem = cliente || {};
     return {
-      tipo: origem.tipo === "pj" ? "pj" : "pf",
+      tipo: String(origem.tipo || "").toLowerCase() === "pj" ? "pj" : "pf",
       nome: String(origem.nome || ""),
       documento: String(origem.documento || ""),
       celular: String(origem.celular || ""),
