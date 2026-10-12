@@ -1209,15 +1209,25 @@ body.home .quote-side {
 }
 .quote-side .cart-prod { color: #1f2937; font-weight: 700; }
 .quote-side .cart-compacta {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 6.7rem minmax(0, 1fr) 8.6rem 3.35rem;
   align-items: center;
-  gap: 0.18rem 0.32rem;
+  column-gap: 0.35rem;
   margin: 0;
   color: #374151;
   font-size: 12px;
   font-weight: 400;
   line-height: 1.15;
+}
+.quote-side .cart-qtd,
+.quote-side .cart-unit,
+.quote-side .cart-valor { white-space: nowrap; }
+.quote-side .cart-qtd { justify-self: start; }
+.quote-side .cart-unit { justify-self: end; text-align: right; }
+.quote-side .cart-valor {
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 .quote-side .cart-qtd {
   display: inline-flex;
@@ -1248,11 +1258,12 @@ body.home .quote-side {
   font-weight: 400;
   text-align: center;
 }
-.quote-side .cart-div { color: var(--line); }
 .quote-side .cart-compacta strong { color: #111827; font-weight: 700; }
 .quote-side .cart-item .remover {
+  justify-self: end;
+  width: 100%;
   min-height: 0;
-  margin: 0 0 0 auto;
+  margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1260,6 +1271,7 @@ body.home .quote-side {
   font-size: 11px;
   font-weight: 500;
   line-height: 1.15;
+  text-align: right;
   text-decoration: none;
 }
 .quote-side .cart-item .remover:hover,

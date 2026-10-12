@@ -462,10 +462,8 @@
               '<span class="qtd-num" data-qtd="' + codigo + '">' + item.qtd + "</span>" +
               '<button class="qtd-btn" type="button" data-acao="mais" data-id="' + codigo + '" aria-label="Aumentar quantidade">+</button>' +
             "</span>" +
-            '<span class="cart-div" aria-hidden="true">|</span>' +
-            "<span><strong>Un:</strong> " + moeda(item.preco) + "</span>" +
-            '<span class="cart-div" aria-hidden="true">|</span>' +
-            '<span><strong>Total:</strong> <span data-linha-total="' + codigo + '">' + moeda(item.preco * item.qtd) + "</span></span>" +
+            '<span class="cart-unit"><strong>Vlr. Unit:</strong> ' + moeda(item.preco) + "</span>" +
+            '<span class="cart-valor"><strong>Valor:</strong> <span data-linha-total="' + codigo + '">' + moeda(item.preco * item.qtd) + "</span></span>" +
             '<button class="remover" type="button" data-acao="remover" data-id="' + codigo + '">Remover</button>' +
           "</div>" +
         "</li>"
