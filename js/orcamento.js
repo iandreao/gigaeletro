@@ -256,6 +256,11 @@
   var recentesLista = document.querySelector("[data-recentes-lista]");
   if (recentesLista) {
     recentesLista.addEventListener("click", function (event) {
+      var excluir = event.target.closest("[data-excluir-orcamento]");
+      if (excluir) {
+        excluirRecente(excluir.getAttribute("data-excluir-orcamento"));
+        return;
+      }
       var botao = event.target.closest("[data-editar-orcamento]");
       if (!botao) return;
       editarRecente(botao.getAttribute("data-editar-orcamento"));
@@ -1162,6 +1167,13 @@
     localStorage.setItem(CHAVE_RECENTES, JSON.stringify(lista.slice(0, 12)));
   }
 
+  function excluirRecente(id) {
+    if (!id) return;
+    var lista = lerRecentes().filter(function (item) { return item.id !== id; });
+    localStorage.setItem(CHAVE_RECENTES, JSON.stringify(lista));
+    renderRecentes();
+  }
+
   function editarRecente(id) {
     var registro = lerRecentes().find(function (item) { return item.id === id; });
     var itens = registro ? copiarItens(registro.itens) : [];
@@ -1208,8 +1220,14 @@
       editar.type = "button";
       editar.setAttribute("data-editar-orcamento", item.id);
       editar.textContent = "Alterar";
+      var excluir = document.createElement("button");
+      excluir.type = "button";
+      excluir.className = "historico-excluir";
+      excluir.setAttribute("data-excluir-orcamento", item.id);
+      excluir.textContent = "Excluir";
       acoes.appendChild(abrir);
       acoes.appendChild(editar);
+      acoes.appendChild(excluir);
       linha.appendChild(quando);
       linha.appendChild(acoes);
       lista.appendChild(linha);

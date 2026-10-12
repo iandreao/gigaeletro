@@ -730,6 +730,14 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
   text-decoration: underline;
   cursor: pointer;
 }
+.historico-acoes button.historico-excluir {
+  color: #dc2626;
+  text-decoration: none;
+}
+.historico-acoes button.historico-excluir:hover,
+.historico-acoes button.historico-excluir:focus-visible {
+  text-decoration: underline;
+}
 .empty { padding: 1rem 1.1rem; color: var(--muted); }
 
 [id] { scroll-margin-top: calc(var(--header) + 12px); }
