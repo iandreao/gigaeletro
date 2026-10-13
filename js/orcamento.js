@@ -540,12 +540,38 @@
     return linhas.join("\n");
   }
 
-  function urlWhatsApp(texto) {
-    return "https://api.whatsapp.com/send/?phone=" + destinoWhatsApp() + "&text=" + encodeURIComponent(texto) + "&type=phone_number&app_absent=0";
+  function urlAppWhatsApp(texto) {
+    return "whatsapp://send?phone=" + destinoWhatsApp() + "&text=" + encodeURIComponent(texto);
   }
 
-  function dispararWhatsApp(texto) {
-    window.location.assign(urlWhatsApp(texto));
+  function fecharJanela(janela) {
+    window.setTimeout(function () {
+      try {
+        if (janela && !janela.closed) janela.close();
+      } catch (erro) {}
+    }, 700);
+  }
+
+  function dispararWhatsApp(texto, janela) {
+    var app = urlAppWhatsApp(texto);
+    if (janela && !janela.closed) {
+      try {
+        janela.document.open();
+        janela.document.write("<!DOCTYPE html><title>WhatsApp</title><script>location.replace(" + JSON.stringify(app) + ");setTimeout(function(){window.close()},600);<\/script>");
+        janela.document.close();
+      } catch (erro) {
+        janela.location.href = app;
+      }
+      fecharJanela(janela);
+    } else {
+      var ancora = document.createElement("a");
+      ancora.href = app;
+      ancora.style.display = "none";
+      document.body.appendChild(ancora);
+      ancora.click();
+      ancora.remove();
+    }
+    mostrarAviso("O WhatsApp abriu com a mensagem para a loja. Toque em enviar para concluir.");
   }
 
   function enviarWhatsApp() {
@@ -579,6 +605,7 @@
     envioEmCurso = true;
     if (enviar) enviar.disabled = true;
     if (avisoEnvio) avisoEnvio.hidden = true;
+    var janelaWhatsApp = window.open("", "whatsapp-gigaeletro");
     var textoSemPdf = textoOrcamento(cliente, subtotal, "");
     fetch("/api/orcamento-pdf", { method: "POST", body: dados }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
@@ -599,10 +626,10 @@
       renderRecentes();
       var texto = textoOrcamento(cliente, subtotal, link);
       limparDepoisDoEnvio();
-      dispararWhatsApp(texto);
+      dispararWhatsApp(texto, janelaWhatsApp);
     }, function () {
       limparDepoisDoEnvio();
-      dispararWhatsApp(textoSemPdf);
+      dispararWhatsApp(textoSemPdf, janelaWhatsApp);
     }).then(function () {
       envioEmCurso = false;
       liberarEnvio();
