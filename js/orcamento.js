@@ -371,19 +371,15 @@
       return;
     }
     listaEl.innerHTML = visiveis.map(function (item) {
-      var estoque = item.estoque === undefined || item.estoque === null || String(item.estoque).trim() === ""
-        ? "—"
-        : String(item.estoque);
       var codigo = escapar(item.codigo);
       var nome = escapar(item.produto);
       return (
         '<article class="catalog-row">' +
           '<div class="catalog-info">' +
             '<h3 class="catalog-nome">' + nome + "</h3>" +
-            '<p class="catalog-fine">Código (SKU): ' + codigo + " · Estoque: " + escapar(estoque) + "</p>" +
           "</div>" +
           '<div class="catalog-buy">' +
-            '<p class="preco"><strong><span class="cifrao">R$ </span>' + numero(item.preco) + "</strong></p>" +
+            '<p class="preco"><strong>' + numero(item.preco) + "</strong></p>" +
             '<button class="add-mini" type="button" data-add="' + codigo + '" aria-label="Adicionar ' + nome + ' ao orçamento">+ Adicionar</button>' +
           "</div>" +
         "</article>"
