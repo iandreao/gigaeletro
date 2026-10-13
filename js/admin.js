@@ -83,11 +83,28 @@
 
   function mostrarPainel() {
     if (formSenha) formSenha.hidden = true;
-    if (painel) painel.hidden = false;
+    var area = document.querySelector("[data-area-restrita]");
+    if (area) area.hidden = false;
+    mostrarAba("orcamentos");
     limparAuditoria();
     preencherDataHoje();
     carregarOrcamentos();
   }
+
+  function mostrarAba(nome) {
+    document.querySelectorAll("[data-visao]").forEach(function (painelVisao) {
+      painelVisao.hidden = painelVisao.getAttribute("data-visao") !== nome;
+    });
+    document.querySelectorAll("[data-aba]").forEach(function (botao) {
+      botao.setAttribute("aria-selected", botao.getAttribute("data-aba") === nome ? "true" : "false");
+    });
+  }
+
+  document.querySelectorAll("[data-aba]").forEach(function (botao) {
+    botao.addEventListener("click", function () {
+      mostrarAba(botao.getAttribute("data-aba"));
+    });
+  });
 
   function limparAuditoria() {
     if (!auditoria) return;
@@ -131,6 +148,9 @@
   var campoDocumento = document.querySelector("[data-gestor-documento]");
   var listaGestor = document.querySelector("[data-gestor-lista]");
   var vazioGestor = document.querySelector("[data-gestor-vazio]");
+  var detalhe = document.querySelector("[data-detalhe]");
+  var detalheCorpo = document.querySelector("[data-detalhe-corpo]");
+  var orcamentosAtuais = [];
 
   function digitosDocumento(valor) {
     return String(valor || "").replace(/\D/g, "").slice(0, 14);
@@ -180,20 +200,93 @@
     if (campoData && !campoData.value) campoData.value = dataHojeIso();
   }
 
+  function iconeAcao(tipo) {
+    var comum = 'viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+    if (tipo === "olho") {
+      return '<svg ' + comum + '><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+    }
+    return '<svg ' + comum + '><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>';
+  }
+
+  function acharOrcamento(id) {
+    return orcamentosAtuais.find(function (item) { return String(item.id) === String(id); }) || null;
+  }
+
+  function tabelaItens(item) {
+    var linhas = (item.itens || []).map(function (produto) {
+      return "<tr>" +
+        "<td>" + escapar(produto.produto) + "</td>" +
+        "<td>" + escapar(produto.codigo || "") + "</td>" +
+        '<td class="num">' + escapar(produto.qtd) + "</td>" +
+        '<td class="num">' + moedaPainel(produto.preco) + "</td>" +
+        '<td class="num">' + moedaPainel(produto.valor) + "</td>" +
+      "</tr>";
+    }).join("");
+    return '<table><thead><tr><th>Produto</th><th>Código</th><th class="num">Qtd</th><th class="num">Vlr. Unit.</th><th class="num">Valor</th></tr></thead><tbody>' +
+      linhas +
+      '</tbody><tfoot><tr><td colspan="4">Total</td><td class="num">R$ ' + moedaPainel(item.total) + "</td></tr></tfoot></table>";
+  }
+
+  function htmlDetalhe(item) {
+    return '<div class="gestor-detalhe-meta">' +
+      "<p>" + escapar(dataVisivel(item.data)) + "</p>" +
+      "<p>" + escapar(item.nome) + "</p>" +
+      "<p>" + escapar(documentoVisivel(String(item.documento || ""))) + "</p>" +
+      "<p>" + escapar(item.telefone) + "</p>" +
+    "</div>" + tabelaItens(item);
+  }
+
+  function abrirDetalhe(item) {
+    if (!detalhe || !detalheCorpo || !item) return;
+    detalheCorpo.innerHTML = htmlDetalhe(item);
+    detalhe.hidden = false;
+    var fundo = document.querySelector(".overlay[data-fechar-detalhe]");
+    if (fundo) fundo.hidden = false;
+  }
+
+  function fecharDetalhe() {
+    if (detalhe) detalhe.hidden = true;
+    var fundo = document.querySelector(".overlay[data-fechar-detalhe]");
+    if (fundo) fundo.hidden = true;
+  }
+
+  function imprimirOrcamento(item) {
+    if (!item) return;
+    var janela = window.open("", "orcamento-gigaeletro");
+    if (!janela) return;
+    janela.document.open();
+    janela.document.write(
+      "<!DOCTYPE html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>Orçamento Gigaeletro</title>" +
+      "<style>body{font-family:Manrope,Segoe UI,sans-serif;color:#111;margin:24px;font-size:12px}h1{font-size:18px;margin:0 0 8px}p{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ddd;padding:4px 6px;text-align:left}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}tfoot td{font-weight:800}</style>" +
+      "</head><body><h1>Gigaeletro</h1>" +
+      "<p>" + escapar(dataVisivel(item.data)) + "</p>" +
+      "<p>" + escapar(item.nome) + "</p>" +
+      "<p>" + escapar(documentoVisivel(String(item.documento || ""))) + "</p>" +
+      "<p>" + escapar(item.telefone) + "</p>" +
+      tabelaItens(item) +
+      "</body></html>"
+    );
+    janela.document.close();
+    janela.focus();
+    janela.print();
+  }
+
   function renderOrcamentos(lista, concluida) {
     if (!listaGestor) return;
+    orcamentosAtuais = lista;
     if (vazioGestor) vazioGestor.hidden = !concluida || lista.length > 0;
     listaGestor.innerHTML = lista.map(function (item) {
-      var itens = (item.itens || []).map(function (produto) {
-        return '<span class="gestor-item">' + escapar(produto.qtd) + " × " + escapar(produto.produto) + " · " + moedaPainel(produto.valor) + "</span>";
-      }).join("");
+      var id = escapar(item.id);
       return "<tr>" +
         "<td>" + escapar(dataVisivel(item.data)) + "</td>" +
         "<td>" + escapar(item.nome) + "</td>" +
         "<td>" + escapar(documentoVisivel(String(item.documento || ""))) + "</td>" +
         "<td>" + escapar(item.telefone) + "</td>" +
-        "<td>" + itens + "</td>" +
         '<td class="num">' + moedaPainel(item.total) + "</td>" +
+        '<td class="acoes"><div class="gestor-acoes">' +
+          '<button type="button" data-ver-orcamento="' + id + '" aria-label="Visualizar" title="Visualizar">' + iconeAcao("olho") + "</button>" +
+          '<button type="button" data-imprimir-orcamento="' + id + '" aria-label="Imprimir" title="Imprimir">' + iconeAcao("impressora") + "</button>" +
+        "</div></td>" +
       "</tr>";
     }).join("");
   }
@@ -230,6 +323,23 @@
       campoDocumento.value = digitosDocumento(campoDocumento.value);
     });
   }
+  if (listaGestor) {
+    listaGestor.addEventListener("click", function (event) {
+      var ver = event.target.closest("[data-ver-orcamento]");
+      if (ver) {
+        abrirDetalhe(acharOrcamento(ver.getAttribute("data-ver-orcamento")));
+        return;
+      }
+      var imprimir = event.target.closest("[data-imprimir-orcamento]");
+      if (imprimir) imprimirOrcamento(acharOrcamento(imprimir.getAttribute("data-imprimir-orcamento")));
+    });
+  }
+  document.querySelectorAll("[data-fechar-detalhe]").forEach(function (botao) {
+    botao.addEventListener("click", fecharDetalhe);
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") fecharDetalhe();
+  });
 
   function prepararDrop(zona, campo, aoEscolher) {
     if (!zona || !campo) return;

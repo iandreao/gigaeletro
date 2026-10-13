@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=60">
+  <link rel="stylesheet" href="css/site.css?v=61">
 </head>
 <body>
   <header class="site-header">
@@ -20,8 +20,16 @@
     </div>
   </header>
   <main class="section">
-    <div class="wrap gestor-pagina">
+    <div data-area-restrita hidden>
+    <div class="wrap gestor-nav-wrap">
       <p class="kicker">Área restrita</p>
+      <nav class="gestor-abas" aria-label="Área restrita">
+        <button type="button" data-aba="orcamentos" aria-selected="true">Orçamentos Recebidos</button>
+        <button type="button" data-aba="estoque" aria-selected="false">Atualizar Estoque</button>
+        <button class="btn btn-line gestor-sair" type="button" data-sair>Sair</button>
+      </nav>
+    </div>
+    <div class="wrap gestor-pagina" data-visao="orcamentos">
       <h1>Orçamentos recebidos</h1>
       <form class="gestor-filtros" data-gestor-filtros>
         <label>Data
@@ -41,18 +49,17 @@
               <th>Nome / Razão Social</th>
               <th>CPF/CNPJ</th>
               <th>Telefone / Celular</th>
-              <th>Itens</th>
               <th class="num">Total</th>
+              <th class="acoes">Ações</th>
             </tr>
           </thead>
           <tbody data-gestor-lista></tbody>
         </table>
       </div>
     </div>
-    <div class="wrap admin-page">
-      <p class="kicker">Área interna</p>
+    <div class="wrap admin-page" data-visao="estoque" hidden>
       <h1>Atualização de estoque</h1>
-      <form class="admin-body panel" data-admin-arquivo hidden>
+      <form class="admin-body panel" data-admin-arquivo>
         <p class="muted">Arraste a Tabela de Produtos. As colunas lidas são Código, Nome, Estoque e PrVenda. Esta ação substitui o catálogo inteiro. Se a leitura falhar, a lista anterior permanece.</p>
         <ol class="mapa">
           <li><span>1</span> Código</li>
@@ -80,10 +87,18 @@
           <p>Data e hora da última atualização: <strong data-audit-quando></strong></p>
         </div>
         <button class="btn btn-amarelo" type="button" data-processar disabled>Processar e Atualizar Estoque no Site</button>
-        <button class="btn btn-line" type="button" data-sair>Sair</button>
       </form>
     </div>
+    </div>
   </main>
-  <script src="js/admin.js?v=10"></script>
+  <div class="overlay" data-fechar-detalhe hidden></div>
+  <div class="modal gestor-detalhe" data-detalhe hidden role="dialog" aria-modal="true" aria-labelledby="titulo-detalhe">
+    <div class="drawer-head">
+      <h2 id="titulo-detalhe">Orçamento</h2>
+      <button type="button" data-fechar-detalhe aria-label="Fechar">×</button>
+    </div>
+    <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
+  </div>
+  <script src="js/admin.js?v=11"></script>
 </body>
 </html>
