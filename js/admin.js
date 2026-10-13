@@ -85,6 +85,7 @@
     if (formSenha) formSenha.hidden = true;
     if (painel) painel.hidden = false;
     limparAuditoria();
+    preencherDataHoje();
     carregarOrcamentos();
   }
 
@@ -150,14 +151,38 @@
   }
 
   function dataVisivel(iso) {
-    var partes = String(iso || "").split("-");
+    var normal = dataParaConsulta(iso);
+    var partes = String(normal || iso || "").split("-");
     if (partes.length !== 3) return iso || "";
     return partes[2] + "/" + partes[1] + "/" + partes[0];
   }
 
-  function renderOrcamentos(lista) {
+  function dataParaConsulta(valor) {
+    var texto = String(valor || "").trim();
+    var br = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (br) return br[3] + "-" + br[2] + "-" + br[1];
+    var iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return iso[1] + "-" + iso[2] + "-" + iso[3];
+    return "";
+  }
+
+  function dataHojeIso() {
+    var formato = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    });
+    return dataParaConsulta(formato.format(new Date()));
+  }
+
+  function preencherDataHoje() {
+    if (campoData && !campoData.value) campoData.value = dataHojeIso();
+  }
+
+  function renderOrcamentos(lista, concluida) {
     if (!listaGestor) return;
-    if (vazioGestor) vazioGestor.hidden = lista.length > 0;
+    if (vazioGestor) vazioGestor.hidden = !concluida || lista.length > 0;
     listaGestor.innerHTML = lista.map(function (item) {
       var itens = (item.itens || []).map(function (produto) {
         return '<span class="gestor-item">' + escapar(produto.qtd) + " × " + escapar(produto.produto) + " · " + moedaPainel(produto.valor) + "</span>";
@@ -175,7 +200,8 @@
 
   function carregarOrcamentos() {
     if (!listaGestor) return;
-    var data = campoData ? campoData.value : "";
+    if (vazioGestor) vazioGestor.hidden = true;
+    var data = dataParaConsulta(campoData ? campoData.value : "");
     var documento = digitosDocumento(campoDocumento ? campoDocumento.value : "");
     var url = "/api/orcamentos?data=" + encodeURIComponent(data) + "&documento=" + encodeURIComponent(documento);
     fetch(url, { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
@@ -186,19 +212,24 @@
       return resposta.json();
     }).then(function (corpo) {
       if (!corpo) return;
-      renderOrcamentos(corpo.ok && Array.isArray(corpo.orcamentos) ? corpo.orcamentos : []);
+      renderOrcamentos(corpo.ok && Array.isArray(corpo.orcamentos) ? corpo.orcamentos : [], !!(corpo && corpo.ok));
     }).catch(function () {
-      renderOrcamentos([]);
+      renderOrcamentos([], false);
     });
   }
 
-  if (campoDocumento) {
-    campoDocumento.addEventListener("input", function () {
-      campoDocumento.value = digitosDocumento(campoDocumento.value);
+  var formFiltros = document.querySelector("[data-gestor-filtros]");
+  if (formFiltros) {
+    formFiltros.addEventListener("submit", function (event) {
+      event.preventDefault();
       carregarOrcamentos();
     });
   }
-  if (campoData) campoData.addEventListener("change", carregarOrcamentos);
+  if (campoDocumento) {
+    campoDocumento.addEventListener("input", function () {
+      campoDocumento.value = digitosDocumento(campoDocumento.value);
+    });
+  }
 
   function prepararDrop(zona, campo, aoEscolher) {
     if (!zona || !campo) return;

@@ -992,14 +992,26 @@ def gravar_painel(lista):
     gravar_painel_arquivo(lista)
 
 
+def normalizar_data_painel(valor):
+    texto = str(valor or "").strip()
+    iso = re.match(r"^(\d{4})-(\d{2})-(\d{2})", texto)
+    if iso:
+        return "%s-%s-%s" % (iso.group(1), iso.group(2), iso.group(3))
+    br = re.fullmatch(r"(\d{2})/(\d{2})/(\d{4})", texto)
+    if br:
+        return "%s-%s-%s" % (br.group(3), br.group(2), br.group(1))
+    return ""
+
+
 def filtrar_painel(lista, data, documento):
-    data = (data or "").strip()
-    documento = apenas_digitos(documento)
-    if data and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", data):
+    bruto = str(data or "").strip()
+    data = normalizar_data_painel(bruto) if bruto else ""
+    if bruto and not data:
         return []
+    documento = apenas_digitos(documento)
     saida = []
     for item in lista:
-        if data and str(item.get("data") or "") != data:
+        if data and normalizar_data_painel(item.get("data")) != data:
             continue
         if documento and str(item.get("documento") or "") != documento:
             continue
