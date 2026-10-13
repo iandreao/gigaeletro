@@ -24,6 +24,9 @@
       painel.style.top = "";
       painel.style.right = "";
       painel.style.bottom = "";
+      painel.style.width = "";
+      painel.style.transform = "";
+      delete painel.dataset.arrastado;
     }
 
     limparArraste();
@@ -58,6 +61,7 @@
       painel.style.top = y + "px";
       painel.style.right = "auto";
       painel.style.bottom = "auto";
+      painel.dataset.arrastado = "1";
     });
 
     painel.addEventListener("pointerup", soltar);

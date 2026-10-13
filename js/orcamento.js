@@ -9,7 +9,7 @@
   var busca = "";
 
   var listaEl = document.querySelector("[data-catalogo]");
-  var metaEl = document.querySelector("[data-catalogo-meta]");
+  var ancoraCatalogo = "orcamento";
   var resumoEl = document.querySelector("[data-resumo]");
   var resumoVazio = document.querySelector("[data-resumo-vazio]");
   var subtotalEl = document.querySelector("[data-subtotal]");
@@ -293,6 +293,19 @@
   renderRecentes();
   carregarPublicado();
 
+  window.addEventListener("resize", function () {
+    var modal = document.querySelector("[data-catalogo-modal]");
+    if (!modal || modal.hidden || modal.classList.contains("is-arrastando")) return;
+    if (modal.dataset.arrastado === "1" && !layoutCatalogoCelular()) {
+      var form = document.querySelector("[data-cliente]");
+      if (!form) return;
+      var largura = form.getBoundingClientRect().width;
+      modal.style.width = largura + "px";
+      return;
+    }
+    posicionarCatalogo(ancoraCatalogo);
+  });
+
   function adicionar(codigo) {
     var produto = catalogo.find(function (item) { return item.codigo === codigo; });
     if (!produto) return;
@@ -309,6 +322,8 @@
     salvarPedido();
     renderResumo();
     liberarEnvio();
+    ancoraCatalogo = "formulario";
+    posicionarCatalogo("formulario");
     var campo = acharQuantidade(codigo);
     var linha = campo && campo.closest ? campo.closest(".cart-item") : null;
     if (linha && linha.scrollIntoView) linha.scrollIntoView({ block: "nearest" });
@@ -341,14 +356,69 @@
     renderResumo();
   }
 
+  function layoutCatalogoCelular() {
+    return window.matchMedia("(max-width: 760px)").matches;
+  }
+
+  function limparPosicaoCatalogo(modal) {
+    modal.style.left = "";
+    modal.style.top = "";
+    modal.style.right = "";
+    modal.style.bottom = "";
+    modal.style.width = "";
+    modal.style.transform = "";
+    delete modal.dataset.arrastado;
+  }
+
+  function posicionarCatalogo(ancora) {
+    var modal = document.querySelector("[data-catalogo-modal]");
+    var form = document.querySelector("[data-cliente]");
+    if (!modal || !form) return;
+    if (layoutCatalogoCelular()) {
+      limparPosicaoCatalogo(modal);
+      return;
+    }
+    var largura = form.getBoundingClientRect().width;
+    var left = 8;
+    var top = 8;
+    if (ancora === "formulario") {
+      var caixaForm = form.getBoundingClientRect();
+      left = caixaForm.left;
+      top = caixaForm.top;
+    } else {
+      var quote = document.querySelector(".quote-side");
+      if (!quote) return;
+      var caixaQuote = quote.getBoundingClientRect();
+      left = caixaQuote.left + (caixaQuote.width - largura) / 2;
+      top = caixaQuote.top;
+    }
+    var maxX = Math.max(8, window.innerWidth - largura - 8);
+    left = Math.min(Math.max(8, left), maxX);
+    var altura = modal.offsetHeight || 0;
+    var maxY = Math.max(8, window.innerHeight - Math.max(altura, 80) - 8);
+    top = Math.min(Math.max(8, top), maxY);
+    modal.style.width = largura + "px";
+    modal.style.left = left + "px";
+    modal.style.top = top + "px";
+    modal.style.right = "auto";
+    modal.style.bottom = "auto";
+    modal.style.transform = "none";
+    delete modal.dataset.arrastado;
+  }
+
   function setCatalogo(aberto) {
     var modal = document.querySelector("[data-catalogo-modal]");
     var fundo = document.querySelector("[data-catalogo-overlay]");
     if (modal) modal.hidden = !aberto;
     if (fundo) fundo.hidden = !aberto;
     document.body.classList.toggle("catalogo-aberto", aberto);
-    if (aberto && buscaEl) buscaEl.focus();
-    if (!aberto) fecharSugestoes();
+    if (aberto) {
+      ancoraCatalogo = "orcamento";
+      posicionarCatalogo("orcamento");
+      if (buscaEl) buscaEl.focus();
+    } else {
+      fecharSugestoes();
+    }
   }
 
   function produtosVisiveis() {
@@ -362,10 +432,6 @@
   function renderCatalogo() {
     if (!listaEl) return;
     var visiveis = produtosVisiveis();
-    if (metaEl) {
-      var total = visiveis.length;
-      metaEl.textContent = "Exibindo " + total + " produto" + (total === 1 ? "" : "s") + (busca ? " encontrado" + (total === 1 ? "" : "s") : " cadastrado" + (total === 1 ? "" : "s"));
-    }
     if (!visiveis.length) {
       listaEl.innerHTML = '<p class="resumo-vazio">' + (catalogo.length ? "Nenhum produto encontrado." : "Catálogo vazio.") + "</p>";
       return;
