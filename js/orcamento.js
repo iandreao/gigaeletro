@@ -164,9 +164,10 @@
         alvo.value = alvo.value.replace(/[^a-zA-Z]/g, "").slice(0, 2).toUpperCase();
         if (alvo.setSelectionRange && posicao !== null) alvo.setSelectionRange(posicao, posicao);
       }
-      if (alvo && (alvo.name === "documento" || alvo.name === "cep" || alvo.name === "email")) {
+      if (alvo && (alvo.name === "documento" || alvo.name === "cep" || alvo.name === "email" || alvo.name === "celular")) {
         if (!valorInvalido(alvo)) limparAvisoCampo(alvo);
       }
+      if (alvo && alvo.name === "celular") aplicarMascaraTelefone(alvo);
       if (alvo && alvo.name === "documento") {
         aplicarMascaraDocumento(alvo);
         consultarCnpjSeCompleto();
@@ -708,7 +709,7 @@
     return {
       nome: String(dados.get("nome") || "").trim(),
       documento: String(dados.get("documento") || "").trim(),
-      celular: String(dados.get("celular") || "").trim(),
+      celular: mascaraTelefone(dados.get("celular") || ""),
       email: String(dados.get("email") || "").trim(),
       endereco: String(dados.get("endereco") || "").trim(),
       numero: String(dados.get("numero") || "").trim(),
@@ -722,6 +723,10 @@
   function validarCliente(cliente) {
     if (!cliente.nome || !cliente.celular || !cliente.email || !cliente.endereco || !cliente.numero || !cliente.bairro || !cliente.cidade || !cliente.uf || !cliente.cep) {
       return "Preencha nome, celular, e-mail e o endereço completo.";
+    }
+    if (!telefoneValido(cliente.celular)) {
+      reterCampo("celular");
+      return "Dado Inválido";
     }
     if (!emailValido(cliente.email)) {
       reterCampo("email");
@@ -748,7 +753,7 @@
   }
 
   function campoMonitorado(campo) {
-    return !!(campo && (campo.name === "documento" || campo.name === "cep" || campo.name === "email"));
+    return !!(campo && (campo.name === "documento" || campo.name === "cep" || campo.name === "email" || campo.name === "celular"));
   }
 
   function valorInvalido(campo) {
@@ -756,6 +761,7 @@
     if (!valor) return false;
     if (campo.name === "email") return !emailValido(valor);
     if (campo.name === "cep") return apenasDigitos(valor).length !== 8;
+    if (campo.name === "celular") return !telefoneValido(valor);
     var digitos = apenasDigitos(valor);
     return tipoPessoa() === "pj" ? !cnpjValido(digitos) : !cpfValido(digitos);
   }
@@ -826,6 +832,7 @@
       campo.value = String(campos[nome] || "");
       if (nome === "documento") aplicarMascaraDocumento(campo);
       if (nome === "cep") aplicarMascaraCep(campo);
+      if (nome === "celular") aplicarMascaraTelefone(campo);
       if (nome === "uf") campo.value = String(campo.value || "").toUpperCase();
       limparAvisoCampo(campo);
     });
@@ -924,6 +931,34 @@
     return texto.length;
   }
 
+  function mascaraTelefone(valor) {
+    var d = apenasDigitos(valor).slice(0, 11);
+    if (d.length < 3) return d.length ? "(" + d : "";
+    if (d.length < 7) return "(" + d.slice(0, 2) + ") " + d.slice(2);
+    if (d.length < 11) return "(" + d.slice(0, 2) + ") " + d.slice(2, 6) + "-" + d.slice(6);
+    return "(" + d.slice(0, 2) + ") " + d.slice(2, 7) + "-" + d.slice(7);
+  }
+
+  function aplicarMascaraTelefone(campo) {
+    if (!campo) return;
+    var inicio = campo.selectionStart;
+    var digitosAntes = apenasDigitos(String(campo.value || "").slice(0, inicio == null ? 0 : inicio)).length;
+    if (digitosAntes > 11) digitosAntes = 11;
+    var formatado = mascaraTelefone(campo.value);
+    if (campo.value !== formatado) campo.value = formatado;
+    if (document.activeElement === campo && campo.setSelectionRange) {
+      var nova = posicaoAposDigitos(campo.value, digitosAntes);
+      campo.setSelectionRange(nova, nova);
+    }
+  }
+
+  function telefoneValido(valor) {
+    var d = apenasDigitos(valor);
+    if (d.length !== 10 && d.length !== 11) return false;
+    var ddd = Number(d.slice(0, 2));
+    return ddd >= 11 && ddd <= 99;
+  }
+
   function aplicarMascaraDocumento(campo) {
     if (!campo) return;
     var inicio = campo.selectionStart;
@@ -943,6 +978,8 @@
     var rotulo = formCliente.querySelector("[data-doc-rotulo]");
     var campo = formCliente.elements.documento;
     var pj = tipoPessoa() === "pj";
+    var rotuloNome = formCliente.querySelector("[data-nome-rotulo]");
+    if (rotuloNome) rotuloNome.textContent = pj ? "Razão Social" : "Nome";
     if (rotulo) rotulo.textContent = pj ? "CNPJ" : "CPF";
     if (!campo) return;
     campo.placeholder = pj ? "00.000.000/0000-00" : "000.000.000-00";
@@ -1125,7 +1162,7 @@
     }
 
     var y = linhaCliente(24, fatia([
-      { rotulo: "Nome:", valor: cliente.nome, peso: 68 },
+      { rotulo: (tipoPessoa() === "pj" ? "Razão Social:" : "Nome:"), valor: cliente.nome, peso: 68 },
       { rotulo: "CPF/CNPJ:", valor: cliente.documento, peso: 32 }
     ]));
     y = linhaCliente(y, fatia([
