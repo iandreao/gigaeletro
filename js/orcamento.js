@@ -537,7 +537,7 @@
             "</span>" +
             '<strong class="cart-rotulo">Vlr. Unit:</strong>' +
             '<span class="cart-preco">' + numero(item.preco) + "</span>" +
-            '<strong class="cart-rotulo">Valor:</strong>' +
+            '<strong class="cart-rotulo">Total:</strong>' +
             '<span class="cart-total" data-linha-total="' + codigo + '">' + numero(item.preco * item.qtd) + "</span>" +
             '<button class="remover" type="button" data-acao="remover" data-id="' + codigo + '" aria-label="Remover" title="Remover">' + icone("lixeira") + "</button>" +
           "</div>" +
