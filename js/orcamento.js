@@ -540,8 +540,31 @@
     return "https://wa.me/" + destinoWhatsApp() + "?text=" + encodeURIComponent(texto);
   }
 
-  function dispararWhatsApp(texto) {
-    window.location.assign(urlWhatsApp(texto));
+  function abrirJanelaWhatsApp() {
+    try {
+      return window.open("", "whatsapp-gigaeletro");
+    } catch (erro) {
+      return null;
+    }
+  }
+
+  function fecharJanelaWhatsApp(janela) {
+    window.setTimeout(function () {
+      try {
+        if (janela && !janela.closed) janela.close();
+      } catch (erro) {}
+    }, 1600);
+  }
+
+  function dispararWhatsApp(texto, janela) {
+    var web = urlWhatsApp(texto);
+    if (!janela || janela.closed) janela = abrirJanelaWhatsApp();
+    if (janela && !janela.closed) {
+      janela.location.href = web;
+      fecharJanelaWhatsApp(janela);
+      return;
+    }
+    window.location.assign(web);
   }
 
   function enviarWhatsApp() {
@@ -575,6 +598,7 @@
     envioEmCurso = true;
     if (enviar) enviar.disabled = true;
     if (avisoEnvio) avisoEnvio.hidden = true;
+    var janelaWhatsApp = abrirJanelaWhatsApp();
     var textoSemPdf = textoOrcamento(cliente, subtotal, "");
     fetch("/api/orcamento-pdf", { method: "POST", body: dados }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
@@ -595,10 +619,10 @@
       renderRecentes();
       var texto = textoOrcamento(cliente, subtotal, link);
       limparDepoisDoEnvio();
-      dispararWhatsApp(texto);
+      dispararWhatsApp(texto, janelaWhatsApp);
     }, function () {
       limparDepoisDoEnvio();
-      dispararWhatsApp(textoSemPdf);
+      dispararWhatsApp(textoSemPdf, janelaWhatsApp);
     }).then(function () {
       envioEmCurso = false;
       liberarEnvio();
