@@ -85,6 +85,7 @@
     if (formSenha) formSenha.hidden = true;
     if (painel) painel.hidden = false;
     limparAuditoria();
+    carregarOrcamentos();
   }
 
   function limparAuditoria() {
@@ -124,6 +125,80 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
   }
+
+  var campoData = document.querySelector("[data-gestor-data]");
+  var campoDocumento = document.querySelector("[data-gestor-documento]");
+  var listaGestor = document.querySelector("[data-gestor-lista]");
+  var vazioGestor = document.querySelector("[data-gestor-vazio]");
+
+  function digitosDocumento(valor) {
+    return String(valor || "").replace(/\D/g, "").slice(0, 14);
+  }
+
+  function moedaPainel(valor) {
+    return Number(valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function documentoVisivel(digitos) {
+    if (digitos.length === 11) {
+      return digitos.slice(0, 3) + "." + digitos.slice(3, 6) + "." + digitos.slice(6, 9) + "-" + digitos.slice(9);
+    }
+    if (digitos.length === 14) {
+      return digitos.slice(0, 2) + "." + digitos.slice(2, 5) + "." + digitos.slice(5, 8) + "/" + digitos.slice(8, 12) + "-" + digitos.slice(12);
+    }
+    return digitos;
+  }
+
+  function dataVisivel(iso) {
+    var partes = String(iso || "").split("-");
+    if (partes.length !== 3) return iso || "";
+    return partes[2] + "/" + partes[1] + "/" + partes[0];
+  }
+
+  function renderOrcamentos(lista) {
+    if (!listaGestor) return;
+    if (vazioGestor) vazioGestor.hidden = lista.length > 0;
+    listaGestor.innerHTML = lista.map(function (item) {
+      var itens = (item.itens || []).map(function (produto) {
+        return '<span class="gestor-item">' + escapar(produto.qtd) + " × " + escapar(produto.produto) + " · " + moedaPainel(produto.valor) + "</span>";
+      }).join("");
+      return "<tr>" +
+        "<td>" + escapar(dataVisivel(item.data)) + "</td>" +
+        "<td>" + escapar(item.nome) + "</td>" +
+        "<td>" + escapar(documentoVisivel(String(item.documento || ""))) + "</td>" +
+        "<td>" + escapar(item.telefone) + "</td>" +
+        "<td>" + itens + "</td>" +
+        '<td class="num">' + moedaPainel(item.total) + "</td>" +
+      "</tr>";
+    }).join("");
+  }
+
+  function carregarOrcamentos() {
+    if (!listaGestor) return;
+    var data = campoData ? campoData.value : "";
+    var documento = digitosDocumento(campoDocumento ? campoDocumento.value : "");
+    var url = "/api/orcamentos?data=" + encodeURIComponent(data) + "&documento=" + encodeURIComponent(documento);
+    fetch(url, { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
+      if (resposta.status === 401) {
+        window.location.replace("/");
+        return null;
+      }
+      return resposta.json();
+    }).then(function (corpo) {
+      if (!corpo) return;
+      renderOrcamentos(corpo.ok && Array.isArray(corpo.orcamentos) ? corpo.orcamentos : []);
+    }).catch(function () {
+      renderOrcamentos([]);
+    });
+  }
+
+  if (campoDocumento) {
+    campoDocumento.addEventListener("input", function () {
+      campoDocumento.value = digitosDocumento(campoDocumento.value);
+      carregarOrcamentos();
+    });
+  }
+  if (campoData) campoData.addEventListener("change", carregarOrcamentos);
 
   function prepararDrop(zona, campo, aoEscolher) {
     if (!zona || !campo) return;

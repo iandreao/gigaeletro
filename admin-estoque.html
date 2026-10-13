@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=9">
+  <link rel="stylesheet" href="css/site.css?v=59">
 </head>
 <body>
   <header class="site-header">
@@ -20,6 +20,34 @@
     </div>
   </header>
   <main class="section">
+    <div class="wrap gestor-pagina">
+      <p class="kicker">Área restrita</p>
+      <h1>Orçamentos recebidos</h1>
+      <form class="gestor-filtros" data-gestor-filtros>
+        <label>Data
+          <input type="date" data-gestor-data>
+        </label>
+        <label>CPF/CNPJ
+          <input type="text" inputmode="numeric" maxlength="14" autocomplete="off" placeholder="Somente números" data-gestor-documento>
+        </label>
+      </form>
+      <p class="gestor-vazio" data-gestor-vazio hidden>Nenhum orçamento encontrado.</p>
+      <div class="gestor-tabela-box">
+        <table class="gestor-tabela">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Nome / Razão Social</th>
+              <th>CPF/CNPJ</th>
+              <th>Telefone / Celular</th>
+              <th>Itens</th>
+              <th class="num">Total</th>
+            </tr>
+          </thead>
+          <tbody data-gestor-lista></tbody>
+        </table>
+      </div>
+    </div>
     <div class="wrap admin-page">
       <p class="kicker">Área interna</p>
       <h1>Atualização de estoque</h1>
@@ -55,6 +83,6 @@
       </form>
     </div>
   </main>
-  <script src="js/admin.js?v=8"></script>
+  <script src="js/admin.js?v=9"></script>
 </body>
 </html>

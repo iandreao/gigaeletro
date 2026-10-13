@@ -135,6 +135,14 @@
     });
   }
 
+  var esqueciSenha = document.querySelector("[data-esqueci-senha]");
+  if (esqueciSenha) {
+    var textoSenha = "Olá, sou o gestor do SiteGigaeletro e esqueci minha senha de acesso. Solicito a chave de redefinição para o painel.";
+    esqueciSenha.href = "https://wa.me/5527998021221?text=" + encodeURIComponent(textoSenha);
+    esqueciSenha.target = "_blank";
+    esqueciSenha.rel = "noopener noreferrer";
+  }
+
   document.querySelectorAll("[data-abrir-catalogo]").forEach(function (botao) {
     botao.addEventListener("click", function () { setCatalogo(true); });
   });
@@ -668,6 +676,7 @@
     if (avisoEnvio) avisoEnvio.hidden = true;
     var janelaWhatsApp = abrirJanelaWhatsApp();
     var textoSemPdf = textoOrcamento(cliente, subtotal, "");
+    var gravacaoPainel = gravarPainelGestor(cliente);
     fetch("/api/orcamento-pdf", { method: "POST", body: dados }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
         if (!resposta.ok || !publicado || !publicado.url) {
@@ -688,14 +697,39 @@
       renderRecentes();
       var texto = textoOrcamento(cliente, subtotal, link);
       limparDepoisDoEnvio();
-      dispararWhatsApp(texto, janelaWhatsApp);
+      return gravacaoPainel.then(function () {
+        dispararWhatsApp(texto, janelaWhatsApp);
+      });
     }, function () {
       limparDepoisDoEnvio();
-      dispararWhatsApp(textoSemPdf, janelaWhatsApp);
+      return gravacaoPainel.then(function () {
+        dispararWhatsApp(textoSemPdf, janelaWhatsApp);
+      });
     }).then(function () {
       envioEmCurso = false;
       liberarEnvio();
     });
+  }
+
+  function gravarPainelGestor(cliente) {
+    var corpo = {
+      nome: cliente.nome,
+      documento: apenasDigitos(cliente.documento),
+      telefone: apenasDigitos(cliente.celular),
+      itens: selecionados.map(function (item) {
+        return {
+          codigo: item.codigo,
+          produto: item.produto,
+          qtd: item.qtd,
+          preco: item.preco
+        };
+      })
+    };
+    return fetch("/api/orcamentos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo)
+    }).then(function () { return null; }).catch(function () { return null; });
   }
 
   function mostrarAviso(texto) {

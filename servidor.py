@@ -41,6 +41,9 @@ LIMITE_PDF = 2 * 1024 * 1024
 VALIDADE_PDF = 7 * 24 * 60 * 60
 PDFS = {}
 PDF_LOCK = threading.Lock()
+PAINEL_LOCK = threading.Lock()
+PAINEL_BLOB = "orcamentos/painel.json"
+PAINEL_LIMITE = 2000
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 IMPORTACAO = threading.Lock()
 
@@ -71,6 +74,10 @@ def caminho_catalogo():
 
 def caminho_auditoria():
     return diretorio_gravavel() / "auditoria.json"
+
+
+def caminho_painel():
+    return diretorio_gravavel() / "orcamentos-painel.json"
 
 
 def diretorio_pdf():
@@ -840,6 +847,231 @@ def cliente_orcamento_valido(campos):
     return documento_ok and email_valido(campos.get("email") or "") and cep_ok
 
 
+def hoje_painel():
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d")
+    except Exception:
+        return datetime.now().strftime("%Y-%m-%d")
+
+
+def formatar_telefone(digitos):
+    if len(digitos) == 10:
+        return "(%s) %s-%s" % (digitos[:2], digitos[2:6], digitos[6:])
+    if len(digitos) == 11:
+        return "(%s) %s-%s" % (digitos[:2], digitos[2:7], digitos[7:])
+    return ""
+
+
+def telefone_painel_valido(digitos):
+    if len(digitos) not in (10, 11):
+        return False
+    ddd = int(digitos[:2])
+    return 11 <= ddd <= 99
+
+
+def normalizar_itens_painel(brutos):
+    if not isinstance(brutos, list) or not brutos or len(brutos) > 200:
+        return None
+    itens = []
+    for item in brutos:
+        if not isinstance(item, dict):
+            return None
+        produto = str(item.get("produto") or "").strip()[:160]
+        codigo = str(item.get("codigo") or "").strip()[:40]
+        try:
+            qtd = int(item.get("qtd"))
+            preco = round(float(item.get("preco")), 2)
+        except (TypeError, ValueError):
+            return None
+        if not produto or qtd < 1 or qtd > 99999 or preco < 0 or preco > 10000000:
+            return None
+        itens.append({
+            "codigo": codigo,
+            "produto": produto,
+            "qtd": qtd,
+            "preco": preco,
+            "valor": round(preco * qtd, 2),
+        })
+    return itens
+
+
+def baixar_blob(caminho):
+    token = token_blob()
+    loja = loja_blob(token)
+    if not token or not loja:
+        return None
+    endereco = "https://%s.private.blob.vercel-storage.com/%s" % (loja, caminho)
+    pedido = urllib.request.Request(endereco, headers={"authorization": "Bearer " + token})
+    try:
+        with urllib.request.urlopen(pedido, timeout=20) as resposta:
+            return resposta.read()
+    except urllib.error.HTTPError as erro:
+        if erro.code == 404:
+            return b""
+        return None
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return None
+
+
+def enviar_json_blob(caminho, conteudo):
+    token = token_blob()
+    loja = loja_blob(token)
+    if not token or not loja:
+        return False
+    pedido = urllib.request.Request(
+        "https://vercel.com/api/blob/?pathname=" + urllib.request.quote(caminho),
+        data=conteudo,
+        method="PUT",
+        headers={
+            "authorization": "Bearer " + token,
+            "x-api-version": "12",
+            "x-vercel-blob-store-id": loja,
+            "x-content-type": "application/json",
+            "x-add-random-suffix": "0",
+            "x-allow-overwrite": "1",
+            "x-vercel-blob-access": "private",
+        },
+    )
+    try:
+        with urllib.request.urlopen(pedido, timeout=20) as resposta:
+            return 200 <= resposta.status < 300
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return False
+
+
+def interpretar_painel(conteudo):
+    if not conteudo:
+        return []
+    try:
+        dados = json.loads(conteudo.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+        return []
+    if not isinstance(dados, list):
+        return []
+    return [item for item in dados if isinstance(item, dict) and item.get("id")]
+
+
+def ler_painel_arquivo():
+    arquivo = caminho_painel()
+    if not arquivo.is_file():
+        return []
+    try:
+        return interpretar_painel(arquivo.read_bytes())
+    except OSError:
+        return []
+
+
+def gravar_painel_arquivo(lista):
+    destino = caminho_painel()
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    temporario = destino.with_suffix(".json.tmp")
+    temporario.write_text(json.dumps(lista, ensure_ascii=False), encoding="utf-8")
+    os.replace(temporario, destino)
+
+
+def ler_painel():
+    if token_blob():
+        conteudo = baixar_blob(PAINEL_BLOB)
+        if conteudo is None:
+            raise OSError("blob")
+        return interpretar_painel(conteudo)
+    if em_vercel():
+        raise OSError("blob")
+    return ler_painel_arquivo()
+
+
+def gravar_painel(lista):
+    conteudo = json.dumps(lista, ensure_ascii=False).encode("utf-8")
+    if token_blob():
+        if not enviar_json_blob(PAINEL_BLOB, conteudo):
+            raise OSError("blob")
+        return
+    if em_vercel():
+        raise OSError("blob")
+    gravar_painel_arquivo(lista)
+
+
+def filtrar_painel(lista, data, documento):
+    data = (data or "").strip()
+    documento = apenas_digitos(documento)
+    if data and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", data):
+        return []
+    saida = []
+    for item in lista:
+        if data and str(item.get("data") or "") != data:
+            continue
+        if documento and str(item.get("documento") or "") != documento:
+            continue
+        saida.append(item)
+    saida.sort(key=lambda atual: (str(atual.get("data") or ""), str(atual.get("id") or "")), reverse=True)
+    return saida
+
+
+def incluir_orcamento_painel(corpo):
+    if not isinstance(corpo, dict):
+        return None
+    nome = str(corpo.get("nome") or "").strip()[:120]
+    documento = apenas_digitos(corpo.get("documento") or "")
+    telefone = apenas_digitos(corpo.get("telefone") or "")
+    if not nome or not (cpf_valido(documento) or cnpj_valido(documento)) or not telefone_painel_valido(telefone):
+        return None
+    itens = normalizar_itens_painel(corpo.get("itens"))
+    if not itens:
+        return None
+    registro = {
+        "id": hoje_painel().replace("-", "") + "-" + secrets.token_hex(4),
+        "data": hoje_painel(),
+        "nome": nome,
+        "documento": documento,
+        "telefone": formatar_telefone(telefone),
+        "itens": itens,
+        "total": round(sum(item["valor"] for item in itens), 2),
+    }
+    with PAINEL_LOCK:
+        lista = ler_painel()
+        lista.insert(0, registro)
+        gravar_painel(lista[:PAINEL_LIMITE])
+    return registro
+
+
+def responder_orcamentos(saida):
+    if saida.command == "GET":
+        if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+            escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
+            return
+        try:
+            lista = ler_painel()
+        except OSError:
+            escrever_json(saida, {"ok": False, "erro": "Não foi possível ler os orçamentos."}, 500)
+            return
+        data = parametro_consulta(saida.path, "data")
+        documento = parametro_consulta(saida.path, "documento")
+        escrever_json(saida, {"ok": True, "orcamentos": filtrar_painel(lista, data, documento)})
+        return
+    if saida.command != "POST":
+        saida.send_error(405)
+        return
+    bruto = ler_corpo(saida)
+    if bruto is None or len(bruto) > 256 * 1024:
+        escrever_json(saida, {"ok": False, "erro": "Não foi possível gravar o orçamento."}, 400)
+        return
+    try:
+        corpo = json.loads(bruto.decode("utf-8") or "{}")
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        escrever_json(saida, {"ok": False, "erro": "Não foi possível gravar o orçamento."}, 400)
+        return
+    try:
+        registro = incluir_orcamento_painel(corpo)
+    except OSError:
+        escrever_json(saida, {"ok": False, "erro": "Não foi possível gravar o orçamento."}, 500)
+        return
+    if not registro:
+        escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
+        return
+    escrever_json(saida, {"ok": True, "id": registro["id"]})
+
+
 def responder_orcamento_pdf(saida):
     corpo = ler_corpo(saida)
     if corpo is None:
@@ -928,6 +1160,9 @@ class Handler(SimpleHTTPRequestHandler):
         if caminho == "/api/auditoria":
             responder_auditoria(self)
             return
+        if caminho == "/api/orcamentos":
+            responder_orcamentos(self)
+            return
         if caminho == "/api/ver-pdf":
             responder_ver_pdf(self)
             return
@@ -945,6 +1180,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if caminho == "/api/orcamento-pdf":
             responder_orcamento_pdf(self)
+            return
+        if caminho == "/api/orcamentos":
+            responder_orcamentos(self)
             return
         if caminho != "/api/catalogo":
             self.send_error(404)
