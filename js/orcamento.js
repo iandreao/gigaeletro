@@ -1,5 +1,5 @@
 (function () {
-  var WHATSAPP = "5527999821221";
+  var WHATSAPP = "5527998235652";
   var CHAVE_PEDIDO = "gigaeletro-orcamento";
   var CHAVE_RECENTES = "gigaeletro-orcamentos-recentes";
   var SITE_PDF = "https://gigaeletro.vercel.app";
