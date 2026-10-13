@@ -383,7 +383,7 @@
             '<p class="catalog-fine">Código (SKU): ' + codigo + " · Estoque: " + escapar(estoque) + "</p>" +
           "</div>" +
           '<div class="catalog-buy">' +
-            '<p class="preco"><strong>' + moeda(item.preco) + "</strong></p>" +
+            '<p class="preco"><strong><span class="cifrao">R$ </span>' + numero(item.preco) + "</strong></p>" +
             '<button class="add-mini" type="button" data-add="' + codigo + '" aria-label="Adicionar ' + nome + ' ao orçamento">+ Adicionar</button>' +
           "</div>" +
         "</article>"

@@ -1447,6 +1447,17 @@ body { padding-bottom: 0; }
     border-radius: 0 0 1rem 1rem;
     overflow: hidden;
   }
+  .catalogo-modal .search-label {
+    gap: 0.15rem;
+    margin-bottom: 0.2rem;
+    font-size: 0.75rem;
+  }
+  .catalogo-modal input[type="search"] {
+    min-height: 32px;
+    padding: 0 0.55rem;
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+  }
   .catalogo-modal .catalog-list {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1461,17 +1472,34 @@ body { padding-bottom: 0; }
   .catalogo-modal .catalog-row {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.35rem;
+    gap: 0.1rem;
     min-width: 0;
-    padding: 0.45rem;
+    padding: 0.125rem 0.35rem;
   }
+  .catalogo-modal .catalog-nome {
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.15;
+  }
+  .catalogo-modal .catalog-fine { display: none; }
+  .catalogo-modal .cifrao { display: none; }
   .catalogo-modal .catalog-buy {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.28rem;
+    gap: 0.05rem;
   }
-  .catalogo-modal .catalog-row .preco strong { white-space: normal; }
-  .catalogo-modal .add-mini { width: 100%; white-space: normal; }
+  .catalogo-modal .catalog-row .preco strong {
+    font-size: 12px;
+    line-height: 1.15;
+    white-space: normal;
+  }
+  .catalogo-modal .add-mini {
+    width: 100%;
+    min-height: 26px;
+    padding: 0 0.35rem;
+    font-size: 11px;
+    white-space: normal;
+  }
   body.home .quote-side .drawer-foot {
     position: fixed;
     z-index: 48;
