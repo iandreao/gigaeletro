@@ -737,24 +737,26 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
 .historico-acoes { display: flex; flex: none; align-items: center; gap: 0.85rem; }
 .historico-acoes a,
 .historico-acoes button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--ink);
-  font: inherit;
-  font-size: 0.92rem;
-  font-weight: 800;
-  text-decoration: underline;
+  text-decoration: none;
   cursor: pointer;
 }
-.historico-acoes button.historico-excluir {
-  color: #dc2626;
-  text-decoration: none;
-}
+.historico-acoes svg { display: block; width: 16px; height: 16px; }
+.historico-acoes button.historico-excluir { color: #dc2626; }
+.historico-acoes a:hover,
+.historico-acoes a:focus-visible,
+.historico-acoes button:hover,
+.historico-acoes button:focus-visible { color: #111827; }
 .historico-acoes button.historico-excluir:hover,
-.historico-acoes button.historico-excluir:focus-visible {
-  text-decoration: underline;
-}
+.historico-acoes button.historico-excluir:focus-visible { color: #b91c1c; }
 .empty { padding: 1rem 1.1rem; color: var(--muted); }
 
 [id] { scroll-margin-top: calc(var(--header) + 12px); }
@@ -1318,23 +1320,25 @@ body.home .quote-side {
 }
 .quote-side .cart-compacta strong { color: #111827; font-weight: 700; }
 .quote-side .cart-item .remover {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   justify-self: end;
   align-self: center;
-  width: auto;
+  width: 16px;
+  height: 16px;
   min-height: 0;
   margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
   color: #ef4444;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.15;
-  text-align: right;
+  line-height: 1;
   text-decoration: none;
 }
+.quote-side .cart-item .remover svg { display: block; width: 16px; height: 16px; }
 .quote-side .cart-item .remover:hover,
-.quote-side .cart-item .remover:focus-visible { text-decoration: underline; }
+.quote-side .cart-item .remover:focus-visible { color: #dc2626; text-decoration: none; }
 .quote-side .estimado {
   margin: 0;
   color: var(--muted);

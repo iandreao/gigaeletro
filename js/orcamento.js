@@ -29,6 +29,7 @@
   var envioEmCurso = false;
   var restaurandoCliente = false;
   var sugestaoAtiva = -1;
+  var orcamentoSendoEditadoId = "";
 
   if (buscaEl) {
     buscaEl.addEventListener("input", function () {
@@ -446,7 +447,7 @@
           "</div>" +
           '<div class="catalog-buy">' +
             '<p class="preco"><strong>' + numero(item.preco) + "</strong></p>" +
-            '<button class="add-mini" type="button" data-add="' + codigo + '" aria-label="Adicionar ' + nome + ' ao orçamento">+ Adicionar</button>' +
+            '<button class="add-mini" type="button" data-add="' + codigo + '" aria-label="Adicionar ' + nome + ' ao orçamento">Adicionar</button>' +
           "</div>" +
         "</article>"
       );
@@ -529,7 +530,7 @@
             '<span class="cart-preco">' + numero(item.preco) + "</span>" +
             '<strong class="cart-rotulo">Valor:</strong>' +
             '<span class="cart-total" data-linha-total="' + codigo + '">' + numero(item.preco * item.qtd) + "</span>" +
-            '<button class="remover" type="button" data-acao="remover" data-id="' + codigo + '">Remover</button>' +
+            '<button class="remover" type="button" data-acao="remover" data-id="' + codigo + '" aria-label="Remover" title="Remover">' + icone("lixeira") + "</button>" +
           "</div>" +
         "</li>"
       );
@@ -681,6 +682,7 @@
         if (trecho) idSalvo = decodeURIComponent(trecho[1]);
       }
       cliente.tipo = tipoPessoa();
+      descartarOrcamentoEditado(idSalvo);
       gravarRecente(idSalvo, subtotal, selecionados, cliente);
       renderRecentes();
       var texto = textoOrcamento(cliente, subtotal, link);
@@ -795,6 +797,7 @@
     selecionados = [];
     salvarPedido();
     renderResumo();
+    orcamentoSendoEditadoId = "";
     if (enviar) enviar.textContent = "Enviar Orçamento";
   }
 
@@ -1371,6 +1374,24 @@
     return apenasDigitos(item.documento || (item.cliente && item.cliente.documento) || "");
   }
 
+  function icone(tipo) {
+    var comum = 'viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+    if (tipo === "lixeira") {
+      return '<svg ' + comum + '><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+    }
+    if (tipo === "olho") {
+      return '<svg ' + comum + '><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+    }
+    return '<svg ' + comum + '><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  }
+
+  function descartarOrcamentoEditado(idNovo) {
+    var antigo = orcamentoSendoEditadoId;
+    if (!antigo || antigo === String(idNovo || "")) return;
+    var lista = lerRecentes().filter(function (item) { return item.id !== antigo; });
+    localStorage.setItem(CHAVE_RECENTES, JSON.stringify(lista));
+  }
+
   function gravarRecente(id, total, itens, cliente) {
     if (!id) return;
     var documento = apenasDigitos(cliente && cliente.documento);
@@ -1388,6 +1409,7 @@
 
   function excluirRecente(id) {
     if (!id) return;
+    if (orcamentoSendoEditadoId === id) orcamentoSendoEditadoId = "";
     var lista = lerRecentes().filter(function (item) { return item.id !== id; });
     localStorage.setItem(CHAVE_RECENTES, JSON.stringify(lista));
     renderRecentes();
@@ -1401,6 +1423,7 @@
       return;
     }
     selecionados = itens;
+    orcamentoSendoEditadoId = String(id || "");
     salvarPedido();
     renderResumo();
     if (registro.cliente) preencherCliente(registro.cliente);
@@ -1443,16 +1466,22 @@
       abrir.href = SITE_PDF + "/api/ver-pdf?id=" + encodeURIComponent(item.id);
       abrir.target = "_blank";
       abrir.rel = "noopener noreferrer";
-      abrir.textContent = "Visualizar";
+      abrir.innerHTML = icone("olho");
+      abrir.setAttribute("aria-label", "Visualizar");
+      abrir.title = "Visualizar";
       var editar = document.createElement("button");
       editar.type = "button";
       editar.setAttribute("data-editar-orcamento", item.id);
-      editar.textContent = "Alterar";
+      editar.innerHTML = icone("lapis");
+      editar.setAttribute("aria-label", "Alterar");
+      editar.title = "Alterar";
       var excluir = document.createElement("button");
       excluir.type = "button";
       excluir.className = "historico-excluir";
       excluir.setAttribute("data-excluir-orcamento", item.id);
-      excluir.textContent = "Excluir";
+      excluir.innerHTML = icone("lixeira");
+      excluir.setAttribute("aria-label", "Excluir");
+      excluir.title = "Excluir";
       acoes.appendChild(abrir);
       acoes.appendChild(editar);
       acoes.appendChild(excluir);
