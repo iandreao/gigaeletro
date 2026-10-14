@@ -1280,7 +1280,7 @@
     doc.setFontSize(7.5);
     doc.setTextColor(26, 26, 26);
     doc.text(
-      "Obs: O PRAZO DE VALIDADE DESTE ORÇAMENTO É DE 15 (QUINZE) DIAS A CONTAR DA DATA DO SEU ENVIO.",
+      "Nota: Os preços têm validade de 15 dias a contar do envio do orçamento. O estoque e o frete serão confirmados no Whatsapp.",
       margem,
       y + 6,
       { maxWidth: xCaixa - margem - 6 }
