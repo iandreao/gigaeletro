@@ -616,31 +616,55 @@
     return "https://wa.me/" + destinoWhatsApp() + "?text=" + encodeURIComponent(texto);
   }
 
-  function abrirJanelaWhatsApp() {
+  function urlProtocoloWhatsApp(texto) {
+    return "whatsapp://send?phone=" + destinoWhatsApp() + "&text=" + encodeURIComponent(texto);
+  }
+
+  function quadroWhatsApp() {
+    var quadro = document.querySelector("[data-whatsapp-disparo]");
+    if (quadro) return quadro;
+    quadro = document.createElement("iframe");
+    quadro.setAttribute("data-whatsapp-disparo", "");
+    quadro.hidden = true;
+    quadro.setAttribute("aria-hidden", "true");
+    quadro.tabIndex = -1;
+    quadro.style.cssText = "position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none";
+    document.body.appendChild(quadro);
+    return quadro;
+  }
+
+  function abrirLinkWhatsApp(url) {
+    var aba = null;
     try {
-      return window.open("", "whatsapp-gigaeletro");
+      aba = window.open(url, "whatsapp-gigaeletro");
     } catch (erro) {
-      return null;
+      aba = null;
     }
+    if (aba) return;
+    var link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 
-  function fecharJanelaWhatsApp(janela) {
-    window.setTimeout(function () {
-      try {
-        if (janela && !janela.closed) janela.close();
-      } catch (erro) {}
-    }, 1600);
-  }
-
-  function dispararWhatsApp(texto, janela) {
+  function dispararWhatsApp(texto) {
     var web = urlWhatsApp(texto);
-    if (!janela || janela.closed) janela = abrirJanelaWhatsApp();
-    if (janela && !janela.closed) {
-      janela.location.href = web;
-      fecharJanelaWhatsApp(janela);
-      return;
-    }
-    window.location.assign(web);
+    var quadro = quadroWhatsApp();
+    var abriuAplicativo = false;
+    function marcarAplicativo() { abriuAplicativo = true; }
+    window.addEventListener("blur", marcarAplicativo);
+    document.addEventListener("visibilitychange", marcarAplicativo);
+    quadro.src = urlProtocoloWhatsApp(texto);
+    window.setTimeout(function () {
+      window.removeEventListener("blur", marcarAplicativo);
+      document.removeEventListener("visibilitychange", marcarAplicativo);
+      quadro.removeAttribute("src");
+      if (abriuAplicativo || document.hidden) return;
+      abrirLinkWhatsApp(web);
+    }, 700);
   }
 
   function enviarWhatsApp() {
@@ -674,7 +698,6 @@
     envioEmCurso = true;
     if (enviar) enviar.disabled = true;
     if (avisoEnvio) avisoEnvio.hidden = true;
-    var janelaWhatsApp = abrirJanelaWhatsApp();
     var textoSemPdf = textoOrcamento(cliente, subtotal, "");
     var gravacaoPainel = gravarPainelGestor(cliente);
     fetch("/api/orcamento-pdf", { method: "POST", body: dados }).then(function (resposta) {
@@ -697,13 +720,15 @@
       renderRecentes();
       var texto = textoOrcamento(cliente, subtotal, link);
       limparDepoisDoEnvio();
+      mostrarAviso("Orçamento enviado com sucesso para o WhatsApp!");
       return gravacaoPainel.then(function () {
-        dispararWhatsApp(texto, janelaWhatsApp);
+        dispararWhatsApp(texto);
       });
     }, function () {
       limparDepoisDoEnvio();
+      mostrarAviso("Orçamento enviado com sucesso para o WhatsApp!");
       return gravacaoPainel.then(function () {
-        dispararWhatsApp(textoSemPdf, janelaWhatsApp);
+        dispararWhatsApp(textoSemPdf);
       });
     }).then(function () {
       envioEmCurso = false;
