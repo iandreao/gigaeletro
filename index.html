@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=63">
+  <link rel="stylesheet" href="css/site.css?v=65">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -63,6 +63,11 @@
         </div>
         <div class="hero-acao">
           <form class="cliente-form" data-cliente novalidate autocomplete="off">
+            <div class="cliente-honeypot" aria-hidden="true">
+              <label>Sobrenome
+                <input name="sobrenome_confirmacao" type="text" tabindex="-1" autocomplete="off" autocapitalize="off" spellcheck="false">
+              </label>
+            </div>
             <div class="form-linha form-tipo">
               <fieldset class="tipo-pessoa">
                 <legend>Tipo de Pessoa:</legend>
@@ -214,6 +219,6 @@
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
   <script src="js/site.js?v=12"></script>
-  <script src="js/orcamento.js?v=64"></script>
+  <script src="js/orcamento.js?v=65"></script>
 </body>
 </html>

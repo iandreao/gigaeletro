@@ -667,25 +667,46 @@
     }, 700);
   }
 
+  function honeypotPreenchido() {
+    var campo = formCliente && formCliente.elements.sobrenome_confirmacao;
+    return !!(campo && String(campo.value || "").trim());
+  }
+
+  function soltarBotaoEnvio() {
+    if (enviar) enviar.textContent = "Enviar Orçamento";
+    liberarEnvio();
+  }
+
   function enviarWhatsApp() {
+    if (envioEmCurso) return;
+    if (enviar) {
+      enviar.disabled = true;
+      enviar.textContent = "Processando...";
+    }
+    if (honeypotPreenchido()) {
+      limparDepoisDoEnvio();
+      return;
+    }
     setCatalogo(false);
     if (!selecionados.length) {
       mostrarAviso("Adicione ao menos um produto ao orçamento.");
+      soltarBotaoEnvio();
       return;
     }
     var cliente = lerCliente();
     var erro = validarCliente(cliente);
     if (erro) {
       mostrarAviso(erro);
+      soltarBotaoEnvio();
       return;
     }
-    if (envioEmCurso) return;
     var subtotal = selecionados.reduce(function (soma, item) { return soma + item.preco * item.qtd; }, 0);
     var arquivo;
     try {
       arquivo = new File([gerarPdf(cliente, subtotal)], "Pedido-de-Orcamento-Gigaeletro.pdf", { type: "application/pdf" });
     } catch (falha) {
       mostrarAviso("Não foi possível gerar o PDF do orçamento.");
+      soltarBotaoEnvio();
       return;
     }
     var dados = new FormData();
@@ -904,7 +925,7 @@
 
   function limparCamposCliente() {
     if (!formCliente) return;
-    var nomes = ["documento", "cep", "nome", "endereco", "numero", "bairro", "cidade", "uf", "celular", "email"];
+    var nomes = ["documento", "cep", "nome", "endereco", "numero", "bairro", "cidade", "uf", "celular", "email", "sobrenome_confirmacao"];
     nomes.forEach(function (nome) {
       var campo = formCliente.elements[nome];
       if (!campo) return;

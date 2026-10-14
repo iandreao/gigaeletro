@@ -1423,6 +1423,18 @@ body { padding-bottom: 0; }
   margin: 0;
   min-width: 0;
 }
+.cliente-honeypot {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  clip: rect(0, 0, 0, 0);
+}
 .form-linha {
   display: grid;
   gap: 0 10px;
