@@ -205,6 +205,9 @@
     if (tipo === "olho") {
       return '<svg ' + comum + '><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
     }
+    if (tipo === "lixeira") {
+      return '<svg ' + comum + '><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+    }
     return '<svg ' + comum + '><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>';
   }
 
@@ -286,6 +289,7 @@
         '<td class="acoes"><div class="gestor-acoes">' +
           '<button type="button" data-ver-orcamento="' + id + '" aria-label="Visualizar" title="Visualizar">' + iconeAcao("olho") + "</button>" +
           '<button type="button" data-imprimir-orcamento="' + id + '" aria-label="Imprimir" title="Imprimir">' + iconeAcao("impressora") + "</button>" +
+          '<button type="button" data-excluir-orcamento="' + id + '" aria-label="Excluir" title="Excluir">' + iconeAcao("lixeira") + "</button>" +
         "</div></td>" +
       "</tr>";
     }).join("");
@@ -331,7 +335,38 @@
         return;
       }
       var imprimir = event.target.closest("[data-imprimir-orcamento]");
-      if (imprimir) imprimirOrcamento(acharOrcamento(imprimir.getAttribute("data-imprimir-orcamento")));
+      if (imprimir) {
+        imprimirOrcamento(acharOrcamento(imprimir.getAttribute("data-imprimir-orcamento")));
+        return;
+      }
+      var excluir = event.target.closest("[data-excluir-orcamento]");
+      if (excluir) excluirOrcamento(acharOrcamento(excluir.getAttribute("data-excluir-orcamento")));
+    });
+  }
+
+  function excluirOrcamento(item) {
+    if (!item || !item.id) return;
+    var nome = String(item.nome || "este cliente");
+    if (!window.confirm("Excluir o orçamento de " + nome + "?")) return;
+    fetch("/api/orcamentos?id=" + encodeURIComponent(item.id), {
+      method: "DELETE",
+      cache: "no-store",
+      credentials: "same-origin"
+    }).then(function (resposta) {
+      if (resposta.status === 401) {
+        window.location.replace("/");
+        return null;
+      }
+      return resposta.json().catch(function () { return null; }).then(function (corpo) {
+        if (!resposta.ok || !corpo || !corpo.ok) throw new Error("excluir");
+        return corpo;
+      });
+    }).then(function (corpo) {
+      if (!corpo) return;
+      fecharDetalhe();
+      carregarOrcamentos();
+    }).catch(function () {
+      window.alert("Não foi possível excluir o orçamento.");
     });
   }
   document.querySelectorAll("[data-fechar-detalhe]").forEach(function (botao) {

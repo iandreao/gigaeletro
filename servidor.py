@@ -1020,6 +1020,23 @@ def filtrar_painel(lista, data, documento):
     return saida
 
 
+def id_painel_valido(valor):
+    return bool(re.fullmatch(r"[0-9]{8}-[0-9a-fA-F]{8}", str(valor or "")))
+
+
+def excluir_orcamento_painel(identificador):
+    identificador = str(identificador or "")
+    if not id_painel_valido(identificador):
+        return False
+    with PAINEL_LOCK:
+        lista = ler_painel()
+        restante = [item for item in lista if str(item.get("id") or "") != identificador]
+        if len(restante) == len(lista):
+            return None
+        gravar_painel(restante)
+    return True
+
+
 def incluir_orcamento_painel(corpo):
     if not isinstance(corpo, dict):
         return None
@@ -1060,6 +1077,24 @@ def responder_orcamentos(saida):
         data = parametro_consulta(saida.path, "data")
         documento = parametro_consulta(saida.path, "documento")
         escrever_json(saida, {"ok": True, "orcamentos": filtrar_painel(lista, data, documento)})
+        return
+    if saida.command == "DELETE":
+        if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+            escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
+            return
+        identificador = parametro_consulta(saida.path, "id")
+        if not id_painel_valido(identificador):
+            escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
+            return
+        try:
+            removido = excluir_orcamento_painel(identificador)
+        except OSError:
+            escrever_json(saida, {"ok": False, "erro": "Não foi possível excluir o orçamento."}, 500)
+            return
+        if removido is None:
+            escrever_json(saida, {"ok": False, "erro": "Orçamento não encontrado."}, 404)
+            return
+        escrever_json(saida, {"ok": True})
         return
     if saida.command != "POST":
         saida.send_error(405)
@@ -1200,6 +1235,13 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_error(404)
             return
         responder_upload(self)
+
+    def do_DELETE(self):
+        caminho = self.path.split("?", 1)[0]
+        if caminho == "/api/orcamentos":
+            responder_orcamentos(self)
+            return
+        self.send_error(404)
 
 
 def ip_local():

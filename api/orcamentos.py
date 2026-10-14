@@ -1,4 +1,4 @@
-"""GET e POST /api/orcamentos na Vercel."""
+"""GET, POST e DELETE /api/orcamentos na Vercel."""
 import sys
 from pathlib import Path
 
@@ -14,4 +14,7 @@ class handler(BaseHTTPRequestHandler):
         servidor.responder_orcamentos(self)
 
     def do_POST(self):
+        servidor.responder_orcamentos(self)
+
+    def do_DELETE(self):
         servidor.responder_orcamentos(self)

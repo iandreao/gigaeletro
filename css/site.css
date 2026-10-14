@@ -1568,6 +1568,9 @@ body { padding-bottom: 0; }
   cursor: pointer;
 }
 .gestor-acoes button:hover, .gestor-acoes button:focus-visible { background: var(--yellow-50); }
+.gestor-acoes button[data-excluir-orcamento] { color: #ef4444; }
+.gestor-acoes button[data-excluir-orcamento]:hover,
+.gestor-acoes button[data-excluir-orcamento]:focus-visible { color: #dc2626; background: #fef2f2; }
 .gestor-acoes svg { display: block; width: 16px; height: 16px; }
 .gestor-detalhe { width: min(680px, calc(100% - 1.5rem)); max-height: min(80vh, 720px); overflow: auto; }
 .gestor-detalhe-corpo { padding: 0.2rem 1.1rem 1.1rem; }
