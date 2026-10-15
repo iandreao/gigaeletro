@@ -118,7 +118,8 @@ body.home .hero h1 {
   white-space: normal;
   text-align: center;
   font-size: clamp(0.92rem, 1.45vw, 1.42rem);
-  font-weight: 800;
+  font-family: "Playfair Display", serif;
+  font-weight: 700;
   letter-spacing: 0;
   line-height: 1.15;
 }
