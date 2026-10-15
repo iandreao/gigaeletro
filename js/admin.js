@@ -302,9 +302,9 @@
     if (!listaGestor) return;
     if (vazioGestor) vazioGestor.hidden = true;
     var pedido = ++consultaPainel;
-    var data = dataParaConsulta(campoData ? campoData.value : "");
-    var documento = digitosDocumento(campoDocumento ? campoDocumento.value : "");
-    var url = "/api/orcamentos?data=" + encodeURIComponent(data) + "&documento=" + encodeURIComponent(documento);
+    var docLimpo = String(campoDocumento ? campoDocumento.value : "").replace(/\D/g, "").slice(0, 14);
+    var data = docLimpo ? "" : dataParaConsulta(campoData ? campoData.value : "");
+    var url = "/api/orcamentos?data=" + encodeURIComponent(data) + "&documento=" + encodeURIComponent(docLimpo);
     fetch(url, { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
       if (resposta.status === 401) {
         window.location.replace("/");

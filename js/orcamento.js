@@ -1467,9 +1467,9 @@
     if (event) event.preventDefault();
     var campo = document.querySelector("[data-historico-documento]");
     var erro = document.querySelector("[data-historico-erro]");
-    var digitos = apenasDigitos(campo ? campo.value : "");
+    var docLimpo = String(campo ? campo.value : "").replace(/\D/g, "");
     var pedido = ++historicoPedido;
-    if (!documentoBuscaValido(digitos)) {
+    if (!documentoBuscaValido(docLimpo)) {
       documentoConsulta = "";
       historicoConsulta = [];
       historicoBuscando = false;
@@ -1481,12 +1481,12 @@
       if (campo) campo.focus();
       return;
     }
-    documentoConsulta = digitos;
+    documentoConsulta = docLimpo;
     historicoConsulta = [];
     historicoBuscando = true;
     if (erro) erro.hidden = true;
     renderRecentes();
-    fetch("/api/orcamentos?documento=" + encodeURIComponent(digitos), { cache: "no-store" }).then(function (resposta) {
+    fetch("/api/orcamentos?documento=" + encodeURIComponent(docLimpo), { cache: "no-store" }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (corpo) {
         if (!resposta.ok || !corpo || !corpo.ok || !Array.isArray(corpo.orcamentos)) {
           throw new Error("busca");

@@ -1011,16 +1011,16 @@ def normalizar_data_painel(valor):
 
 
 def filtrar_painel(lista, data, documento):
-    bruto = str(data or "").strip()
+    documento = apenas_digitos(documento)
+    bruto = "" if documento else str(data or "").strip()
     data = normalizar_data_painel(bruto) if bruto else ""
     if bruto and not data:
         return []
-    documento = apenas_digitos(documento)
     saida = []
     for item in lista:
         if data and normalizar_data_painel(item.get("data")) != data:
             continue
-        if documento and str(item.get("documento") or "") != documento:
+        if documento and apenas_digitos(str(item.get("documento") or "")) != documento:
             continue
         saida.append(item)
     saida.sort(key=lambda atual: (str(atual.get("data") or ""), str(atual.get("id") or "")), reverse=True)
@@ -1126,7 +1126,8 @@ def responder_orcamentos(saida):
         except OSError:
             escrever_json(saida, {"ok": False, "erro": "Não foi possível ler os orçamentos."}, 500)
             return
-        data = parametro_consulta(saida.path, "data") if admin else ""
+        documento = apenas_digitos(documento)
+        data = parametro_consulta(saida.path, "data") if admin and not documento else ""
         if not admin:
             documento = documento_consulta_valido(documento)
         escrever_json(saida, {"ok": True, "orcamentos": filtrar_painel(lista, data, documento)})
