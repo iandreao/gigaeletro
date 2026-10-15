@@ -1663,6 +1663,78 @@ body { padding-bottom: 0; }
 }
 .gestor-vazio { margin: 0.4rem 0; color: var(--muted); font-size: 0.85rem; font-weight: 700; }
 .gestor-tabela-box { overflow-x: auto; background: var(--white); border: 1px solid var(--gray-200); border-radius: 0.75rem; }
+body.gestor {
+  --header: 48px;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--gray-50);
+}
+body.gestor .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  flex: none;
+}
+body.gestor .bar {
+  min-height: 0;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+body.gestor main.section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0.3rem 0 0.4rem;
+  overflow: hidden;
+}
+body.gestor [data-area-restrita] {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+body.gestor [data-area-restrita][hidden],
+body.gestor .gestor-pagina[hidden],
+body.gestor .admin-page[hidden] { display: none !important; }
+body.gestor .kicker { margin: 0 0 0.2rem; }
+body.gestor .gestor-nav-wrap { flex: none; margin-bottom: 0.15rem; }
+body.gestor .gestor-pagina {
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+body.gestor .gestor-pagina h1 {
+  flex: none;
+  margin: 0 0 0.3rem;
+  font-size: 1.35rem;
+}
+body.gestor .gestor-filtros { flex: none; margin-bottom: 0.35rem; }
+body.gestor .gestor-vazio { flex: none; }
+body.gestor .gestor-tabela-box {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(100dvh - 12.25rem);
+  overflow-x: auto;
+  overflow-y: auto;
+}
+body.gestor .gestor-tabela thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--yellow-50);
+}
+body.gestor .admin-page {
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+  overflow: auto;
+}
 .gestor-tabela { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.25; }
 .gestor-tabela th, .gestor-tabela td { padding: 0.28rem 0.45rem; border-bottom: 1px solid var(--gray-200); text-align: left; vertical-align: top; }
 .gestor-tabela th { font-size: 11px; font-weight: 800; background: var(--yellow-50); white-space: nowrap; }
