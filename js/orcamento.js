@@ -1,7 +1,6 @@
 (function () {
   var WHATSAPP = "5527998021221";
   var CHAVE_PEDIDO = "gigaeletro-orcamento";
-  var CHAVE_RECENTES = "gigaeletro-orcamentos-recentes";
   var SITE_PDF = "https://gigaeletro.vercel.app";
 
   var catalogo = [];
@@ -30,6 +29,7 @@
   var restaurandoCliente = false;
   var sugestaoAtiva = -1;
   var orcamentoSendoEditadoId = "";
+  var orcamentoSendoEditadoDocumento = "";
 
   if (buscaEl) {
     buscaEl.addEventListener("input", function () {
@@ -244,6 +244,9 @@
   }
 
   var documentoConsulta = "";
+  var historicoConsulta = [];
+  var historicoPedido = 0;
+  var historicoBuscando = false;
 
   function setHistorico(aberto) {
     var modal = document.querySelector("[data-historico]");
@@ -252,6 +255,9 @@
     if (fundo) fundo.hidden = !aberto;
     if (!aberto) return;
     documentoConsulta = "";
+    historicoConsulta = [];
+    historicoBuscando = false;
+    historicoPedido += 1;
     var campoBusca = document.querySelector("[data-historico-documento]");
     var erroBusca = document.querySelector("[data-historico-erro]");
     if (campoBusca) campoBusca.value = "";
@@ -698,7 +704,6 @@
     if (enviar) enviar.disabled = true;
     if (avisoEnvio) avisoEnvio.hidden = true;
     var textoSemPdf = textoOrcamento(cliente, subtotal, "");
-    var gravacaoPainel = gravarPainelGestor(cliente);
     fetch("/api/orcamento-pdf", { method: "POST", body: dados }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
         if (!resposta.ok || !publicado || !publicado.url) {
@@ -714,19 +719,16 @@
         if (trecho) idSalvo = decodeURIComponent(trecho[1]);
       }
       cliente.tipo = tipoPessoa();
-      descartarOrcamentoEditado(idSalvo);
-      gravarRecente(idSalvo, subtotal, selecionados, cliente);
-      renderRecentes();
       var texto = textoOrcamento(cliente, subtotal, idSalvo);
-      limparDepoisDoEnvio();
-      mostrarAviso("Orçamento enviado com sucesso para o WhatsApp!");
-      return gravacaoPainel.then(function () {
+      return publicarPainel(cliente, idSalvo).then(function () {
+        limparDepoisDoEnvio();
+        mostrarAviso("Orçamento enviado com sucesso para o WhatsApp!");
         dispararWhatsApp(texto);
       });
     }, function () {
-      limparDepoisDoEnvio();
-      mostrarAviso("Orçamento enviado com sucesso para o WhatsApp!");
-      return gravacaoPainel.then(function () {
+      return publicarPainel(cliente, "").then(function () {
+        limparDepoisDoEnvio();
+        mostrarAviso("Orçamento enviado com sucesso para o WhatsApp!");
         dispararWhatsApp(textoSemPdf);
       });
     }).then(function () {
@@ -735,11 +737,14 @@
     });
   }
 
-  function gravarPainelGestor(cliente) {
+  function gravarPainelGestor(cliente, pdfId) {
     var corpo = {
       nome: cliente.nome,
       documento: apenasDigitos(cliente.documento),
       telefone: apenasDigitos(cliente.celular),
+      pdfId: pdfId || "",
+      tipo: cliente.tipo,
+      cliente: copiarCliente(cliente),
       itens: selecionados.map(function (item) {
         return {
           codigo: item.codigo,
@@ -753,7 +758,30 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(corpo)
-    }).then(function () { return null; }).catch(function () { return null; });
+    }).then(function (resposta) {
+      return resposta.json().catch(function () { return null; }).then(function (publicado) {
+        if (!resposta.ok || !publicado || !publicado.ok) return "";
+        return String(publicado.id || "");
+      });
+    }).catch(function () { return ""; });
+  }
+
+  function publicarPainel(cliente, pdfId) {
+    var antigo = orcamentoSendoEditadoId;
+    var documentoAntigo = orcamentoSendoEditadoDocumento || apenasDigitos(cliente && cliente.documento);
+    return gravarPainelGestor(cliente, pdfId).then(function (idPainel) {
+      if (!idPainel || !antigo || antigo === idPainel) return idPainel;
+      return descartarPainelEditado(antigo, documentoAntigo).then(function () { return idPainel; });
+    });
+  }
+
+  function descartarPainelEditado(id, documento) {
+    var doc = apenasDigitos(documento);
+    if (!id || !doc) return Promise.resolve();
+    return fetch("/api/orcamentos?id=" + encodeURIComponent(id) + "&documento=" + encodeURIComponent(doc), {
+      method: "DELETE",
+      cache: "no-store"
+    }).catch(function () { return null; });
   }
 
   function mostrarAviso(texto) {
@@ -866,6 +894,7 @@
     salvarPedido();
     renderResumo();
     orcamentoSendoEditadoId = "";
+    orcamentoSendoEditadoDocumento = "";
     if (enviar) enviar.textContent = "Enviar Orçamento";
   }
 
@@ -1381,20 +1410,6 @@
     });
   }
 
-  function lerRecentes() {
-    try {
-      var dados = JSON.parse(localStorage.getItem(CHAVE_RECENTES) || "[]");
-      if (!Array.isArray(dados)) return [];
-      return dados.filter(function (item) {
-        return item && item.id && item.data;
-      }).sort(function (a, b) {
-        return new Date(b.data).getTime() - new Date(a.data).getTime();
-      });
-    } catch (erro) {
-      return [];
-    }
-  }
-
   function copiarCliente(cliente) {
     var origem = cliente || {};
     return {
@@ -1453,8 +1468,11 @@
     var campo = document.querySelector("[data-historico-documento]");
     var erro = document.querySelector("[data-historico-erro]");
     var digitos = apenasDigitos(campo ? campo.value : "");
+    var pedido = ++historicoPedido;
     if (!documentoBuscaValido(digitos)) {
       documentoConsulta = "";
+      historicoConsulta = [];
+      historicoBuscando = false;
       if (erro) {
         erro.hidden = false;
         erro.textContent = "CPF ou CNPJ inválido";
@@ -1464,8 +1482,32 @@
       return;
     }
     documentoConsulta = digitos;
+    historicoConsulta = [];
+    historicoBuscando = true;
     if (erro) erro.hidden = true;
     renderRecentes();
+    fetch("/api/orcamentos?documento=" + encodeURIComponent(digitos), { cache: "no-store" }).then(function (resposta) {
+      return resposta.json().catch(function () { return null; }).then(function (corpo) {
+        if (!resposta.ok || !corpo || !corpo.ok || !Array.isArray(corpo.orcamentos)) {
+          throw new Error("busca");
+        }
+        return corpo.orcamentos;
+      });
+    }).then(function (lista) {
+      if (pedido !== historicoPedido) return;
+      historicoBuscando = false;
+      historicoConsulta = lista.map(registroHistorico).filter(function (item) { return item.id; });
+      renderRecentes();
+    }).catch(function () {
+      if (pedido !== historicoPedido) return;
+      historicoBuscando = false;
+      historicoConsulta = [];
+      if (erro) {
+        erro.hidden = false;
+        erro.textContent = "Não foi possível consultar os orçamentos.";
+      }
+      renderRecentes();
+    });
   }
 
   function documentoDoRegistro(item) {
@@ -1484,38 +1526,55 @@
     return '<svg ' + comum + '><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
   }
 
-  function descartarOrcamentoEditado(idNovo) {
-    var antigo = orcamentoSendoEditadoId;
-    if (!antigo || antigo === String(idNovo || "")) return;
-    var lista = lerRecentes().filter(function (item) { return item.id !== antigo; });
-    localStorage.setItem(CHAVE_RECENTES, JSON.stringify(lista));
-  }
-
-  function gravarRecente(id, total, itens, cliente) {
-    if (!id) return;
-    var documento = apenasDigitos(cliente && cliente.documento);
-    var lista = lerRecentes().filter(function (item) { return item.id !== id; });
-    lista.unshift({
-      data: new Date().toISOString(),
-      id: String(id),
+  function registroHistorico(item) {
+    var origem = item || {};
+    var clienteSalvo = origem.cliente && typeof origem.cliente === "object" ? origem.cliente : {};
+    var documento = apenasDigitos(origem.documento || clienteSalvo.documento || "");
+    var cliente = copiarCliente(Object.assign({
+      tipo: documento.length > 11 ? "pj" : "pf",
+      nome: String(origem.nome || ""),
       documento: documento,
-      total: Number(total) || 0,
-      itens: copiarItens(itens),
-      cliente: copiarCliente(cliente)
-    });
-    localStorage.setItem(CHAVE_RECENTES, JSON.stringify(lista.slice(0, 12)));
+      celular: String(origem.telefone || "")
+    }, clienteSalvo));
+    cliente.documento = documento;
+    return {
+      id: String(origem.id || ""),
+      pdfId: String(origem.pdfId || ""),
+      data: String(origem.data || ""),
+      nome: String(origem.nome || cliente.nome || ""),
+      documento: documento,
+      total: Number(origem.total) || 0,
+      itens: copiarItens(origem.itens),
+      cliente: cliente
+    };
   }
 
   function excluirRecente(id) {
-    if (!id) return;
-    if (orcamentoSendoEditadoId === id) orcamentoSendoEditadoId = "";
-    var lista = lerRecentes().filter(function (item) { return item.id !== id; });
-    localStorage.setItem(CHAVE_RECENTES, JSON.stringify(lista));
-    renderRecentes();
+    var registro = historicoConsulta.find(function (item) { return item.id === id; });
+    if (!registro || !documentoConsulta) return;
+    var nome = registro.nome || "este cliente";
+    if (!window.confirm("Excluir o orçamento de " + nome + "?")) return;
+    fetch("/api/orcamentos?id=" + encodeURIComponent(id) + "&documento=" + encodeURIComponent(documentoConsulta), {
+      method: "DELETE",
+      cache: "no-store"
+    }).then(function (resposta) {
+      return resposta.json().catch(function () { return null; }).then(function (corpo) {
+        if (!resposta.ok || !corpo || !corpo.ok) throw new Error("excluir");
+      });
+    }).then(function () {
+      if (orcamentoSendoEditadoId === id) {
+        orcamentoSendoEditadoId = "";
+        orcamentoSendoEditadoDocumento = "";
+      }
+      historicoConsulta = historicoConsulta.filter(function (item) { return item.id !== id; });
+      renderRecentes();
+    }).catch(function () {
+      window.alert("Não foi possível excluir o orçamento.");
+    });
   }
 
   function editarRecente(id) {
-    var registro = lerRecentes().find(function (item) { return item.id === id; });
+    var registro = historicoConsulta.find(function (item) { return item.id === id; });
     var itens = registro ? copiarItens(registro.itens) : [];
     if (!itens.length) {
       mostrarAviso("Este orçamento não tem itens salvos para editar. Use Abrir PDF.");
@@ -1523,6 +1582,7 @@
     }
     selecionados = itens;
     orcamentoSendoEditadoId = String(id || "");
+    orcamentoSendoEditadoDocumento = registro.documento || documentoConsulta;
     salvarPedido();
     renderResumo();
     if (registro.cliente) preencherCliente(registro.cliente);
@@ -1533,7 +1593,10 @@
   }
 
   function formatarEnvio(iso) {
-    var data = new Date(iso);
+    var texto = String(iso || "");
+    var soData = texto.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (soData) return soData[3] + "/" + soData[2] + "/" + soData[1];
+    var data = new Date(texto);
     if (isNaN(data.getTime())) return "";
     function dois(numero) { return String(numero).padStart(2, "0"); }
     return dois(data.getDate()) + "/" + dois(data.getMonth() + 1) + "/" + data.getFullYear() + " " + dois(data.getHours()) + ":" + dois(data.getMinutes());
@@ -1548,7 +1611,14 @@
       if (vazio) vazio.hidden = true;
       return;
     }
-    var itens = lerRecentes().filter(function (item) {
+    if (historicoBuscando) {
+      if (vazio) {
+        vazio.hidden = false;
+        vazio.textContent = "Buscando orçamentos...";
+      }
+      return;
+    }
+    var itens = historicoConsulta.filter(function (item) {
       return documentoDoRegistro(item) === documentoConsulta;
     });
     if (vazio) {
@@ -1561,13 +1631,26 @@
       quando.textContent = formatarEnvio(item.data) + " · " + moeda(item.total);
       var acoes = document.createElement("span");
       acoes.className = "historico-acoes";
-      var abrir = document.createElement("a");
-      abrir.href = SITE_PDF + "/api/ver-pdf?id=" + encodeURIComponent(item.id);
-      abrir.target = "_blank";
-      abrir.rel = "noopener noreferrer";
-      abrir.innerHTML = icone("olho");
-      abrir.setAttribute("aria-label", "Visualizar");
-      abrir.title = "Visualizar";
+      if (item.pdfId) {
+        var abrir = document.createElement("a");
+        abrir.href = SITE_PDF + "/api/ver-pdf?id=" + encodeURIComponent(item.pdfId);
+        abrir.target = "_blank";
+        abrir.rel = "noopener noreferrer";
+        abrir.innerHTML = icone("olho");
+        abrir.setAttribute("aria-label", "Visualizar");
+        abrir.title = "Visualizar";
+        acoes.appendChild(abrir);
+      } else {
+        var semPdf = document.createElement("button");
+        semPdf.type = "button";
+        semPdf.innerHTML = icone("olho");
+        semPdf.setAttribute("aria-label", "Visualizar");
+        semPdf.title = "Visualizar";
+        semPdf.addEventListener("click", function () {
+          mostrarAviso("Este orçamento não tem PDF salvo para visualizar.");
+        });
+        acoes.appendChild(semPdf);
+      }
       var editar = document.createElement("button");
       editar.type = "button";
       editar.setAttribute("data-editar-orcamento", item.id);
@@ -1581,7 +1664,6 @@
       excluir.innerHTML = icone("lixeira");
       excluir.setAttribute("aria-label", "Excluir");
       excluir.title = "Excluir";
-      acoes.appendChild(abrir);
       acoes.appendChild(editar);
       acoes.appendChild(excluir);
       linha.appendChild(quando);

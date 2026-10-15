@@ -847,12 +847,16 @@ def cliente_orcamento_valido(campos):
     return documento_ok and email_valido(campos.get("email") or "") and cep_ok
 
 
-def hoje_painel():
+def agora_painel():
     try:
         from zoneinfo import ZoneInfo
-        return datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d")
+        return datetime.now(ZoneInfo("America/Sao_Paulo"))
     except Exception:
-        return datetime.now().strftime("%Y-%m-%d")
+        return datetime.now()
+
+
+def hoje_painel():
+    return agora_painel().strftime("%Y-%m-%d")
 
 
 def formatar_telefone(digitos):
@@ -1024,15 +1028,53 @@ def id_painel_valido(valor):
     return bool(re.fullmatch(r"[0-9]{8}-[0-9a-fA-F]{8}", str(valor or "")))
 
 
-def excluir_orcamento_painel(identificador):
+def documento_consulta_valido(documento):
+    documento = apenas_digitos(documento)
+    if cpf_valido(documento) or cnpj_valido(documento):
+        return documento
+    return ""
+
+
+def cliente_do_painel(corpo, nome, documento, telefone):
+    bruto = corpo.get("cliente") if isinstance(corpo.get("cliente"), dict) else {}
+    tipo = str(bruto.get("tipo") or corpo.get("tipo") or "").strip().lower()
+    if tipo not in ("pf", "pj"):
+        tipo = "pj" if len(documento) == 14 else "pf"
+
+    def campo(chave, limite):
+        return str(bruto.get(chave) or "").strip()[:limite]
+
+    uf = campo("uf", 2).upper()
+    if not re.fullmatch(r"[A-Z]{2}", uf):
+        uf = ""
+    return {
+        "tipo": tipo,
+        "nome": nome,
+        "documento": documento,
+        "celular": formatar_telefone(telefone),
+        "email": campo("email", 120),
+        "endereco": campo("endereco", 160),
+        "numero": campo("numero", 20),
+        "bairro": campo("bairro", 80),
+        "cidade": campo("cidade", 80),
+        "uf": uf,
+        "cep": campo("cep", 16),
+    }
+
+
+def excluir_orcamento_painel(identificador, documento=""):
     identificador = str(identificador or "")
+    documento = apenas_digitos(documento)
     if not id_painel_valido(identificador):
         return False
     with PAINEL_LOCK:
         lista = ler_painel()
-        restante = [item for item in lista if str(item.get("id") or "") != identificador]
-        if len(restante) == len(lista):
+        alvo = next((item for item in lista if str(item.get("id") or "") == identificador), None)
+        if alvo is None:
             return None
+        if documento and str(alvo.get("documento") or "") != documento:
+            return None
+        restante = [item for item in lista if str(item.get("id") or "") != identificador]
         gravar_painel(restante)
     return True
 
@@ -1048,14 +1090,19 @@ def incluir_orcamento_painel(corpo):
     itens = normalizar_itens_painel(corpo.get("itens"))
     if not itens:
         return None
+    pdf_id = str(corpo.get("pdfId") or "").strip().lower()
+    if not id_pdf_valido(pdf_id):
+        pdf_id = ""
     registro = {
         "id": hoje_painel().replace("-", "") + "-" + secrets.token_hex(4),
-        "data": hoje_painel(),
+        "data": agora_painel().isoformat(timespec="seconds"),
         "nome": nome,
         "documento": documento,
         "telefone": formatar_telefone(telefone),
         "itens": itens,
         "total": round(sum(item["valor"] for item in itens), 2),
+        "pdfId": pdf_id,
+        "cliente": cliente_do_painel(corpo, nome, documento, telefone),
     }
     with PAINEL_LOCK:
         lista = ler_painel()
@@ -1066,7 +1113,9 @@ def incluir_orcamento_painel(corpo):
 
 def responder_orcamentos(saida):
     if saida.command == "GET":
-        if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+        admin = token_valido(cookie_de(saida.headers.get("Cookie")))
+        documento = parametro_consulta(saida.path, "documento")
+        if not admin and not documento_consulta_valido(documento):
             escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
             return
         try:
@@ -1074,20 +1123,23 @@ def responder_orcamentos(saida):
         except OSError:
             escrever_json(saida, {"ok": False, "erro": "Não foi possível ler os orçamentos."}, 500)
             return
-        data = parametro_consulta(saida.path, "data")
-        documento = parametro_consulta(saida.path, "documento")
+        data = parametro_consulta(saida.path, "data") if admin else ""
+        if not admin:
+            documento = documento_consulta_valido(documento)
         escrever_json(saida, {"ok": True, "orcamentos": filtrar_painel(lista, data, documento)})
         return
     if saida.command == "DELETE":
-        if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+        admin = token_valido(cookie_de(saida.headers.get("Cookie")))
+        identificador = parametro_consulta(saida.path, "id")
+        documento = documento_consulta_valido(parametro_consulta(saida.path, "documento"))
+        if not admin and not documento:
             escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
             return
-        identificador = parametro_consulta(saida.path, "id")
         if not id_painel_valido(identificador):
             escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
             return
         try:
-            removido = excluir_orcamento_painel(identificador)
+            removido = excluir_orcamento_painel(identificador, "" if admin else documento)
         except OSError:
             escrever_json(saida, {"ok": False, "erro": "Não foi possível excluir o orçamento."}, 500)
             return
