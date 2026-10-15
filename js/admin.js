@@ -144,7 +144,8 @@
       .replace(/"/g, "&quot;");
   }
 
-  var campoData = document.querySelector("[data-gestor-data]");
+  var campoDataInicio = document.querySelector("[data-gestor-data-inicio]");
+  var campoDataFim = document.querySelector("[data-gestor-data-fim]");
   var campoDocumento = document.querySelector("[data-gestor-documento]");
   var listaGestor = document.querySelector("[data-gestor-lista]");
   var vazioGestor = document.querySelector("[data-gestor-vazio]");
@@ -197,7 +198,9 @@
   }
 
   function preencherDataHoje() {
-    if (campoData && !campoData.value) campoData.value = dataHojeIso();
+    var hoje = dataHojeIso();
+    if (campoDataInicio && !campoDataInicio.value) campoDataInicio.value = hoje;
+    if (campoDataFim && !campoDataFim.value) campoDataFim.value = hoje;
   }
 
   function iconeAcao(tipo) {
@@ -303,8 +306,9 @@
     if (vazioGestor) vazioGestor.hidden = true;
     var pedido = ++consultaPainel;
     var docLimpo = String(campoDocumento ? campoDocumento.value : "").replace(/\D/g, "").slice(0, 14);
-    var data = docLimpo ? "" : dataParaConsulta(campoData ? campoData.value : "");
-    var url = "/api/orcamentos?data=" + encodeURIComponent(data) + "&documento=" + encodeURIComponent(docLimpo);
+    var dataInicio = dataParaConsulta(campoDataInicio ? campoDataInicio.value : "");
+    var dataFim = dataParaConsulta(campoDataFim ? campoDataFim.value : "");
+    var url = "/api/orcamentos?dataInicio=" + encodeURIComponent(dataInicio) + "&dataFim=" + encodeURIComponent(dataFim) + "&cpf_cnpj=" + encodeURIComponent(docLimpo);
     fetch(url, { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
       if (resposta.status === 401) {
         window.location.replace("/");

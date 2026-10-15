@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=64">
+  <link rel="stylesheet" href="css/site.css?v=67">
 </head>
 <body>
   <header class="site-header">
@@ -32,8 +32,11 @@
     <div class="wrap gestor-pagina" data-visao="orcamentos">
       <h1>Orçamentos recebidos</h1>
       <form class="gestor-filtros" data-gestor-filtros>
-        <label>Data
-          <input type="date" data-gestor-data>
+        <label class="gestor-data">Data Início
+          <input type="date" data-gestor-data-inicio>
+        </label>
+        <label class="gestor-data">Data Fim
+          <input type="date" data-gestor-data-fim>
         </label>
         <label>CPF/CNPJ
           <input type="text" inputmode="numeric" maxlength="14" autocomplete="off" placeholder="Somente números" data-gestor-documento>
@@ -99,6 +102,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=14"></script>
+  <script src="js/admin.js?v=15"></script>
 </body>
 </html>

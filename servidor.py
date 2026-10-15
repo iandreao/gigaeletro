@@ -1010,15 +1010,20 @@ def normalizar_data_painel(valor):
     return ""
 
 
-def filtrar_painel(lista, data, documento):
+def filtrar_painel(lista, documento, inicio="", fim=""):
     documento = apenas_digitos(documento)
-    bruto = "" if documento else str(data or "").strip()
-    data = normalizar_data_painel(bruto) if bruto else ""
-    if bruto and not data:
+    bruto_inicio = str(inicio or "").strip()
+    bruto_fim = str(fim or "").strip()
+    inicio = normalizar_data_painel(bruto_inicio) if bruto_inicio else ""
+    fim = normalizar_data_painel(bruto_fim) if bruto_fim else ""
+    if (bruto_inicio and not inicio) or (bruto_fim and not fim) or (inicio and fim and inicio > fim):
         return []
     saida = []
     for item in lista:
-        if data and normalizar_data_painel(item.get("data")) != data:
+        dia = normalizar_data_painel(item.get("data"))
+        if inicio and (not dia or dia < inicio):
+            continue
+        if fim and (not dia or dia > fim):
             continue
         if documento and apenas_digitos(str(item.get("documento") or "")) != documento:
             continue
@@ -1117,7 +1122,7 @@ def incluir_orcamento_painel(corpo):
 def responder_orcamentos(saida):
     if saida.command == "GET":
         admin = token_valido(cookie_de(saida.headers.get("Cookie")))
-        documento = parametro_consulta(saida.path, "documento")
+        documento = parametro_consulta(saida.path, "documento") or parametro_consulta(saida.path, "cpf_cnpj")
         if not admin and not documento_consulta_valido(documento):
             escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
             return
@@ -1127,10 +1132,16 @@ def responder_orcamentos(saida):
             escrever_json(saida, {"ok": False, "erro": "Não foi possível ler os orçamentos."}, 500)
             return
         documento = apenas_digitos(documento)
-        data = parametro_consulta(saida.path, "data") if admin and not documento else ""
-        if not admin:
+        if admin:
+            inicio = parametro_consulta(saida.path, "dataInicio")
+            fim = parametro_consulta(saida.path, "dataFim")
+            if not str(inicio or "").strip() and not str(fim or "").strip():
+                unico = parametro_consulta(saida.path, "data")
+                inicio = fim = unico
+        else:
+            inicio = fim = ""
             documento = documento_consulta_valido(documento)
-        escrever_json(saida, {"ok": True, "orcamentos": filtrar_painel(lista, data, documento)})
+        escrever_json(saida, {"ok": True, "orcamentos": filtrar_painel(lista, documento, inicio, fim)})
         return
     if saida.command == "DELETE":
         admin = token_valido(cookie_de(saida.headers.get("Cookie")))
