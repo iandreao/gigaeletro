@@ -582,7 +582,9 @@
       ? String((cliente && cliente.razaoSocial) || (cliente && cliente.nome) || "").trim()
       : String((cliente && cliente.nome) || "").trim();
     const celularCliente = String((cliente && cliente.celular) || "").trim();
-    const textoWhats = `Olá, segue orçamento no valor de R$ ${valorTotal}. Clicar no link para visualizar: https://gigaeletro.vercel.app/api/ver-pdf?id=${encodeURIComponent(idOrcamento)}\n${nomeCliente} – Contato ${celularCliente}`;
+
+    const textoWhats = `Olá, segue orçamento no valor de R$ ${valorTotal}. Clicar no link para visualizar: https://gigaeletro.vercel.app/api/ver-pdf?id=${idOrcamento}\n${nomeCliente} – Contato ${celularCliente}`;
+
     return textoWhats;
   }
 
