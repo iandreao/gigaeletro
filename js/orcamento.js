@@ -665,6 +665,10 @@
 
   function enviarWhatsApp() {
     if (envioEmCurso) return;
+    if (!formularioPreenchido()) {
+      alert("Preencher suas informações");
+      return;
+    }
     if (enviar) {
       enviar.disabled = true;
       enviar.textContent = "Processando...";
@@ -1099,7 +1103,7 @@
 
   function liberarEnvio() {
     if (!enviar || envioEmCurso) return;
-    enviar.disabled = selecionados.length === 0 || !formularioPreenchido();
+    enviar.disabled = selecionados.length === 0;
   }
 
   function consultarCnpj(cnpj) {
