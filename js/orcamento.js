@@ -583,7 +583,7 @@
       : String((cliente && cliente.nome) || "").trim();
     const celularCliente = String((cliente && cliente.celular) || "").trim();
 
-    const textoWhats = `Olá, segue orçamento no valor de R$ ${valorTotal}. Clicar no link para visualizar: https://gigaeletro.vercel.app/api/ver-pdf?id=${idOrcamento}\n${nomeCliente} – Contato ${celularCliente}`;
+    const textoWhats = `Olá, segue orçamento no valor de R$ ${valorTotal}. Clicar no link para visualizar.\n\nhttps://gigaeletro.vercel.app/api/ver-pdf?id=${idOrcamento}\n\n${nomeCliente} – Contato ${celularCliente}`;
 
     return textoWhats;
   }
