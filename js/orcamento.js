@@ -1207,149 +1207,155 @@
   function gerarPdf(cliente, subtotal) {
     if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("jspdf");
     var doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
-    var margem = 14;
+    var margem = 12;
     var largura = doc.internal.pageSize.getWidth();
-    var larguraUtil = largura - margem * 2;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(26, 26, 26);
-    doc.text("PEDIDO DE ORÇAMENTO", largura / 2, 16, { align: "center" });
+    var altura = doc.internal.pageSize.getHeight();
+    var util = largura - margem * 2;
+    var alturaRodape = 24;
+    var yRodape = altura - margem - alturaRodape;
+    var alturaCabeca = 8;
+    var alturaLinha = 7;
+    var colunas = [
+      { titulo: "Itens", largura: 18, alinhamento: "center" },
+      { titulo: "Código", largura: 28, alinhamento: "center" },
+      { titulo: "Nome", largura: 0, alinhamento: "left" },
+      { titulo: "Qte", largura: 16, alinhamento: "center" },
+      { titulo: "Pr.Unitário", largura: 32, alinhamento: "right" },
+      { titulo: "Valor", largura: 28, alinhamento: "right" }
+    ];
+    colunas[2].largura = util - colunas.reduce(function (soma, coluna) { return soma + coluna.largura; }, 0);
 
-    function fatia(partes) {
-      var soma = partes.reduce(function (total, parte) { return total + parte.peso; }, 0);
-      return partes.map(function (parte) {
-        return { rotulo: parte.rotulo, valor: parte.valor, largura: larguraUtil * parte.peso / soma };
-      });
+    function traco() {
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.3);
+      doc.setTextColor(0, 0, 0);
     }
 
-    function linhaCliente(y, partes, folga) {
-      doc.setFontSize(9);
-      doc.setTextColor(26, 26, 26);
+    function textoCelula(x, y, w, h, rotulo, valor) {
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      var prefixo = rotulo + " ";
+      var larguraRotulo = doc.getTextWidth(prefixo);
+      doc.setFont("helvetica", "normal");
+      var linhas = doc.splitTextToSize(String(valor || ""), Math.max(8, w - larguraRotulo - 3.2));
+      if (!linhas.length) linhas = [""];
+      linhas = linhas.slice(0, 2);
+      var base = y + (h - linhas.length * 3.4) / 2 + 2.8;
+      doc.setFont("helvetica", "bold");
+      doc.text(prefixo, x + 1.6, base);
+      doc.setFont("helvetica", "normal");
+      doc.text(linhas, x + 1.6 + larguraRotulo, base);
+    }
+
+    function desenharCliente(y) {
+      var alturas = [11, 11, 11, 11];
+      var linhas = [
+        [["Nome:", cliente.nome, 0.5], ["CPF/CNPJ:", cliente.documento, 0.5]],
+        [["End:", cliente.endereco, 0.72], ["Nr:", cliente.numero, 0.28]],
+        [
+          ["Cidade:", cliente.cidade, 0.34],
+          ["Bairro:", cliente.bairro, 0.34],
+          ["UF:", cliente.uf, 0.12],
+          ["CEP:", cliente.cep, 0.2]
+        ],
+        [["Telefone / Celular:", cliente.celular, 0.5], ["e-mail:", cliente.email, 0.5]]
+      ];
+      var alturaGrade = alturas.reduce(function (soma, atual) { return soma + atual; }, 0);
+      traco();
+      doc.rect(margem, y, util, alturaGrade);
+      var yLinha = y;
+      linhas.forEach(function (campos, indice) {
+        if (indice > 0) doc.line(margem, yLinha, margem + util, yLinha);
+        var x = margem;
+        campos.forEach(function (campo, posicao) {
+          var w = util * campo[2];
+          if (posicao > 0) doc.line(x, yLinha, x, yLinha + alturas[indice]);
+          textoCelula(x, yLinha, w, alturas[indice], campo[0], campo[1]);
+          x += w;
+        });
+        yLinha += alturas[indice];
+      });
+      return yLinha;
+    }
+
+    function desenharTabela(y, h, itens, inicio) {
+      traco();
+      doc.setFillColor(255, 255, 255);
+      doc.rect(margem, y, util, h, "S");
+      doc.line(margem, y + alturaCabeca, margem + util, y + alturaCabeca);
       var x = margem;
-      var maior = 1;
-      var desenhos = partes.map(function (parte) {
-        doc.setFont("helvetica", "bold");
-        var rotulo = parte.rotulo + " ";
-        var rotuloLargura = doc.getTextWidth(rotulo);
-        doc.setFont("helvetica", "normal");
-        var linhas = doc.splitTextToSize(String(parte.valor || ""), Math.max(12, parte.largura - rotuloLargura - 1.5));
-        if (!linhas.length) linhas = [""];
-        if (linhas.length > maior) maior = linhas.length;
-        var item = { x: x, rotulo: rotulo, rotuloLargura: rotuloLargura, linhas: linhas };
-        x += parte.largura;
-        return item;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      colunas.forEach(function (coluna, indice) {
+        if (indice > 0) doc.line(x, y, x, y + h);
+        doc.text(coluna.titulo, x + coluna.largura / 2, y + 5.2, { align: "center" });
+        x += coluna.largura;
       });
-      desenhos.forEach(function (item) {
-        doc.setFont("helvetica", "bold");
-        doc.text(item.rotulo, item.x, y);
-        doc.setFont("helvetica", "normal");
-        doc.text(item.linhas, item.x + item.rotuloLargura, y);
-      });
-      var yLinha = y + (maior - 1) * 4.2 + 2.2;
-      doc.setDrawColor(188, 188, 188);
-      doc.setLineWidth(0.2);
-      doc.line(margem, yLinha, margem + larguraUtil, yLinha);
-      return yLinha + (folga == null ? 7 : folga);
-    }
-
-    var y = linhaCliente(24, fatia([
-      { rotulo: (tipoPessoa() === "pj" ? "Razão Social:" : "Nome:"), valor: cliente.nome, peso: 68 },
-      { rotulo: "CPF/CNPJ:", valor: cliente.documento, peso: 32 }
-    ]));
-    y = linhaCliente(y, fatia([
-      { rotulo: "End:", valor: cliente.endereco, peso: 82 },
-      { rotulo: "Nr:", valor: cliente.numero, peso: 18 }
-    ]));
-    y = linhaCliente(y, fatia([
-      { rotulo: "Cidade:", valor: cliente.cidade, peso: 38 },
-      { rotulo: "Bairro:", valor: cliente.bairro, peso: 32 },
-      { rotulo: "UF:", valor: cliente.uf, peso: 10 },
-      { rotulo: "CEP:", valor: cliente.cep, peso: 20 }
-    ]));
-    y = linhaCliente(y, fatia([
-      { rotulo: "Telefone / Celular:", valor: cliente.celular, peso: 1 },
-      { rotulo: "e-mail:", valor: cliente.email, peso: 1 }
-    ]), 3.5);
-
-    var wItens = 14.1;
-    var wCodigo = 17.1;
-    var wQte = 12.1;
-    var wUnitario = 21;
-    var wValor = 22.4;
-    var wNome = larguraUtil - (wItens + wCodigo + wQte + wUnitario + wValor);
-    doc.autoTable({
-      startY: y + 3,
-      margin: { left: margem, right: margem },
-      tableWidth: larguraUtil,
-      theme: "plain",
-      styles: {
-        font: "helvetica",
-        fontSize: 8,
-        textColor: [26, 26, 26],
-        fillColor: [255, 255, 255],
-        lineColor: [210, 210, 210],
-        lineWidth: 0.15,
-        cellPadding: 1.6,
-        overflow: "linebreak",
-        valign: "middle"
-      },
-      headStyles: {
-        fillColor: [255, 255, 255],
-        textColor: [26, 26, 26],
-        fontStyle: "bold",
-        lineWidth: { bottom: 0.3 }
-      },
-      bodyStyles: { fillColor: [255, 255, 255] },
-      head: [["Itens", "Código", "Nome", "Qte", "Pr.Unitário", "Valor"]],
-      body: selecionados.map(function (item, indice) {
-        return [
-          String(indice + 1),
-          String(item.codigo),
-          String(item.produto),
+      doc.setFont("helvetica", "normal");
+      itens.forEach(function (item, indice) {
+        var valores = [
+          String(inicio + indice + 1),
+          String(item.codigo || ""),
+          String(item.produto || ""),
           String(item.qtd),
           numero(item.preco),
           numero(item.preco * item.qtd)
         ];
-      }),
-      columnStyles: {
-        0: { cellWidth: wItens, halign: "left" },
-        1: { cellWidth: wCodigo, halign: "left" },
-        2: { cellWidth: wNome, halign: "left" },
-        3: { cellWidth: wQte, halign: "center" },
-        4: { cellWidth: wUnitario, halign: "right" },
-        5: { cellWidth: wValor, halign: "right" }
-      },
-      didParseCell: function (data) {
-        if (data.section !== "head" && data.section !== "body") return;
-        var alinhamento = ["left", "left", "left", "center", "right", "right"];
-        data.cell.styles.halign = alinhamento[data.column.index] || "left";
-      }
-    });
-
-    y = doc.lastAutoTable.finalY + 10;
-    var caixa = 48;
-    var xCaixa = largura - margem - caixa;
-    if (y > 268) {
-      doc.addPage();
-      y = 18;
+        var yTexto = y + alturaCabeca + indice * alturaLinha + 4.8;
+        x = margem;
+        valores.forEach(function (valor, posicao) {
+          var coluna = colunas[posicao];
+          var texto = valor;
+          if (posicao === 2) {
+            var linhas = doc.splitTextToSize(valor, Math.max(8, coluna.largura - 3));
+            texto = linhas[0] || "";
+          }
+          var tx = x + 1.5;
+          if (coluna.alinhamento === "center") tx = x + coluna.largura / 2;
+          if (coluna.alinhamento === "right") tx = x + coluna.largura - 1.5;
+          doc.text(texto, tx, yTexto, { align: coluna.alinhamento });
+          x += coluna.largura;
+        });
+      });
     }
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(26, 26, 26);
-    doc.text(
-      "Nota: Os preços têm validade de 15 dias a contar do envio do orçamento. O estoque e o frete serão confirmados no Whatsapp.",
-      margem,
-      y + 6,
-      { maxWidth: xCaixa - margem - 6 }
-    );
-    doc.setDrawColor(26, 26, 26);
-    doc.setLineWidth(0.3);
-    doc.rect(xCaixa, y, caixa, 16);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.text("Valor Total", xCaixa + caixa / 2, y + 6, { align: "center" });
-    doc.setFontSize(11);
-    doc.text(moeda(subtotal), xCaixa + caixa / 2, y + 12, { align: "center" });
+
+    function desenharRodape() {
+      var larguraTotal = 58;
+      var xTotal = margem + util - larguraTotal;
+      var nota = "Nota: Os preços têm validade de 15 dias a contar do envio do orçamento. O estoque e o frete serão confirmados no Whatsapp.";
+      traco();
+      doc.rect(margem, yRodape, util - larguraTotal, alturaRodape);
+      doc.rect(xTotal, yRodape, larguraTotal, alturaRodape);
+      doc.line(xTotal, yRodape + alturaRodape / 2, xTotal + larguraTotal, yRodape + alturaRodape / 2);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      var linhas = doc.splitTextToSize(nota, util - larguraTotal - 6);
+      var baseNota = yRodape + (alturaRodape - linhas.length * 3.5) / 2 + 3;
+      doc.text(linhas, margem + 3, baseNota);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text("Valor Total", xTotal + larguraTotal / 2, yRodape + 7.2, { align: "center" });
+      doc.setFontSize(12);
+      doc.text(moeda(subtotal), xTotal + larguraTotal / 2, yRodape + alturaRodape / 2 + 7.4, { align: "center" });
+    }
+
+    var inicioItem = 0;
+    var primeira = true;
+    var acabou = false;
+    while (!acabou) {
+      if (!primeira) doc.addPage();
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.setTextColor(0, 0, 0);
+      doc.text("PEDIDO DE ORÇAMENTO", largura / 2, 16, { align: "center" });
+      var yTabela = primeira ? desenharCliente(22) + 6 : 24;
+      var lote = selecionados.slice(inicioItem, inicioItem + Math.max(1, Math.floor((yRodape - 4 - yTabela - alturaCabeca) / alturaLinha)));
+      desenharTabela(yTabela, yRodape - 4 - yTabela, lote, inicioItem);
+      inicioItem += lote.length;
+      acabou = inicioItem >= selecionados.length;
+      if (acabou) desenharRodape();
+      primeira = false;
+    }
     return doc.output("blob");
   }
 
