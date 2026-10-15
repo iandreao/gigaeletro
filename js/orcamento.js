@@ -575,28 +575,21 @@
     return digitos;
   }
 
-  function identificacaoCliente(cliente) {
-    var pj = String(cliente && cliente.tipo || tipoPessoa()) === "pj";
-    if (pj) return String((cliente && (cliente.razaoSocial || cliente.nome)) || "").trim();
-    return String((cliente && (cliente.nome || cliente.razaoSocial)) || "").trim();
-  }
-
-  function linkVisualizacao(id) {
-    var ident = String(id || "").trim();
-    if (!ident) return "";
-    if (ident.indexOf("http://") === 0 || ident.indexOf("https://") === 0) return ident;
-    return SITE_PDF + "/api/ver-pdf?id=" + encodeURIComponent(ident);
-  }
-
   function textoOrcamento(cliente, subtotal, id) {
-    var nome = identificacaoCliente(cliente);
-    var celular = String(cliente && cliente.celular || "").trim();
-    return "Olá, segue orçamento no valor de " + moeda(subtotal) + ". Clicar no link para visualizar: " + linkVisualizacao(id) + "\n" +
-      nome + " – Contato " + celular;
+    const valorTotal = numero(subtotal);
+    const idOrcamento = String(id || "").trim();
+    const nomeCliente = String(cliente && cliente.tipo || "").toUpperCase() === "PJ"
+      ? String((cliente && cliente.razaoSocial) || (cliente && cliente.nome) || "").trim()
+      : String((cliente && cliente.nome) || "").trim();
+    const celularCliente = String((cliente && cliente.celular) || "").trim();
+    const textoWhats = `Olá, segue orçamento no valor de R$ ${valorTotal}. Clicar no link para visualizar: https://gigaeletro.vercel.app/api/ver-pdf?id=${encodeURIComponent(idOrcamento)}\n${nomeCliente} – Contato ${celularCliente}`;
+    return textoWhats;
   }
 
   function urlWhatsApp(texto) {
-    return "https://wa.me/" + destinoWhatsApp() + "?text=" + encodeURIComponent(texto);
+    const textoWhats = texto;
+    const urlFinal = `https://wa.me/${destinoWhatsApp()}?text=${encodeURIComponent(textoWhats)}`;
+    return urlFinal;
   }
 
   function urlProtocoloWhatsApp(texto) {
