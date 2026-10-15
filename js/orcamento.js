@@ -576,40 +576,10 @@
   }
 
   function textoOrcamento(cliente, subtotal, link) {
-    var endereco = [cliente.endereco, cliente.numero, cliente.bairro, cliente.cidade, cliente.uf, cliente.cep].filter(Boolean).join(", ");
-    var linhas = [
-      "Olá, Gigaeletro! Montei meu orçamento no site.",
-      "",
-      "Cliente: " + cliente.nome,
-      "Documento: " + cliente.documento,
-      "Celular: " + cliente.celular,
-      "E-mail: " + cliente.email,
-      "Endereço: " + endereco,
-      "",
-      "Produtos:"
-    ];
-    selecionados.forEach(function (item, indice) {
-      linhas.push(
-        (indice + 1) + ". " + item.produto +
-        " — Cód: " + item.codigo +
-        " — Qtd: " + item.qtd +
-        " — Vlr. Unit: " + numero(item.preco) +
-        " — Valor: " + numero(item.preco * item.qtd)
-      );
-    });
-    linhas.push(
-      "",
-      "Total estimado: " + moeda(subtotal),
-      "",
-      "Segue orçamento no valor de " + moeda(subtotal) + ", cujos itens estão listados no anexo. Aguardamos o retorno. Desde já agradecemos a atenção de sempre."
-    );
-    if (link) {
-      linhas.push(
-        "",
-        "📄 Link para visualizar ou baixar o PDF do meu orçamento completo: " + link
-      );
-    }
-    return linhas.join("\n");
+    var nome = String(cliente && cliente.nome || "").trim();
+    var celular = String(cliente && cliente.celular || "").trim();
+    return "Olá, segue orçamento no valor de " + moeda(subtotal) + ". Clicar no link para visualizar: " + (link || "") + "\n" +
+      nome + " – Contato " + celular;
   }
 
   function urlWhatsApp(texto) {
