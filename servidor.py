@@ -900,12 +900,14 @@ def normalizar_itens_painel(brutos):
     return itens
 
 
-def baixar_blob(caminho):
+def baixar_blob(caminho, consistente=False):
     token = token_blob()
     loja = loja_blob(token)
     if not token or not loja:
         return None
     endereco = "https://%s.private.blob.vercel-storage.com/%s" % (loja, caminho)
+    if consistente:
+        endereco += "?cache=0"
     pedido = urllib.request.Request(endereco, headers={"authorization": "Bearer " + token})
     try:
         with urllib.request.urlopen(pedido, timeout=20) as resposta:
@@ -934,6 +936,7 @@ def enviar_json_blob(caminho, conteudo):
             "x-content-type": "application/json",
             "x-add-random-suffix": "0",
             "x-allow-overwrite": "1",
+            "x-cache-control-max-age": "60",
             "x-vercel-blob-access": "private",
         },
     )
@@ -976,7 +979,7 @@ def gravar_painel_arquivo(lista):
 
 def ler_painel():
     if token_blob():
-        conteudo = baixar_blob(PAINEL_BLOB)
+        conteudo = baixar_blob(PAINEL_BLOB, consistente=True)
         if conteudo is None:
             raise OSError("blob")
         return interpretar_painel(conteudo)

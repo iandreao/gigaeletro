@@ -295,9 +295,13 @@
     }).join("");
   }
 
+  var consultaPainel = 0;
+  var idsExcluidos = {};
+
   function carregarOrcamentos() {
     if (!listaGestor) return;
     if (vazioGestor) vazioGestor.hidden = true;
+    var pedido = ++consultaPainel;
     var data = dataParaConsulta(campoData ? campoData.value : "");
     var documento = digitosDocumento(campoDocumento ? campoDocumento.value : "");
     var url = "/api/orcamentos?data=" + encodeURIComponent(data) + "&documento=" + encodeURIComponent(documento);
@@ -308,9 +312,12 @@
       }
       return resposta.json();
     }).then(function (corpo) {
-      if (!corpo) return;
-      renderOrcamentos(corpo.ok && Array.isArray(corpo.orcamentos) ? corpo.orcamentos : [], !!(corpo && corpo.ok));
+      if (!corpo || pedido !== consultaPainel) return;
+      var lista = corpo.ok && Array.isArray(corpo.orcamentos) ? corpo.orcamentos : [];
+      lista = lista.filter(function (atual) { return !idsExcluidos[String(atual.id)]; });
+      renderOrcamentos(lista, !!(corpo && corpo.ok));
     }).catch(function () {
+      if (pedido !== consultaPainel) return;
       renderOrcamentos([], false);
     });
   }
@@ -364,6 +371,11 @@
     }).then(function (corpo) {
       if (!corpo) return;
       fecharDetalhe();
+      idsExcluidos[String(item.id)] = true;
+      orcamentosAtuais = orcamentosAtuais.filter(function (atual) {
+        return String(atual.id) !== String(item.id);
+      });
+      renderOrcamentos(orcamentosAtuais, true);
       carregarOrcamentos();
     }).catch(function () {
       window.alert("Não foi possível excluir o orçamento.");
