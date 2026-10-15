@@ -2,6 +2,8 @@
   var WHATSAPP = "5527998021221";
   var CHAVE_PEDIDO = "gigaeletro-orcamento";
   var SITE_PDF = "https://gigaeletro.vercel.app";
+  var logoPdf = new Image();
+  logoPdf.src = "assets/logo-gigaeletro.jpg";
 
   var catalogo = [];
   var selecionados = carregarPedido();
@@ -1214,14 +1216,14 @@
     var alturaRodape = 24;
     var yRodape = altura - margem - alturaRodape;
     var alturaCabeca = 8;
-    var alturaLinha = 7;
+    var alturaLinha = 8;
     var colunas = [
-      { titulo: "Itens", largura: 18, alinhamento: "center" },
-      { titulo: "Código", largura: 28, alinhamento: "center" },
+      { titulo: "Itens", largura: 9, alinhamento: "center" },
+      { titulo: "Código", largura: 14, alinhamento: "center" },
       { titulo: "Nome", largura: 0, alinhamento: "left" },
       { titulo: "Qte", largura: 16, alinhamento: "center" },
-      { titulo: "Pr.Unitário", largura: 32, alinhamento: "right" },
-      { titulo: "Valor", largura: 28, alinhamento: "right" }
+      { titulo: "Pr.Unitário", largura: 20.8, alinhamento: "right" },
+      { titulo: "Total", largura: 25.2, alinhamento: "right" }
     ];
     colunas[2].largura = util - colunas.reduce(function (soma, coluna) { return soma + coluna.largura; }, 0);
 
@@ -1288,6 +1290,12 @@
       doc.setFontSize(8);
       colunas.forEach(function (coluna, indice) {
         if (indice > 0) doc.line(x, y, x, y + h);
+        var tamanhoCabeca = 8;
+        doc.setFontSize(tamanhoCabeca);
+        while (tamanhoCabeca > 6 && doc.getTextWidth(coluna.titulo) > coluna.largura - 1.2) {
+          tamanhoCabeca -= 0.5;
+          doc.setFontSize(tamanhoCabeca);
+        }
         doc.text(coluna.titulo, x + coluna.largura / 2, y + 5.2, { align: "center" });
         x += coluna.largura;
       });
@@ -1301,19 +1309,31 @@
           numero(item.preco),
           numero(item.preco * item.qtd)
         ];
-        var yTexto = y + alturaCabeca + indice * alturaLinha + 4.8;
+        var yTexto = y + alturaCabeca + indice * alturaLinha + 5.2;
         x = margem;
         valores.forEach(function (valor, posicao) {
           var coluna = colunas[posicao];
           var texto = valor;
+          var tamanho = 8;
           if (posicao === 2) {
-            var linhas = doc.splitTextToSize(valor, Math.max(8, coluna.largura - 3));
-            texto = linhas[0] || "";
+            var limite = Math.max(12, coluna.largura - 3);
+            tamanho = 8;
+            while (tamanho > 6.5) {
+              doc.setFontSize(tamanho);
+              if (doc.getTextWidth(valor) <= limite) break;
+              tamanho -= 0.5;
+            }
+            doc.setFontSize(tamanho);
+            if (doc.getTextWidth(valor) > limite) {
+              texto = doc.splitTextToSize(valor, limite);
+            }
           }
           var tx = x + 1.5;
           if (coluna.alinhamento === "center") tx = x + coluna.largura / 2;
           if (coluna.alinhamento === "right") tx = x + coluna.largura - 1.5;
-          doc.text(texto, tx, yTexto, { align: coluna.alinhamento });
+          var base = Array.isArray(texto) ? yTexto - 1.6 : yTexto;
+          doc.setFontSize(posicao === 2 ? tamanho : 8);
+          doc.text(texto, tx, base, { align: coluna.alinhamento });
           x += coluna.largura;
         });
       });
@@ -1327,7 +1347,7 @@
       doc.rect(margem, yRodape, util - larguraTotal, alturaRodape);
       doc.rect(xTotal, yRodape, larguraTotal, alturaRodape);
       doc.line(xTotal, yRodape + alturaRodape / 2, xTotal + larguraTotal, yRodape + alturaRodape / 2);
-      doc.setFont("helvetica", "normal");
+      doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
       var linhas = doc.splitTextToSize(nota, util - larguraTotal - 6);
       var baseNota = yRodape + (alturaRodape - linhas.length * 3.5) / 2 + 3;
@@ -1347,6 +1367,11 @@
       doc.setFont("helvetica", "bold");
       doc.setFontSize(16);
       doc.setTextColor(0, 0, 0);
+      var alturaLogo = 12;
+      var larguraLogo = alturaLogo * 366 / 184;
+      if (logoPdf.complete && logoPdf.naturalWidth) {
+        doc.addImage(logoPdf, "JPEG", margem, 16 - 2.2 - alturaLogo / 2, larguraLogo, alturaLogo);
+      }
       doc.text("PEDIDO DE ORÇAMENTO", largura / 2, 16, { align: "center" });
       var yTabela = primeira ? desenharCliente(22) + 6 : 24;
       var lote = selecionados.slice(inicioItem, inicioItem + Math.max(1, Math.floor((yRodape - 4 - yTabela - alturaCabeca) / alturaLinha)));
