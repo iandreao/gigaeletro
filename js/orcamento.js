@@ -575,10 +575,23 @@
     return digitos;
   }
 
-  function textoOrcamento(cliente, subtotal, link) {
-    var nome = String(cliente && cliente.nome || "").trim();
+  function identificacaoCliente(cliente) {
+    var pj = String(cliente && cliente.tipo || tipoPessoa()) === "pj";
+    if (pj) return String((cliente && (cliente.razaoSocial || cliente.nome)) || "").trim();
+    return String((cliente && (cliente.nome || cliente.razaoSocial)) || "").trim();
+  }
+
+  function linkVisualizacao(id) {
+    var ident = String(id || "").trim();
+    if (!ident) return "";
+    if (ident.indexOf("http://") === 0 || ident.indexOf("https://") === 0) return ident;
+    return SITE_PDF + "/api/ver-pdf?id=" + encodeURIComponent(ident);
+  }
+
+  function textoOrcamento(cliente, subtotal, id) {
+    var nome = identificacaoCliente(cliente);
     var celular = String(cliente && cliente.celular || "").trim();
-    return "Olá, segue orçamento no valor de " + moeda(subtotal) + ". Clicar no link para visualizar: " + (link || "") + "\n" +
+    return "Olá, segue orçamento no valor de " + moeda(subtotal) + ". Clicar no link para visualizar: " + linkVisualizacao(id) + "\n" +
       nome + " – Contato " + celular;
   }
 
@@ -709,7 +722,7 @@
       descartarOrcamentoEditado(idSalvo);
       gravarRecente(idSalvo, subtotal, selecionados, cliente);
       renderRecentes();
-      var texto = textoOrcamento(cliente, subtotal, link);
+      var texto = textoOrcamento(cliente, subtotal, idSalvo);
       limparDepoisDoEnvio();
       mostrarAviso("Orçamento enviado com sucesso para o WhatsApp!");
       return gravacaoPainel.then(function () {
@@ -756,8 +769,12 @@
 
   function lerCliente() {
     var dados = formCliente ? new FormData(formCliente) : new FormData();
+    var identificacao = String(dados.get("nome") || "").trim();
+    var pj = tipoPessoa() === "pj";
     return {
-      nome: String(dados.get("nome") || "").trim(),
+      tipo: pj ? "pj" : "pf",
+      nome: identificacao,
+      razaoSocial: pj ? identificacao : "",
       documento: String(dados.get("documento") || "").trim(),
       celular: mascaraTelefone(dados.get("celular") || ""),
       email: String(dados.get("email") || "").trim(),
