@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=75">
+  <link rel="stylesheet" href="css/site.css?v=76">
 </head>
 <body class="gestor">
   <header class="site-header">
@@ -63,7 +63,7 @@
     <div class="wrap admin-page" data-visao="estoque" hidden>
       <h1>Atualização de estoque</h1>
       <form class="admin-body panel" data-admin-arquivo>
-        <p class="muted">Arraste a Tabela de Produtos. As colunas lidas são Código, Nome, Estoque e PrVenda. Esta ação substitui o catálogo inteiro. Se a leitura falhar, a lista anterior permanece.</p>
+        <p class="muted">As colunas lidas são Código, Nome, Estoque e PrVenda. Esta ação substitui o catálogo inteiro.</p>
         <ol class="mapa">
           <li><span>1</span> Código</li>
           <li><span>2</span> Nome</li>
@@ -76,7 +76,7 @@
               <path d="M24 32V10"/><path d="M15 18l9-9 9 9"/><path d="M10 30v8h28v-8"/>
             </svg>
           </span>
-          <span class="drop-texto">Arraste sua lista de materiais aqui ou clique para selecionar o arquivo (Aceitamos Excel, PDF ou Foto)</span>
+          <span class="drop-texto">Arraste sua lista de produtos aqui ou clique para selecionar o arquivo Excel formato CSV.</span>
           <input id="planilha" name="planilha" type="file" accept=".csv,.txt,.xlsx,.xls,.pdf,.png,.jpg,.jpeg,.webp,text/csv">
         </label>
         <p class="file-name" data-admin-arquivo-nome hidden></p>

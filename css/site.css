@@ -531,9 +531,9 @@ input[type="text"], input[type="tel"] {
 }
 .drop.is-over { border-color: #8a8a8a; background: #fffdf2; }
 .drop-cliente {
-  gap: 1rem;
-  min-height: 260px;
-  padding: 2rem 1.4rem;
+  gap: 0.7rem;
+  min-height: 200px;
+  padding: 1.15rem 1.4rem;
   border: 2px dashed #b5b5b5;
   background: var(--white);
 }
