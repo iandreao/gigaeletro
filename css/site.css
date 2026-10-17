@@ -135,7 +135,7 @@ body.home .hero-copy p {
 }
 body.home .hero-photo {
   grid-column: 1;
-  grid-row: 1;
+  grid-row: 1 / span 2;
   width: 100%;
   max-width: 416px;
   height: 100%;
@@ -186,32 +186,57 @@ body.home .cliente-form {
   body.home .nav a,
   body.home .nav button { font-size: 0.84rem; line-height: 1; }
 }
-body.home .hero-acao .btn { align-self: stretch; width: 100%; height: auto; min-height: 56px; margin-top: 14px; }
+body.home .hero-acao .btn {
+  position: static;
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  margin-top: 10px;
+  padding: 0.4rem 1rem;
+}
 body.home .site-footer {
   display: block;
   flex: none;
-  grid-column: 1 / span 2;
+  grid-column: 2;
   grid-row: 2;
+  align-self: end;
   width: 100%;
   margin-left: 0;
   margin-right: 0;
-  padding: 8px 12px 10px 0;
+  padding: 0 0 2px;
+  background: transparent;
 }
 body.home .site-footer .foot {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-start;
-  align-items: center;
-  gap: 4px 28px;
+  align-items: flex-end;
+  gap: 2px 16px;
   width: 100%;
   min-height: 0;
 }
 body.home .foot-contatos,
-body.home .foot-fiscal,
-body.home .foot-links { text-align: left; justify-self: start; }
+body.home .foot-fiscal { text-align: left; justify-self: start; }
+body.home .foot-links { margin-left: auto; text-align: right; justify-self: end; }
 body.home .site-footer .brand { display: none; }
 body.home .fine,
-body.home .site-footer p { margin: 0; font-size: 12px; line-height: 1.35; font-weight: 500; color: var(--gray-800); text-align: left; }
+body.home .site-footer p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--gray-800);
+  text-align: left;
+}
+body.home .foot-col {
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--gray-800);
+}
+body.home .site-footer .foot-links { margin-left: auto; }
 
 img { max-width: 100%; display: block; }
 
@@ -882,13 +907,16 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
     min-height: 0;
   }
   body.home .cliente-form {
-    flex: 1;
+    flex: 0 1 auto;
     height: auto;
-    min-height: 0;
-    align-content: space-between;
+    min-height: min-content;
+    align-content: start;
     gap: 0;
+    overflow: visible;
   }
   body.home .cliente-form .form-linha { margin-bottom: 0; }
+  body.home .hero-grid { padding-bottom: 2px; }
+  body.home .hero-acao .btn { margin-top: 8px; }
 }
 
 @media (max-width: 760px) {
