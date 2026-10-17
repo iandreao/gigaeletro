@@ -1767,7 +1767,28 @@ body.gestor .admin-page {
 .gestor-tabela th, .gestor-tabela td { padding: 0.28rem 0.45rem; border-bottom: 1px solid var(--gray-200); text-align: left; vertical-align: top; }
 .gestor-tabela th { font-size: 11px; font-weight: 800; background: var(--yellow-50); white-space: nowrap; }
 .gestor-tabela td.num, .gestor-tabela th.num, .gestor-tabela th.acoes { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.gestor-tabela th.acoes, .gestor-tabela td.acoes { font-variant-numeric: normal; }
+.gestor-tabela th.acoes, .gestor-tabela td.acoes { font-variant-numeric: normal; white-space: nowrap; }
+.gestor-tabela th.status, .gestor-tabela td.status,
+.gestor-tabela th.vendedor, .gestor-tabela td.vendedor {
+  width: 8.75rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.gestor-tabela select.gestor-status,
+.gestor-tabela select.gestor-vendedor {
+  width: 8.4rem;
+  min-height: 28px;
+  padding: 0 0.3rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 0.4rem;
+  background: var(--white);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+.gestor-tabela select.gestor-status-pendente { background: #fef9c3; }
+.gestor-tabela select.gestor-status-analisado { background: #dbeafe; }
+.gestor-tabela select.gestor-status-respondido { background: #dcfce7; }
 .gestor-acoes { display: flex; justify-content: flex-end; gap: 0.35rem; }
 .gestor-acoes button {
   display: inline-flex;

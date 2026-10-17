@@ -277,6 +277,79 @@
     janela.print();
   }
 
+  var STATUS_ORCAMENTO = ["Pendente", "Analisado", "Respondido"];
+  var VENDEDORES = ["Bruno", "Summer", "Júlio", "Aceliani"];
+
+  function statusAtual(item) {
+    return STATUS_ORCAMENTO.indexOf(item && item.status) >= 0 ? item.status : "Pendente";
+  }
+
+  function vendedorAtual(item) {
+    return VENDEDORES.indexOf(item && item.vendedor) >= 0 ? item.vendedor : "";
+  }
+
+  function classeStatus(valor) {
+    if (valor === "Analisado") return "analisado";
+    if (valor === "Respondido") return "respondido";
+    return "pendente";
+  }
+
+  function opcoesSelect(valores, atual, rotuloVazio) {
+    var html = "";
+    if (rotuloVazio) {
+      html += '<option value="">' + escapar(rotuloVazio) + "</option>";
+    }
+    valores.forEach(function (nome) {
+      html += '<option value="' + escapar(nome) + '"' + (nome === atual ? " selected" : "") + ">" + escapar(nome) + "</option>";
+    });
+    return html;
+  }
+
+  function pintarStatus(select) {
+    if (!select) return;
+    select.className = "gestor-status gestor-status-" + classeStatus(select.value);
+  }
+
+  function gravarCampoLocal(id, campo, valor) {
+    orcamentosAtuais.forEach(function (item) {
+      if (String(item.id) === String(id)) item[campo] = valor;
+    });
+  }
+
+  function salvarAtendimento(select) {
+    var id = select.getAttribute("data-id");
+    var campo = select.hasAttribute("data-status") ? "status" : "vendedor";
+    var valor = select.value;
+    var anterior = select.dataset.anterior;
+    var corpo = { id: id, atendimento: true };
+    corpo[campo] = valor;
+    if (campo === "status") pintarStatus(select);
+    fetch("/api/orcamentos", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo)
+    }).then(function (resposta) {
+      if (resposta.status === 401) {
+        window.location.replace("/");
+        return null;
+      }
+      return resposta.json().catch(function () { return null; }).then(function (publicado) {
+        if (!resposta.ok || !publicado || !publicado.ok) throw new Error("gravar");
+        return publicado;
+      });
+    }).then(function (publicado) {
+      if (!publicado) return;
+      gravarCampoLocal(id, campo, valor);
+      select.dataset.anterior = valor;
+    }).catch(function () {
+      if (anterior == null) return;
+      select.value = anterior;
+      if (campo === "status") pintarStatus(select);
+      window.alert("Não foi possível salvar o atendimento.");
+    });
+  }
+
   function renderOrcamentos(lista, concluida) {
     if (!listaGestor) return;
     orcamentosAtuais = lista;
@@ -289,6 +362,12 @@
         "<td>" + escapar(documentoVisivel(String(item.documento || ""))) + "</td>" +
         "<td>" + escapar(item.telefone) + "</td>" +
         '<td class="num">' + moedaPainel(item.total) + "</td>" +
+        '<td class="status"><select class="gestor-status gestor-status-' + classeStatus(statusAtual(item)) + '" data-status data-id="' + id + '" data-anterior="' + escapar(statusAtual(item)) + '" aria-label="Status">' +
+          opcoesSelect(STATUS_ORCAMENTO, statusAtual(item)) +
+        "</select></td>" +
+        '<td class="vendedor"><select class="gestor-vendedor" data-vendedor data-id="' + id + '" data-anterior="' + escapar(vendedorAtual(item)) + '" aria-label="Vendedor">' +
+          opcoesSelect(VENDEDORES, vendedorAtual(item), "Selecione...") +
+        "</select></td>" +
         '<td class="acoes"><div class="gestor-acoes">' +
           '<button type="button" data-ver-orcamento="' + id + '" aria-label="Visualizar" title="Visualizar">' + iconeAcao("olho") + "</button>" +
           '<button type="button" data-imprimir-orcamento="' + id + '" aria-label="Imprimir" title="Imprimir">' + iconeAcao("impressora") + "</button>" +
@@ -339,6 +418,14 @@
     });
   }
   if (listaGestor) {
+    listaGestor.addEventListener("focusin", function (event) {
+      var select = event.target.closest("select[data-status], select[data-vendedor]");
+      if (select) select.dataset.anterior = select.value;
+    });
+    listaGestor.addEventListener("change", function (event) {
+      var select = event.target.closest("select[data-status], select[data-vendedor]");
+      if (select) salvarAtendimento(select);
+    });
     listaGestor.addEventListener("click", function (event) {
       var ver = event.target.closest("[data-ver-orcamento]");
       if (ver) {

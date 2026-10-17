@@ -1087,6 +1087,48 @@ def excluir_orcamento_painel(identificador, documento=""):
     return True
 
 
+def status_atendimento(valor):
+    texto = str(valor or "").strip()
+    if texto in ("Pendente", "Analisado", "Respondido"):
+        return texto
+    return ""
+
+
+def vendedor_atendimento(valor):
+    texto = str(valor or "").strip()
+    if texto in ("Bruno", "Summer", "Júlio", "Aceliani"):
+        return texto
+    return ""
+
+
+def atualizar_atendimento_painel(identificador, status=None, vendedor=None):
+    identificador = str(identificador or "")
+    if not id_painel_valido(identificador):
+        return False
+    if status is not None:
+        status = status_atendimento(status)
+        if not status:
+            return False
+    if vendedor is not None:
+        bruto = str(vendedor or "").strip()
+        vendedor = "" if not bruto else vendedor_atendimento(bruto)
+        if bruto and not vendedor:
+            return False
+    if status is None and vendedor is None:
+        return False
+    with PAINEL_LOCK:
+        lista = ler_painel()
+        alvo = next((item for item in lista if str(item.get("id") or "") == identificador), None)
+        if alvo is None:
+            return None
+        if status is not None:
+            alvo["status"] = status
+        if vendedor is not None:
+            alvo["vendedor"] = vendedor
+        gravar_painel(lista)
+    return True
+
+
 def incluir_orcamento_painel(corpo):
     if not isinstance(corpo, dict):
         return None
@@ -1111,6 +1153,8 @@ def incluir_orcamento_painel(corpo):
         "total": round(sum(item["valor"] for item in itens), 2),
         "pdfId": pdf_id,
         "cliente": cliente_do_painel(corpo, nome, documento, telefone),
+        "status": "Pendente",
+        "vendedor": "",
     }
     with PAINEL_LOCK:
         lista = ler_painel()
@@ -1174,6 +1218,25 @@ def responder_orcamentos(saida):
         corpo = json.loads(bruto.decode("utf-8") or "{}")
     except (UnicodeDecodeError, json.JSONDecodeError):
         escrever_json(saida, {"ok": False, "erro": "Não foi possível gravar o orçamento."}, 400)
+        return
+    if corpo.get("atendimento") is True:
+        if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+            escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
+            return
+        status = corpo.get("status") if "status" in corpo else None
+        vendedor = corpo.get("vendedor") if "vendedor" in corpo else None
+        try:
+            atualizado = atualizar_atendimento_painel(corpo.get("id"), status, vendedor)
+        except OSError:
+            escrever_json(saida, {"ok": False, "erro": "Não foi possível gravar o atendimento."}, 500)
+            return
+        if atualizado is None:
+            escrever_json(saida, {"ok": False, "erro": "Orçamento não encontrado."}, 404)
+            return
+        if not atualizado:
+            escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
+            return
+        escrever_json(saida, {"ok": True})
         return
     try:
         registro = incluir_orcamento_painel(corpo)
