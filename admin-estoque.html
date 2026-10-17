@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=79">
+  <link rel="stylesheet" href="css/site.css?v=80">
 </head>
 <body class="gestor">
   <header class="site-header">
@@ -38,8 +38,25 @@
         <label class="gestor-data">Data Fim
           <input type="date" data-gestor-data-fim>
         </label>
-        <label>CPF/CNPJ
+        <label class="gestor-doc">CPF/CNPJ
           <input type="text" inputmode="numeric" maxlength="14" autocomplete="off" placeholder="Somente números" data-gestor-documento>
+        </label>
+        <label class="gestor-filtro">Status
+          <select data-gestor-status aria-label="Filtrar por status">
+            <option value="">Todos os Status</option>
+            <option value="Pendente">Pendente</option>
+            <option value="Analisado">Analisado</option>
+            <option value="Respondido">Respondido</option>
+          </select>
+        </label>
+        <label class="gestor-filtro">Vendedor
+          <select data-gestor-vendedor aria-label="Filtrar por vendedor">
+            <option value="">Todos os Vendedores</option>
+            <option value="Bruno">Bruno</option>
+            <option value="Summer">Summer</option>
+            <option value="Júlio">Júlio</option>
+            <option value="Aceliani">Aceliani</option>
+          </select>
         </label>
         <button class="btn btn-preto gestor-buscar" type="submit">Buscar</button>
       </form>
@@ -104,6 +121,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=16"></script>
+  <script src="js/admin.js?v=17"></script>
 </body>
 </html>

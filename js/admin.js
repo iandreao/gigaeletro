@@ -152,6 +152,10 @@
   var detalhe = document.querySelector("[data-detalhe]");
   var detalheCorpo = document.querySelector("[data-detalhe-corpo]");
   var orcamentosAtuais = [];
+  var orcamentosCarregados = [];
+  var cargaConcluida = false;
+  var campoFiltroStatus = document.querySelector("[data-gestor-status]");
+  var campoFiltroVendedor = document.querySelector("[data-gestor-vendedor]");
 
   function digitosDocumento(valor) {
     return String(valor || "").replace(/\D/g, "").slice(0, 14);
@@ -215,7 +219,13 @@
   }
 
   function acharOrcamento(id) {
-    return orcamentosAtuais.find(function (item) { return String(item.id) === String(id); }) || null;
+    var fontes = [orcamentosCarregados, orcamentosAtuais];
+    var i;
+    for (i = 0; i < fontes.length; i += 1) {
+      var achado = (fontes[i] || []).find(function (item) { return String(item.id) === String(id); });
+      if (achado) return achado;
+    }
+    return null;
   }
 
   function tabelaItens(item) {
@@ -311,9 +321,10 @@
   }
 
   function gravarCampoLocal(id, campo, valor) {
-    orcamentosAtuais.forEach(function (item) {
+    orcamentosCarregados.forEach(function (item) {
       if (String(item.id) === String(id)) item[campo] = valor;
     });
+    renderOrcamentos(aplicarFiltrosLocais(orcamentosCarregados), true);
   }
 
   function salvarAtendimento(select) {
@@ -324,6 +335,7 @@
     var corpo = { id: id, atendimento: true };
     corpo[campo] = valor;
     if (campo === "status") pintarStatus(select);
+    gravarCampoLocal(id, campo, valor);
     fetch("/api/orcamentos", {
       method: "POST",
       credentials: "same-origin",
@@ -338,14 +350,8 @@
         if (!resposta.ok || !publicado || !publicado.ok) throw new Error("gravar");
         return publicado;
       });
-    }).then(function (publicado) {
-      if (!publicado) return;
-      gravarCampoLocal(id, campo, valor);
-      select.dataset.anterior = valor;
     }).catch(function () {
-      if (anterior == null) return;
-      select.value = anterior;
-      if (campo === "status") pintarStatus(select);
+      gravarCampoLocal(id, campo, anterior == null ? "" : anterior);
       window.alert("Não foi possível salvar o atendimento.");
     });
   }
@@ -380,6 +386,17 @@
   var consultaPainel = 0;
   var idsExcluidos = {};
 
+  function aplicarFiltrosLocais(lista) {
+    var status = campoFiltroStatus ? campoFiltroStatus.value : "";
+    var vendedor = campoFiltroVendedor ? campoFiltroVendedor.value : "";
+    return (lista || []).filter(function (item) {
+      if (idsExcluidos[String(item.id)]) return false;
+      if (status && statusAtual(item) !== status) return false;
+      if (vendedor && vendedorAtual(item) !== vendedor) return false;
+      return true;
+    });
+  }
+
   function carregarOrcamentos() {
     if (!listaGestor) return;
     if (vazioGestor) vazioGestor.hidden = true;
@@ -398,9 +415,13 @@
       if (!corpo || pedido !== consultaPainel) return;
       var lista = corpo.ok && Array.isArray(corpo.orcamentos) ? corpo.orcamentos : [];
       lista = lista.filter(function (atual) { return !idsExcluidos[String(atual.id)]; });
-      renderOrcamentos(lista, !!(corpo && corpo.ok));
+      orcamentosCarregados = lista;
+      cargaConcluida = !!(corpo && corpo.ok);
+      renderOrcamentos(aplicarFiltrosLocais(orcamentosCarregados), cargaConcluida);
     }).catch(function () {
       if (pedido !== consultaPainel) return;
+      orcamentosCarregados = [];
+      cargaConcluida = false;
       renderOrcamentos([], false);
     });
   }
@@ -411,10 +432,24 @@
       event.preventDefault();
       carregarOrcamentos();
     });
+    formFiltros.addEventListener("change", function (event) {
+      var alvo = event.target;
+      if (!alvo) return;
+      if (alvo.hasAttribute("data-gestor-status") || alvo.hasAttribute("data-gestor-vendedor")) {
+        renderOrcamentos(aplicarFiltrosLocais(orcamentosCarregados), cargaConcluida);
+        return;
+      }
+      if (alvo.hasAttribute("data-gestor-data-inicio") || alvo.hasAttribute("data-gestor-data-fim") || alvo.hasAttribute("data-gestor-documento")) {
+        carregarOrcamentos();
+      }
+    });
   }
   if (campoDocumento) {
+    var documentoTimer = 0;
     campoDocumento.addEventListener("input", function () {
       campoDocumento.value = digitosDocumento(campoDocumento.value);
+      window.clearTimeout(documentoTimer);
+      documentoTimer = window.setTimeout(carregarOrcamentos, 250);
     });
   }
   if (listaGestor) {
@@ -463,10 +498,10 @@
       if (!corpo) return;
       fecharDetalhe();
       idsExcluidos[String(item.id)] = true;
-      orcamentosAtuais = orcamentosAtuais.filter(function (atual) {
+      orcamentosCarregados = orcamentosCarregados.filter(function (atual) {
         return String(atual.id) !== String(item.id);
       });
-      renderOrcamentos(orcamentosAtuais, true);
+      renderOrcamentos(aplicarFiltrosLocais(orcamentosCarregados), true);
       carregarOrcamentos();
     }).catch(function () {
       window.alert("Não foi possível excluir o orçamento.");
