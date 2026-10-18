@@ -1990,7 +1990,7 @@ body.gestor .admin-page {
     display: block !important;
     height: auto !important;
     min-height: 0 !important;
-    max-height: 200px !important;
+    max-height: 192px !important;
     flex: none !important;
     overflow-y: auto !important;
   }
@@ -2001,7 +2001,7 @@ body.gestor .admin-page {
     right: auto;
     bottom: auto;
     width: auto;
-    margin: 0;
+    margin: 0 0 12px;
     padding: 0.4rem 0.75rem calc(0.45rem + env(safe-area-inset-bottom, 0px));
     background: var(--white);
     border-top: 1px solid #000;
