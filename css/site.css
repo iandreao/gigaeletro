@@ -983,9 +983,15 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
     align-self: stretch;
     height: auto;
     min-height: 0;
-    margin-top: 8px;
+    margin-top: 0;
+    padding-top: 36px;
   }
-  body.home .hero-acao .btn { margin-top: 12px; }
+  body.home .hero-acao > div {
+    display: flex;
+    flex-direction: column;
+    margin-top: auto;
+  }
+  body.home .hero-acao .btn { margin-top: 8px; }
   body.home .site-footer {
     display: block;
     flex: none;
