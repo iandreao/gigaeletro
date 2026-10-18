@@ -2009,3 +2009,69 @@ body.gestor .admin-page {
   }
   body.home .quote-side .drawer-foot .btn { width: 100%; }
 }
+
+@media (max-width: 767px) {
+  body.gestor {
+    height: auto;
+    min-height: 100dvh;
+    overflow-x: clip;
+    overflow-y: auto;
+  }
+  body.gestor main.section,
+  body.gestor [data-area-restrita] {
+    overflow: visible;
+    height: auto;
+    flex: none;
+  }
+  body.gestor .gestor-tabela-box {
+    max-height: none;
+    overflow-y: visible;
+  }
+  body.gestor .gestor-tabela thead th { position: static; }
+  body.gestor .gestor-topo {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background-color: #fff;
+  }
+  body.gestor .site-header { position: relative; z-index: auto; }
+  body.gestor .bar { justify-content: flex-start; }
+  body.gestor .nav-toggle {
+    display: inline-flex;
+    margin-left: auto;
+  }
+  body.gestor .gestor-abas {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  body.gestor .gestor-abas.is-open { display: flex; }
+  body.gestor .gestor-sair { margin-left: 0; }
+  body.gestor .gestor-topo h1 {
+    margin: 0 0 0.35rem;
+    font-size: 1.2rem;
+  }
+  body.gestor .gestor-filtros {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.4rem 0.5rem;
+    align-items: end;
+  }
+  body.gestor .gestor-filtros label,
+  body.gestor .gestor-filtros label.gestor-data,
+  body.gestor .gestor-filtros label.gestor-doc,
+  body.gestor .gestor-filtros label.gestor-filtro {
+    flex: none;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+  body.gestor .gestor-filtros input,
+  body.gestor .gestor-filtros select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  body.gestor .gestor-buscar { width: 100%; }
+}

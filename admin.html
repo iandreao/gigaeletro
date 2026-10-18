@@ -9,38 +9,32 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=78">
+  <link rel="stylesheet" href="css/site.css?v=95">
   <link rel="stylesheet" href="css/admin.css?v=1">
 </head>
 <body class="gestor">
+  <div class="gestor-topo">
   <header class="site-header">
     <div class="wrap bar">
       <a class="brand" href="/">
         <img src="assets/logo-gigaeletro.jpg?v=3" width="366" height="184" alt="Gigaeletro Material Elétrico">
       </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="menu-gestor">
+        <span class="sr-only">Abrir menu</span>
+        <span class="bars" aria-hidden="true"></span>
+      </button>
     </div>
   </header>
-  <main class="section">
-    <form class="admin-body panel gestor-login" data-login-admin hidden>
-      <h1>Área restrita</h1>
-      <p class="muted">Informe a senha de administrador para continuar.</p>
-      <label>Senha de Administrador
-        <input type="password" name="senha" autocomplete="current-password" required>
-      </label>
-      <p class="aviso aviso-sutil" data-login-erro hidden>Senha incorreta</p>
-      <button class="btn btn-preto" type="submit">Entrar</button>
-      <p class="senha-esqueci"><a href="https://wa.me/5527998021221?text=Ol%C3%A1%2C%20sou%20o%20gestor%20do%20SiteGigaeletro%20e%20esqueci%20minha%20senha%20de%20acesso.%20Solicito%20a%20chave%20de%20redefini%C3%A7%C3%A3o%20para%20o%20painel." target="_blank" rel="noopener noreferrer">Esqueceu a Senha?</a></p>
-    </form>
-    <div data-area-restrita hidden>
+  <div data-area-restrita hidden>
     <div class="wrap gestor-nav-wrap">
       <p class="kicker">Área restrita</p>
-      <nav class="gestor-abas" aria-label="Área restrita">
+      <nav class="gestor-abas" id="menu-gestor" aria-label="Área restrita">
         <button type="button" data-aba="orcamentos" aria-selected="true">Orçamentos Recebidos</button>
         <button type="button" data-aba="estoque" aria-selected="false">Atualizar Estoque</button>
         <button class="btn btn-line gestor-sair" type="button" data-sair>Sair</button>
       </nav>
     </div>
-    <div class="wrap gestor-pagina" data-visao="orcamentos">
+    <div class="wrap gestor-topo-orc" data-visao="orcamentos">
       <h1>Orçamentos recebidos</h1>
       <form class="gestor-filtros" data-gestor-filtros>
         <label class="gestor-data">Data Início
@@ -71,6 +65,22 @@
         </label>
         <button class="btn btn-preto gestor-buscar" type="submit">Buscar</button>
       </form>
+    </div>
+  </div>
+  </div>
+  <main class="section">
+    <form class="admin-body panel gestor-login" data-login-admin hidden>
+      <h1>Área restrita</h1>
+      <p class="muted">Informe a senha de administrador para continuar.</p>
+      <label>Senha de Administrador
+        <input type="password" name="senha" autocomplete="current-password" required>
+      </label>
+      <p class="aviso aviso-sutil" data-login-erro hidden>Senha incorreta</p>
+      <button class="btn btn-preto" type="submit">Entrar</button>
+      <p class="senha-esqueci"><a href="https://wa.me/5527998021221?text=Ol%C3%A1%2C%20sou%20o%20gestor%20do%20SiteGigaeletro%20e%20esqueci%20minha%20senha%20de%20acesso.%20Solicito%20a%20chave%20de%20redefini%C3%A7%C3%A3o%20para%20o%20painel." target="_blank" rel="noopener noreferrer">Esqueceu a Senha?</a></p>
+    </form>
+    <div data-area-restrita hidden>
+    <div class="wrap gestor-pagina" data-visao="orcamentos">
       <p class="gestor-vazio" data-gestor-vazio hidden>Nenhum orçamento encontrado.</p>
       <div class="gestor-tabela-box">
         <table class="gestor-tabela">
@@ -132,6 +142,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=18"></script>
+  <script src="js/admin.js?v=19"></script>
 </body>
 </html>
