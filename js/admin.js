@@ -15,8 +15,7 @@
   var erroLogin = document.querySelector("[data-login-erro]");
 
   function mostrarLogin() {
-    var area = document.querySelector("[data-area-restrita]");
-    if (area) area.hidden = true;
+    document.querySelectorAll("[data-area-restrita]").forEach(function (area) { area.hidden = true; });
     if (loginAdmin) loginAdmin.hidden = false;
   }
 
@@ -117,8 +116,7 @@
 
   function mostrarPainel() {
     if (formSenha) formSenha.hidden = true;
-    var area = document.querySelector("[data-area-restrita]");
-    if (area) area.hidden = false;
+    document.querySelectorAll("[data-area-restrita]").forEach(function (area) { area.hidden = false; });
     mostrarAba("orcamentos");
     limparAuditoria();
     preencherDataHoje();
@@ -139,6 +137,16 @@
       mostrarAba(botao.getAttribute("data-aba"));
     });
   });
+
+  var menuGestor = document.querySelector(".nav-toggle");
+  if (menuGestor) {
+    menuGestor.addEventListener("click", function () {
+      var aberto = menuGestor.getAttribute("aria-expanded") === "true";
+      menuGestor.setAttribute("aria-expanded", aberto ? "false" : "true");
+      var abas = document.querySelector(".gestor-abas");
+      if (abas) abas.classList.toggle("is-open", !aberto);
+    });
+  }
 
   function limparAuditoria() {
     if (!auditoria) return;
