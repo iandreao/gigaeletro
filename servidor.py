@@ -1344,7 +1344,7 @@ class Handler(SimpleHTTPRequestHandler):
             responder_ver_pdf(self)
             return
         if caminho == "/admin-estoque":
-            self.path = "/admin-estoque.html"
+            self.path = "/admin.html"
         super().do_GET()
 
     def do_POST(self):

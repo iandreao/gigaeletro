@@ -45,7 +45,7 @@
         <button type="button" data-abrir-catalogo>Produtos</button>
         <a href="#quem-somos">Quem Somos</a>
         <button type="button" data-abrir-historico>Meus Orçamentos</button>
-        <button type="button" data-abrir-restrita>Área Restrita</button>
+        <a href="admin.html">Área Restrita</a>
       </nav>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="menu">
         <span class="sr-only">Abrir menu</span>
@@ -198,23 +198,6 @@
       <p class="historico-vazio" data-historico-vazio hidden>Nenhum orçamento salvo para este CPF/CNPJ</p>
       <ul class="historico-lista" data-recentes-lista></ul>
     </div>
-  </div>
-
-  <div class="overlay" data-fechar-restrita hidden></div>
-  <div class="modal" data-restrita hidden role="dialog" aria-modal="true" aria-labelledby="titulo-restrita">
-    <div class="drawer-head">
-      <h2 id="titulo-restrita">Área Restrita</h2>
-      <button type="button" data-fechar-restrita aria-label="Fechar">×</button>
-    </div>
-    <form class="admin-body" data-restrita-form>
-      <p class="muted">Informe a senha de administrador para continuar.</p>
-      <label>Senha de Administrador
-        <input type="password" name="senha" autocomplete="current-password" required>
-      </label>
-      <p class="aviso aviso-sutil" data-restrita-erro hidden>Senha incorreta</p>
-      <button class="btn btn-preto" type="submit">Entrar</button>
-      <p class="senha-esqueci"><a href="#" data-esqueci-senha>Esqueceu a Senha?</a></p>
-    </form>
   </div>
 
   <script src="js/vendor/jspdf.umd.min.js"></script>

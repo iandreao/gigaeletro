@@ -11,18 +11,52 @@
   var processar = document.querySelector("[data-processar]");
   var input = document.querySelector("#planilha");
   var planilhaEscolhida = null;
+  var loginAdmin = document.querySelector("[data-login-admin]");
+  var erroLogin = document.querySelector("[data-login-erro]");
+
+  function mostrarLogin() {
+    var area = document.querySelector("[data-area-restrita]");
+    if (area) area.hidden = true;
+    if (loginAdmin) loginAdmin.hidden = false;
+  }
 
   fetch("/api/sessao", { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
     return resposta.json();
   }).then(function (corpo) {
     if (!corpo || !corpo.ok) {
-      window.location.replace("/");
+      mostrarLogin();
       return;
     }
+    if (loginAdmin) loginAdmin.hidden = true;
     mostrarPainel();
   }).catch(function () {
-    window.location.replace("/");
+    mostrarLogin();
   });
+
+  if (loginAdmin) {
+    loginAdmin.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var senha = String(new FormData(loginAdmin).get("senha") || "").trim();
+      if (erroLogin) erroLogin.hidden = true;
+      fetch("/api/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senha: senha })
+      }).then(function (resposta) {
+        return resposta.json().catch(function () { return null; });
+      }).then(function (corpo) {
+        if (!corpo || !corpo.ok) {
+          if (erroLogin) erroLogin.hidden = false;
+          return;
+        }
+        loginAdmin.hidden = true;
+        mostrarPainel();
+      }).catch(function () {
+        if (erroLogin) erroLogin.hidden = false;
+      });
+    });
+  }
 
   var sair = document.querySelector("[data-sair]");
   if (sair) {

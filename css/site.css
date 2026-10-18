@@ -1675,14 +1675,11 @@ body { padding-bottom: 0; }
 .gestor-sair { margin-left: auto; margin-bottom: 0; min-height: 36px; padding: 0 0.8rem; }
 .gestor-pagina { width: min(1120px, calc(100% - 2.5rem)); margin: 0 auto 1.5rem; }
 .gestor-pagina h1 { font-size: clamp(1.5rem, 2.4vw, 2rem); margin-bottom: 0.7rem; }
-.gestor-filtros { display: flex; align-items: end; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.7rem; }
+.gestor-filtros { display: flex; align-items: end; gap: 0.75rem; margin-bottom: 0.7rem; }
 .gestor-buscar { flex: none; min-height: 36px; padding: 0 0.95rem; border-radius: 0.5rem; font-size: 0.82rem; }
 .gestor-filtros label { flex: 1; min-width: 0; display: grid; gap: 0.25rem; font-size: 0.78rem; font-weight: 800; }
 .gestor-filtros label.gestor-data { flex: 0 0 11.5rem; }
-.gestor-filtros label.gestor-doc { flex: 0 0 9rem; max-width: 9rem; }
-.gestor-filtros label.gestor-filtro { flex: 0 0 11rem; }
-.gestor-filtros input,
-.gestor-filtros select {
+.gestor-filtros input {
   width: 100%;
   min-height: 36px;
   padding: 0 0.55rem;
@@ -1770,28 +1767,7 @@ body.gestor .admin-page {
 .gestor-tabela th, .gestor-tabela td { padding: 0.28rem 0.45rem; border-bottom: 1px solid var(--gray-200); text-align: left; vertical-align: top; }
 .gestor-tabela th { font-size: 11px; font-weight: 800; background: var(--yellow-50); white-space: nowrap; }
 .gestor-tabela td.num, .gestor-tabela th.num, .gestor-tabela th.acoes { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.gestor-tabela th.acoes, .gestor-tabela td.acoes { font-variant-numeric: normal; white-space: nowrap; }
-.gestor-tabela th.status, .gestor-tabela td.status,
-.gestor-tabela th.vendedor, .gestor-tabela td.vendedor {
-  width: 8.75rem;
-  white-space: nowrap;
-  vertical-align: middle;
-}
-.gestor-tabela select.gestor-status,
-.gestor-tabela select.gestor-vendedor {
-  width: 8.4rem;
-  min-height: 28px;
-  padding: 0 0.3rem;
-  border: 1px solid var(--gray-200);
-  border-radius: 0.4rem;
-  background: var(--white);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-}
-.gestor-tabela select.gestor-status-pendente { background: #fef9c3; }
-.gestor-tabela select.gestor-status-analisado { background: #dbeafe; }
-.gestor-tabela select.gestor-status-respondido { background: #dcfce7; }
+.gestor-tabela th.acoes, .gestor-tabela td.acoes { font-variant-numeric: normal; }
 .gestor-acoes { display: flex; justify-content: flex-end; gap: 0.35rem; }
 .gestor-acoes button {
   display: inline-flex;
@@ -1822,9 +1798,7 @@ body.gestor .admin-page {
 .gestor-tabela .gestor-item { display: block; }
 @media (max-width: 640px) {
   .gestor-filtros { flex-direction: column; align-items: stretch; }
-  .gestor-filtros label.gestor-data,
-  .gestor-filtros label.gestor-doc,
-  .gestor-filtros label.gestor-filtro { flex: 1 1 auto; max-width: none; }
+  .gestor-filtros label.gestor-data { flex: 1 1 auto; }
 }
 .admin-page { max-width: 760px; }
 .admin-page h1 { font-size: clamp(1.8rem, 3vw, 2.6rem); margin-bottom: 0.4rem; }

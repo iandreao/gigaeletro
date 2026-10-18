@@ -1,0 +1,46 @@
+.gestor-filtros { flex-wrap: wrap; }
+.gestor-filtros label.gestor-doc { flex: 0 0 9rem; max-width: 9rem; }
+.gestor-filtros label.gestor-filtro { flex: 0 0 11rem; }
+.gestor-filtros select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 0.55rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 0.5rem;
+  background: var(--white);
+  font: inherit;
+  font-size: 0.85rem;
+}
+.gestor-tabela th.acoes,
+.gestor-tabela td.acoes { white-space: nowrap; }
+.gestor-tabela th.status,
+.gestor-tabela td.status,
+.gestor-tabela th.vendedor,
+.gestor-tabela td.vendedor {
+  width: 8.75rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.gestor-tabela select.gestor-status,
+.gestor-tabela select.gestor-vendedor {
+  width: 8.4rem;
+  min-height: 28px;
+  padding: 0 0.3rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 0.4rem;
+  background: var(--white);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+.gestor-tabela select.gestor-status-pendente { background: #fef9c3; }
+.gestor-tabela select.gestor-status-analisado { background: #dbeafe; }
+.gestor-tabela select.gestor-status-respondido { background: #dcfce7; }
+.gestor-login {
+  width: min(420px, calc(100% - 2rem));
+  margin: 1.2rem auto;
+}
+@media (max-width: 640px) {
+  .gestor-filtros label.gestor-doc,
+  .gestor-filtros label.gestor-filtro { flex: 1 1 auto; max-width: none; }
+}
