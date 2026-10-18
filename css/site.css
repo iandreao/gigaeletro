@@ -984,12 +984,15 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
     height: auto;
     min-height: 0;
     margin-top: 0;
-    padding-top: 36px;
+    padding-top: 16px;
   }
   body.home .hero-acao > div {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
-    margin-top: auto;
+    justify-content: space-between;
+    min-height: 0;
+    margin-top: 0;
   }
   body.home .hero-acao .btn { margin-top: 8px; }
   body.home .site-footer {
