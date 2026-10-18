@@ -1945,7 +1945,7 @@ body.gestor .admin-page {
     overflow-y: auto;
   }
 }
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   body.home {
     --fecho-mobile: 0px;
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -1986,16 +1986,16 @@ body.gestor .admin-page {
     flex: none !important;
     overflow: visible;
   }
-  body.home .quote-side .cart-list {
+  body.home .quote-side > ul.cart-list {
+    display: block !important;
     height: auto !important;
-    min-height: unset !important;
-    max-height: 220px;
+    min-height: 0 !important;
+    max-height: 200px !important;
     flex: none !important;
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: auto !important;
   }
-  body.home .quote-side .drawer-foot {
-    position: static;
+  body.home .quote-side > .drawer-foot {
+    position: relative !important;
     z-index: auto;
     left: auto;
     right: auto;
