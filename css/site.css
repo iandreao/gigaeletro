@@ -1818,6 +1818,12 @@ body { padding-bottom: 0; }
   font-size: 0.85rem;
 }
 .gestor-vazio { margin: 0.4rem 0; color: var(--muted); font-size: 0.85rem; font-weight: 700; }
+.gestor-busca-aviso {
+  margin: 0.35rem 0;
+  color: #991b1b;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
 .gestor-tabela-box { overflow-x: auto; background: var(--white); border: 1px solid var(--gray-200); border-radius: 0.75rem; }
 body.gestor {
   --header: 48px;
@@ -2042,12 +2048,33 @@ body.gestor .admin-page {
   }
   body.gestor .gestor-abas {
     display: none;
+    position: fixed;
+    top: 52px;
+    right: 10px;
+    z-index: 1100;
     flex-direction: column;
     align-items: stretch;
-    width: 100%;
+    width: min(280px, calc(100% - 20px));
+    margin: 0;
+    padding: 0.35rem;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    box-shadow: 0 12px 30px rgba(17, 24, 39, 0.16);
   }
   body.gestor .gestor-abas.is-open { display: flex; }
+  body.gestor .gestor-abas button { width: 100%; text-align: left; }
   body.gestor .gestor-sair { margin-left: 0; }
+  body.gestor .gestor-filtros,
+  body.gestor .gestor-filtros label,
+  body.gestor .gestor-filtros input,
+  body.gestor .gestor-filtros select,
+  body.gestor .gestor-buscar {
+    position: relative;
+    z-index: 2;
+    pointer-events: auto;
+    touch-action: manipulation;
+  }
   body.gestor .gestor-topo h1 {
     margin: 0 0 0.35rem;
     font-size: 1.2rem;

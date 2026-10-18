@@ -132,19 +132,38 @@
     });
   }
 
+  function fecharMenuGestor() {
+    var botao = document.querySelector(".nav-toggle");
+    var abas = document.querySelector(".gestor-abas");
+    if (botao) botao.setAttribute("aria-expanded", "false");
+    if (abas) abas.classList.remove("is-open");
+  }
+
   document.querySelectorAll("[data-aba]").forEach(function (botao) {
     botao.addEventListener("click", function () {
       mostrarAba(botao.getAttribute("data-aba"));
+      fecharMenuGestor();
     });
   });
 
   var menuGestor = document.querySelector(".nav-toggle");
   if (menuGestor) {
-    menuGestor.addEventListener("click", function () {
-      var aberto = menuGestor.getAttribute("aria-expanded") === "true";
-      menuGestor.setAttribute("aria-expanded", aberto ? "false" : "true");
+    menuGestor.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
       var abas = document.querySelector(".gestor-abas");
-      if (abas) abas.classList.toggle("is-open", !aberto);
+      var aberto = menuGestor.getAttribute("aria-expanded") === "true";
+      if (aberto || !abas) {
+        fecharMenuGestor();
+        return;
+      }
+      menuGestor.setAttribute("aria-expanded", "true");
+      abas.classList.add("is-open");
+    });
+    document.addEventListener("click", function (event) {
+      if (menuGestor.getAttribute("aria-expanded") !== "true") return;
+      if (event.target.closest(".nav-toggle") || event.target.closest(".gestor-abas")) return;
+      fecharMenuGestor();
     });
   }
 
@@ -186,18 +205,53 @@
       .replace(/"/g, "&quot;");
   }
 
-  var campoDataInicio = document.querySelector("[data-gestor-data-inicio]");
-  var campoDataFim = document.querySelector("[data-gestor-data-fim]");
-  var campoDocumento = document.querySelector("[data-gestor-documento]");
+  function campoPorId(id, seletor) {
+    return document.getElementById(id) || document.querySelector(seletor);
+  }
+
+  var campoDataInicio = campoPorId("filtro-data-inicio", "[data-gestor-data-inicio]");
+  var campoDataFim = campoPorId("filtro-data-fim", "[data-gestor-data-fim]");
+  var campoDocumento = campoPorId("filtro-cpf-cnpj", "[data-gestor-documento]");
   var listaGestor = document.querySelector("[data-gestor-lista]");
   var vazioGestor = document.querySelector("[data-gestor-vazio]");
+  var avisoBusca = document.querySelector("[data-gestor-busca-aviso]");
   var detalhe = document.querySelector("[data-detalhe]");
   var detalheCorpo = document.querySelector("[data-detalhe-corpo]");
   var orcamentosAtuais = [];
   var orcamentosCarregados = [];
   var cargaConcluida = false;
-  var campoFiltroStatus = document.querySelector("[data-gestor-status]");
-  var campoFiltroVendedor = document.querySelector("[data-gestor-vendedor]");
+  var campoFiltroStatus = campoPorId("filtro-status", "[data-gestor-status]");
+  var campoFiltroVendedor = campoPorId("filtro-vendedor", "[data-gestor-vendedor]");
+
+  [campoDataInicio, campoDataFim, campoDocumento, campoFiltroStatus, campoFiltroVendedor].forEach(function (campo) {
+    if (!campo) return;
+    campo.readOnly = false;
+    campo.disabled = false;
+    campo.removeAttribute("readonly");
+    campo.removeAttribute("disabled");
+  });
+
+  function mostrarAvisoBusca(texto) {
+    if (texto) console.log("[orcamentos]", texto);
+    if (!avisoBusca) return;
+    avisoBusca.hidden = !texto;
+    avisoBusca.textContent = texto || "";
+  }
+
+  function lerFiltrosBusca() {
+    var inicio = document.getElementById("filtro-data-inicio");
+    var fim = document.getElementById("filtro-data-fim");
+    var documento = document.getElementById("filtro-cpf-cnpj");
+    var status = document.getElementById("filtro-status");
+    var vendedor = document.getElementById("filtro-vendedor");
+    return {
+      dataInicio: dataParaConsulta(inicio ? inicio.value : ""),
+      dataFim: dataParaConsulta(fim ? fim.value : ""),
+      cpf_cnpj: String(documento ? documento.value : "").replace(/\D/g, "").slice(0, 14),
+      status: status ? status.value : "",
+      vendedor: vendedor ? vendedor.value : ""
+    };
+  }
 
   function digitosDocumento(valor) {
     return String(valor || "").replace(/\D/g, "").slice(0, 14);
@@ -429,8 +483,9 @@
   var idsExcluidos = {};
 
   function aplicarFiltrosLocais(lista) {
-    var status = campoFiltroStatus ? campoFiltroStatus.value : "";
-    var vendedor = campoFiltroVendedor ? campoFiltroVendedor.value : "";
+    var filtros = lerFiltrosBusca();
+    var status = filtros.status;
+    var vendedor = filtros.vendedor;
     return (lista || []).filter(function (item) {
       if (idsExcluidos[String(item.id)]) return false;
       if (status && statusAtual(item) !== status) return false;
@@ -443,28 +498,47 @@
     if (!listaGestor) return;
     if (vazioGestor) vazioGestor.hidden = true;
     var pedido = ++consultaPainel;
-    var docLimpo = String(campoDocumento ? campoDocumento.value : "").replace(/\D/g, "").slice(0, 14);
-    var dataInicio = dataParaConsulta(campoDataInicio ? campoDataInicio.value : "");
-    var dataFim = dataParaConsulta(campoDataFim ? campoDataFim.value : "");
-    var url = "/api/orcamentos?dataInicio=" + encodeURIComponent(dataInicio) + "&dataFim=" + encodeURIComponent(dataFim) + "&cpf_cnpj=" + encodeURIComponent(docLimpo);
+    var filtros = lerFiltrosBusca();
+    var url = "/api/orcamentos?dataInicio=" + encodeURIComponent(filtros.dataInicio) + "&dataFim=" + encodeURIComponent(filtros.dataFim) + "&cpf_cnpj=" + encodeURIComponent(filtros.cpf_cnpj);
+    console.log("[orcamentos] busca", filtros, url);
     fetch(url, { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
       if (resposta.status === 401) {
+        mostrarAvisoBusca("Sessão expirada. Entre novamente na área restrita.");
+        console.log("[orcamentos] erro", 401);
         window.location.replace("/");
         return null;
       }
-      return resposta.json();
-    }).then(function (corpo) {
-      if (!corpo || pedido !== consultaPainel) return;
-      var lista = corpo.ok && Array.isArray(corpo.orcamentos) ? corpo.orcamentos : [];
+      return resposta.json().then(function (corpo) {
+        return { status: resposta.status, ok: resposta.ok, corpo: corpo };
+      }).catch(function () {
+        return { status: resposta.status, ok: false, corpo: null };
+      });
+    }).then(function (resultado) {
+      if (!resultado || pedido !== consultaPainel) return;
+      var corpo = resultado.corpo;
+      console.log("[orcamentos] resposta", resultado.status, corpo);
+      if (!resultado.ok || !corpo || corpo.ok === false) {
+        orcamentosCarregados = [];
+        cargaConcluida = false;
+        renderOrcamentos([], false);
+        mostrarAvisoBusca(corpo && corpo.erro ? corpo.erro : "Erro ao consultar os orçamentos.");
+        return;
+      }
+      var lista = Array.isArray(corpo.orcamentos) ? corpo.orcamentos : [];
       lista = lista.filter(function (atual) { return !idsExcluidos[String(atual.id)]; });
       orcamentosCarregados = lista;
-      cargaConcluida = !!(corpo && corpo.ok);
-      renderOrcamentos(aplicarFiltrosLocais(orcamentosCarregados), cargaConcluida);
-    }).catch(function () {
+      cargaConcluida = true;
+      var visiveis = aplicarFiltrosLocais(orcamentosCarregados);
+      renderOrcamentos(visiveis, true);
+      mostrarAvisoBusca("");
+      console.log("[orcamentos] lista", lista.length, "visiveis", visiveis.length);
+    }).catch(function (erro) {
       if (pedido !== consultaPainel) return;
+      console.log("[orcamentos] erro", erro);
       orcamentosCarregados = [];
       cargaConcluida = false;
       renderOrcamentos([], false);
+      mostrarAvisoBusca("Erro ao consultar os orçamentos.");
     });
   }
 
