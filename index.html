@@ -67,8 +67,8 @@
         <div class="hero-copy">
           <h1>As melhores soluções para sua empresa e sua residência, você encontra na GigaEletro. Faça seu orçamento</h1>
         </div>
-        <div class="hero-acao">
-          <form class="cliente-form" data-cliente novalidate autocomplete="off" style="padding-top: 319px !important; display: flex !important; flex-direction: column !important; justify-content: flex-end !important;">
+        <div class="hero-acao" style="display: flex !important; flex-direction: column !important; justify-content: space-between !important; padding: 20px !important; min-height: 100% !important; height: auto !important; max-height: none !important; grid-column: 2 !important; grid-row: 2 / span 2 !important;">
+          <form class="cliente-form" data-cliente novalidate autocomplete="off" style="height: auto !important; max-height: none !important; margin: 0 !important; padding: 0 !important; display: flex !important; flex-direction: column !important; justify-content: flex-start !important;">
             <div class="cliente-honeypot" aria-hidden="true">
               <label>Sobrenome
                 <input name="sobrenome_confirmacao" type="text" tabindex="-1" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -83,6 +83,7 @@
                 </div>
               </fieldset>
             </div>
+            <div class="hero-campos" style="height: auto !important; max-height: none !important; margin: 0 !important; padding: 0 !important;">
             <div class="form-linha form-doc">
               <label class="doc-campo"><span data-doc-rotulo>CPF</span>
                 <input name="documento" type="text" required inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="000.000.000-00">
@@ -127,26 +128,29 @@
                 <span class="doc-aviso" data-campo-aviso hidden>Dado Inválido</span>
               </label>
             </div>
+            </div>
           </form>
-          <button class="btn btn-lg" type="button" data-abrir-catalogo>Ver Catálogo de Produtos</button>
-        </div>
-        <footer class="site-footer" id="quem-somos">
-          <div class="foot">
-            <div class="foot-col foot-contatos">
-              <p>Telefones: <a href="tel:+552835462723">(28) 3546-2723</a> / <a href="tel:+552835461139">(28) 3546-1139</a></p>
-              <p>WhatsApp: <a href="https://wa.me/5527998021221">(27) 99802-1221</a></p>
+          <div style="height: auto !important; max-height: none !important; margin-top: 16px !important;">
+          <button class="btn btn-lg" type="button" data-abrir-catalogo style="margin-top: 0 !important;">Ver Catálogo de Produtos</button>
+          <footer class="site-footer" id="quem-somos">
+            <div class="foot">
+              <div class="foot-col foot-contatos">
+                <p>Telefones: <a href="tel:+552835462723">(28) 3546-2723</a> / <a href="tel:+552835461139">(28) 3546-1139</a></p>
+                <p>WhatsApp: <a href="https://wa.me/5527998021221">(27) 99802-1221</a></p>
+              </div>
+              <div class="foot-col foot-links">
+                <a class="foot-mapa" href="https://www.google.com/maps/dir/?api=1&amp;destination=Avenida+Domingos+Perim,+720,+Venda+Nova+do+Imigrante,+ES" target="_blank" rel="noopener noreferrer">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"></path>
+                    <circle cx="12" cy="10" r="2.5"></circle>
+                  </svg>
+                  Como chegar
+                </a>
+              </div>
             </div>
-            <div class="foot-col foot-links">
-              <a class="foot-mapa" href="https://www.google.com/maps/dir/?api=1&amp;destination=Avenida+Domingos+Perim,+720,+Venda+Nova+do+Imigrante,+ES" target="_blank" rel="noopener noreferrer">
-                <svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"></path>
-                  <circle cx="12" cy="10" r="2.5"></circle>
-                </svg>
-                Como chegar
-              </a>
-            </div>
+          </footer>
           </div>
-        </footer>
+        </div>
         </div>
         </div>
         <aside class="quote-side" id="carrinho" aria-labelledby="titulo-carrinho">
