@@ -8,3 +8,19 @@ data/*.db-shm
 uploads/*.pdf
 uploads/*.part
 .env*
+
+# Arquivos de escritório e documentos locais
+*.xlsx
+*.xls
+*.pdf
+*.docx
+*.doc
+~$*
+
+# Arquivos temporários do sistema operacional
+.DS_Store
+Thumbs.db
+
+# Pastas de ambiente virtual ou logs locais (se houver)
+node_modules/
+*.log
