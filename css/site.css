@@ -1989,9 +1989,10 @@ body.gestor .admin-page {
   body.home .quote-side .cart-list {
     height: auto !important;
     min-height: unset !important;
-    max-height: none;
+    max-height: 220px;
     flex: none !important;
-    overflow: visible;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
   body.home .quote-side .drawer-foot {
     position: static;
