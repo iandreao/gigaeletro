@@ -1997,8 +1997,35 @@ body.gestor .admin-page {
   body.home .hero-par {
     flex: 1 1 auto;
     min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  body.home .hero-centro,
+  body.home .hero-acao,
+  body.home .hero-acao > div {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  body.home .hero-copy,
+  body.home .site-footer,
+  body.home .hero-acao [data-abrir-catalogo] {
+    flex: none;
+    display: block;
+    visibility: visible;
+  }
+  body.home .hero-acao .cliente-form {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
+  }
+  body.home .hero-acao [data-abrir-catalogo] {
+    position: relative;
+    z-index: 2;
   }
   body.home .hero-grid { padding-bottom: 0; }
   .catalogo-modal,

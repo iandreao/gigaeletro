@@ -505,6 +505,12 @@
 
   function renderResumo() {
     if (resumoVazio) resumoVazio.hidden = selecionados.length > 0;
+    var abrirCatalogo = document.querySelector(".hero-acao [data-abrir-catalogo]");
+    if (abrirCatalogo) {
+      abrirCatalogo.hidden = false;
+      abrirCatalogo.style.removeProperty("display");
+      abrirCatalogo.style.removeProperty("visibility");
+    }
     if (!resumoEl) {
       atualizarTotais();
       return;
