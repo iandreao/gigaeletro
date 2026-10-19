@@ -1978,19 +1978,38 @@ body.gestor .admin-page {
     --fecho-mobile: 0px;
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  .catalogo-modal {
+  .catalogo-modal,
+  .historico-modal {
     top: 50%;
     left: 50%;
     right: auto;
     bottom: auto;
     transform: translate(-50%, -50%);
-    width: min(520px, calc(100% - 24px));
+    width: 90%;
     max-width: calc(100% - 24px);
     height: auto;
-    max-height: min(65vh, calc(100dvh - env(safe-area-inset-bottom, 0px)));
+    max-height: min(70vh, calc(100dvh - 48px));
+    margin: 0;
     border-radius: 1rem;
     overflow: hidden;
     box-sizing: border-box;
+  }
+  .catalogo-modal-head,
+  .historico-modal .drawer-head {
+    flex: none;
+    align-items: center;
+  }
+  .catalogo-modal-head h2,
+  .historico-modal .drawer-head h2 {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .catalogo-modal .catalogo-fechar,
+  .historico-modal .drawer-head .catalogo-fechar {
+    position: relative;
+    z-index: 2;
+    flex: none;
+    margin-left: auto;
   }
   .catalogo-modal .catalog-list,
   .catalogo-modal .catalog-row,
