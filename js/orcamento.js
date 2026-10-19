@@ -251,6 +251,10 @@
   var historicoBuscando = false;
 
   function setHistorico(aberto) {
+    if (aberto) {
+      setCatalogo(false);
+      setRestrita(false);
+    }
     var modal = document.querySelector("[data-historico]");
     var fundo = document.querySelector("[data-historico-overlay]");
     if (modal) modal.hidden = !aberto;
@@ -388,43 +392,17 @@
     delete modal.dataset.arrastado;
   }
 
-  function posicionarCatalogo(ancora) {
+  function posicionarCatalogo() {
     var modal = document.querySelector("[data-catalogo-modal]");
-    var form = document.querySelector("[data-cliente]");
-    if (!modal || !form) return;
-    if (layoutCatalogoCelular()) {
-      limparPosicaoCatalogo(modal);
-      return;
-    }
-    var largura = form.getBoundingClientRect().width;
-    var left = 8;
-    var top = 8;
-    if (ancora === "formulario") {
-      var caixaForm = form.getBoundingClientRect();
-      left = caixaForm.left;
-      top = caixaForm.top;
-    } else {
-      var quote = document.querySelector(".quote-side");
-      if (!quote) return;
-      var caixaQuote = quote.getBoundingClientRect();
-      left = caixaQuote.left + (caixaQuote.width - largura) / 2;
-      top = caixaQuote.top;
-    }
-    var maxX = Math.max(8, window.innerWidth - largura - 8);
-    left = Math.min(Math.max(8, left), maxX);
-    var altura = modal.offsetHeight || 0;
-    var maxY = Math.max(8, window.innerHeight - Math.max(altura, 80) - 8);
-    top = Math.min(Math.max(8, top), maxY);
-    modal.style.width = largura + "px";
-    modal.style.left = left + "px";
-    modal.style.top = top + "px";
-    modal.style.right = "auto";
-    modal.style.bottom = "auto";
-    modal.style.transform = "none";
-    delete modal.dataset.arrastado;
+    if (!modal) return;
+    limparPosicaoCatalogo(modal);
   }
 
   function setCatalogo(aberto) {
+    if (aberto) {
+      setHistorico(false);
+      setRestrita(false);
+    }
     var modal = document.querySelector("[data-catalogo-modal]");
     var fundo = document.querySelector("[data-catalogo-overlay]");
     if (modal) modal.hidden = !aberto;
@@ -1422,6 +1400,10 @@
   }
 
   function setRestrita(aberto) {
+    if (aberto) {
+      setCatalogo(false);
+      setHistorico(false);
+    }
     if (!restrita || !restritaOverlay) return;
     restrita.hidden = !aberto;
     restritaOverlay.hidden = !aberto;
