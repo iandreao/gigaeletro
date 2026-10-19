@@ -1976,8 +1976,31 @@ body.gestor .admin-page {
 @media (max-width: 767px) {
   body.home {
     --fecho-mobile: 0px;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: 0;
   }
+  body.home main,
+  body.home .hero,
+  body.home .hero-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  body.home .hero-par {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  body.home .hero-grid { padding-bottom: 0; }
   .catalogo-modal,
   .historico-modal {
     top: 50%;
@@ -2027,18 +2050,20 @@ body.gestor .admin-page {
     overflow-y: auto;
   }
   body.home .quote-side {
-    height: auto !important;
-    min-height: unset !important;
-    max-height: none !important;
     flex: none !important;
-    overflow: visible;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin-bottom: 0;
+    overflow: hidden;
   }
   body.home .quote-side > ul.cart-list {
     display: block !important;
-    height: auto !important;
+    height: 143px !important;
     min-height: 0 !important;
-    max-height: 240px !important;
+    max-height: 143px !important;
     flex: none !important;
+    overflow-x: hidden !important;
     overflow-y: auto !important;
   }
   body.home .quote-side > .drawer-foot {
@@ -2048,12 +2073,13 @@ body.gestor .admin-page {
     right: auto;
     bottom: auto;
     width: auto;
-    margin: 0 0 12px;
-    padding: 0.4rem 0.75rem calc(0.45rem + env(safe-area-inset-bottom, 0px));
+    margin: 0;
+    padding: 0.4rem 0.75rem env(safe-area-inset-bottom, 0px);
     background: var(--white);
     border-top: 1px solid #000;
     box-shadow: none;
   }
+  body.home .quote-side .legal { margin-bottom: 0; }
   body.home .quote-side .drawer-foot .btn { width: 100%; }
 }
 
