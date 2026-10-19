@@ -2010,12 +2010,14 @@ body.gestor .admin-page {
     display: flex;
     flex-direction: column;
   }
-  body.home .hero-copy,
-  body.home .site-footer,
   body.home .hero-acao [data-abrir-catalogo] {
     flex: none;
     display: block;
     visibility: visible;
+  }
+  body.home .hero-copy,
+  body.home .site-footer {
+    display: none !important;
   }
   body.home .hero-acao .cliente-form {
     flex: 1 1 auto;
