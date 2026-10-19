@@ -40,6 +40,25 @@
   width: min(420px, calc(100% - 2rem));
   margin: 1.2rem auto;
 }
+body.gestor .brand img {
+  width: calc(50px * 366 / 184 * 1.3 * 1.3 * 0.85);
+  height: calc(50px * 1.05 * 0.85);
+  max-width: none;
+  max-height: calc(50px * 1.05 * 0.85);
+  object-fit: fill;
+  display: block;
+}
+.gestor-login h1 {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+@media (min-width: 981px) {
+  body.gestor .brand img {
+    width: calc(32px * 366 / 184 * 1.3 * 1.3 * 0.85);
+    height: calc(32px * 1.05 * 0.85);
+    max-height: calc(32px * 1.05 * 0.85);
+  }
+}
 @media (max-width: 640px) {
   .gestor-filtros label.gestor-doc,
   .gestor-filtros label.gestor-filtro { flex: 1 1 auto; max-width: none; }
