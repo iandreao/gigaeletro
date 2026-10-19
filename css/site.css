@@ -2037,7 +2037,7 @@ body.gestor .admin-page {
     display: block !important;
     height: auto !important;
     min-height: 0 !important;
-    max-height: 192px !important;
+    max-height: 240px !important;
     flex: none !important;
     overflow-y: auto !important;
   }
