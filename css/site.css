@@ -1547,10 +1547,10 @@ body.home .quote-side {
 .quote-side .cart-prod { color: #1f2937; font-weight: 700; }
 .quote-side .cart-compacta {
   display: grid;
-  grid-template-columns: max-content max-content minmax(0, 1fr) max-content 4.7rem minmax(0, 1fr) max-content 5.15rem 16px;
+  grid-template-columns: max-content max-content minmax(0, 1fr) max-content max-content minmax(0, 1fr) max-content max-content 16px;
   align-items: center;
   width: 100%;
-  column-gap: 0.4rem;
+  column-gap: 0.2rem;
   margin: 0;
   color: #374151;
   font-size: 11px;

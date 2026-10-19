@@ -204,7 +204,7 @@
       var campo = event.target;
       if (!campoMonitorado(campo) || !valorInvalido(campo)) return;
       var destino = event.relatedTarget;
-      if (destino && destino.closest && (destino.closest(".tipo-pessoa") || destino.closest("[data-historico]") || destino.closest("[data-editar-orcamento]") || destino.closest("[data-abrir-historico]"))) return;
+      if (destino && destino.closest && (destino.closest("[data-enviar]") || destino.closest(".tipo-pessoa") || destino.closest("[data-historico]") || destino.closest("[data-editar-orcamento]") || destino.closest("[data-abrir-historico]"))) return;
       window.setTimeout(function () {
         if (valorInvalido(campo) && document.activeElement !== campo) campo.focus();
       }, 0);
@@ -216,7 +216,7 @@
     var ativo = document.activeElement;
     if (!campoMonitorado(ativo) || !formCliente || !formCliente.contains(ativo) || !valorInvalido(ativo)) return;
     if (ativo === event.target || ativo.contains(event.target)) return;
-    if (event.target.closest && (event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
+    if (event.target.closest && (event.target.closest("[data-enviar]") || event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
     event.preventDefault();
     mostrarDadoInvalido(ativo);
     ativo.focus();
@@ -225,7 +225,7 @@
   document.addEventListener("click", function (event) {
     var ativo = document.activeElement;
     if (!campoMonitorado(ativo) || !valorInvalido(ativo)) return;
-    if (event.target.closest && (event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
+    if (event.target.closest && (event.target.closest("[data-enviar]") || event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
     if (ativo.contains(event.target)) return;
     event.preventDefault();
     event.stopPropagation();
@@ -663,8 +663,41 @@
     liberarEnvio();
   }
 
+  function campoIncompleto(campo) {
+    if (!campo) return false;
+    var valor = String(campo.value || "").trim();
+    if (!valor) return true;
+    if (campo.name === "documento") {
+      var digitos = apenasDigitos(valor);
+      return tipoPessoa() === "pj" ? !cnpjValido(digitos) : !cpfValido(digitos);
+    }
+    if (campo.name === "cep") return apenasDigitos(valor).length !== 8;
+    if (campo.name === "uf") return valor.length !== 2;
+    if (campo.name === "celular") return !telefoneValido(valor);
+    if (campo.name === "email") return !emailValido(valor);
+    return false;
+  }
+
+  function primeiroCampoIncompleto() {
+    if (!formCliente) return null;
+    var campos = formCliente.querySelectorAll("input[required]");
+    var i;
+    for (i = 0; i < campos.length; i += 1) {
+      if (campoIncompleto(campos[i])) return campos[i];
+    }
+    return null;
+  }
+
   function enviarWhatsApp() {
     if (envioEmCurso) return;
+    setCatalogo(false);
+    var pendente = primeiroCampoIncompleto();
+    if (pendente) {
+      if (!formularioPreenchido()) alert("Preencher suas informações");
+      else if (campoMonitorado(pendente)) mostrarDadoInvalido(pendente);
+      pendente.focus();
+      return;
+    }
     if (!formularioPreenchido()) {
       alert("Preencher suas informações");
       return;
