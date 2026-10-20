@@ -2020,8 +2020,9 @@ body.gestor .admin-page {
     display: none !important;
   }
   body.home .hero-acao .cliente-form {
-    flex: 1 1 auto;
+    flex: 1 1 0%;
     min-height: 0;
+    height: auto;
     overflow-x: hidden;
     overflow-y: auto;
   }
@@ -2094,6 +2095,21 @@ body.gestor .admin-page {
     flex: none !important;
     overflow-x: hidden !important;
     overflow-y: auto !important;
+  }
+  body.home .quote-side > .empty[hidden] {
+    display: none !important;
+  }
+  body.home .quote-side > .empty:not([hidden]) {
+    box-sizing: border-box;
+    flex: none !important;
+    height: 143px !important;
+    min-height: 143px !important;
+    max-height: 143px !important;
+    margin: 0;
+    overflow: auto;
+  }
+  body.home .quote-side > .empty:not([hidden]) + ul.cart-list {
+    display: none !important;
   }
   body.home .quote-side > .drawer-foot {
     position: relative !important;
