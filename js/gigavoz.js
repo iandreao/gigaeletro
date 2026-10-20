@@ -616,9 +616,24 @@
     if (campo) campo.focus();
   }
 
+  function formularioAmareloPronto() {
+    var form = document.querySelector(".cliente-form") || document.querySelector("form");
+    if (!form) return false;
+    var nomes = ["documento", "cep", "nome", "endereco", "numero", "bairro", "cidade", "uf", "celular", "email"];
+    var i;
+    for (i = 0; i < nomes.length; i += 1) {
+      var campo = form.elements[nomes[i]];
+      if (!campo || !String(campo.value || "").trim()) return false;
+    }
+    return true;
+  }
+
   function gvValidarEForçarEnvio(adiado) {
     var quadro = document.querySelector(".quote-side") || document.querySelector("#carrinho");
-    if (quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1) {
+    var lista = window.listaIntencoesVoz || window.gvIntencoes;
+    var temLista = Array.isArray(lista) && lista.length >= 1;
+    var temMarcador = quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1;
+    if (quadro && (temLista || temMarcador)) {
       var nos = quadro.querySelectorAll("*");
       Array.prototype.forEach.call(nos, function (elemento) {
         var texto = String(elemento.textContent || "");
@@ -627,20 +642,23 @@
         elemento.style.display = "none";
         elemento.hidden = true;
       });
-      var botao = quadro.querySelector("[data-enviar]");
-      if (!botao) {
-        var botoes = document.querySelectorAll("button");
-        var i;
-        for (i = 0; i < botoes.length; i += 1) {
-          if (String(botoes[i].textContent || "").indexOf("Enviar Orçamento") !== -1) {
-            botao = botoes[i];
-            break;
+      if (temLista) {
+        var botao = quadro.querySelector("[data-enviar]");
+        if (!botao) {
+          var botoes = document.querySelectorAll("button");
+          var i;
+          for (i = 0; i < botoes.length; i += 1) {
+            if (String(botoes[i].textContent || "").indexOf("Enviar Orçamento") !== -1) {
+              botao = botoes[i];
+              break;
+            }
           }
         }
-      }
-      if (botao) {
-        botao.disabled = false;
-        botao.removeAttribute("disabled");
+        if (botao) {
+          var liberar = formularioAmareloPronto();
+          botao.disabled = !liberar;
+          if (liberar) botao.removeAttribute("disabled");
+        }
       }
     }
     if (adiado === true) return;
@@ -690,11 +708,6 @@
       var vazio = quadro.querySelector("[data-resumo-vazio]");
       if (vazio && !quadro.querySelector(".cart-list [data-qtd]")) vazio.hidden = true;
     }
-    var enviar = document.querySelector("[data-enviar]");
-    if (enviar) {
-      enviar.disabled = false;
-      enviar.removeAttribute("disabled");
-    }
     var erroEnvio = document.querySelector("[data-envio-aviso]");
     if (erroEnvio && String(erroEnvio.textContent || "").indexOf("Adicione ao menos um produto") !== -1) {
       erroEnvio.hidden = true;
@@ -714,16 +727,18 @@
       var quadro = document.querySelector(".quote-side");
       var visual = quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1;
       if ((!lista || !lista.length) && !visual) return;
-      var botao = document.querySelector("[data-enviar]");
-      if (botao) {
-        botao.disabled = false;
-        botao.removeAttribute("disabled");
-      }
       var erro = document.querySelector("[data-envio-aviso]");
       if (erro && String(erro.textContent || "").indexOf("Adicione ao menos um produto") !== -1) {
+        erro.style.display = "none";
         erro.hidden = true;
         erro.textContent = "";
       }
+      if (!lista || lista.length < 1) return;
+      var botao = document.querySelector("[data-enviar]");
+      if (!botao) return;
+      var liberar = formularioAmareloPronto();
+      botao.disabled = !liberar;
+      if (liberar) botao.removeAttribute("disabled");
     }
     document.addEventListener("input", manter, false);
     document.addEventListener("keyup", manter, false);
