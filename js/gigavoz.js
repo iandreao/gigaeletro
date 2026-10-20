@@ -672,6 +672,25 @@
     try {
       sessionStorage.setItem("gv-intencoes", JSON.stringify({ itens: window.listaIntencoesVoz, texto: bloco }));
     } catch (erro) { /* o navegador pode bloquear o armazenamento */ }
+    protegerBotaoEnvio();
+  }
+
+  function protegerBotaoEnvio() {
+    if (protegerBotaoEnvio.ligado) return;
+    protegerBotaoEnvio.ligado = true;
+    function manter() {
+      var lista = window.listaIntencoesVoz;
+      var marcador = document.querySelector("[data-gv-voz-resumo]");
+      var visual = marcador && !marcador.hidden && String(marcador.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1;
+      if ((!lista || !lista.length) && !visual) return;
+      var botao = document.querySelector("[data-enviar]");
+      if (!botao) return;
+      botao.disabled = false;
+      botao.removeAttribute("disabled");
+    }
+    document.addEventListener("input", manter, false);
+    document.addEventListener("keyup", manter, false);
+    document.addEventListener("change", manter, false);
   }
 
   function confirmarEnvio() {
