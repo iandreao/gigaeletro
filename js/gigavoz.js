@@ -2,6 +2,7 @@
   "use strict";
 
   var raiz = null;
+  var retorno = null;
 
   function criarTela() {
     var fundo = document.createElement("div");
@@ -9,9 +10,8 @@
     fundo.innerHTML =
       '<div class="gv-welcome-modal" role="dialog" aria-modal="true" aria-labelledby="gv-titulo">' +
         '<div class="gv-etapa" data-gv-etapa="escolha">' +
-          '<p class="gv-marca">GigaEletro</p>' +
-          '<h2 class="gv-titulo" id="gv-titulo">Como deseja solicitar seu orçamento?</h2>' +
-          '<p class="gv-texto">Escolha uma das opções abaixo para continuar.</p>' +
+          '<img class="gv-logo" src="assets/logo-gigaeletro.jpg?v=3" width="366" height="184" alt="Gigaeletro Material Elétrico">' +
+          '<h2 class="gv-titulo" id="gv-titulo">Olá, seja muito bem-vindo! É um grande prazer atender — escolha a forma que deseja solicitar seu orçamento.</h2>' +
           '<div class="gv-cards">' +
             '<button class="gv-card" type="button" data-gv-acao="catalogo">' +
               '<span class="gv-card-selo">Tradicional</span>' +
@@ -58,10 +58,35 @@
     if (voltar) voltar.focus();
   }
 
+  function garantirRetorno() {
+    if (retorno) return retorno;
+    retorno = document.createElement("button");
+    retorno.type = "button";
+    retorno.className = "gv-back-to-welcome";
+    retorno.textContent = "🔄 Trocar modo de atendimento";
+    retorno.hidden = true;
+    retorno.addEventListener("click", reabrirBoasVindas);
+    document.body.appendChild(retorno);
+    return retorno;
+  }
+
+  function reabrirBoasVindas() {
+    if (raiz) {
+      raiz.remove();
+      raiz = null;
+    }
+    raiz = criarTela();
+    document.body.appendChild(raiz);
+    garantirRetorno().hidden = true;
+    var primeiro = raiz.querySelector('[data-gv-acao="catalogo"]');
+    if (primeiro) primeiro.focus();
+  }
+
   function fecharBoasVindas() {
     if (!raiz) return;
     raiz.remove();
     raiz = null;
+    garantirRetorno().hidden = false;
     var campo = document.querySelector('.cliente-form input[name="documento"]');
     if (campo) campo.focus();
   }
@@ -77,6 +102,7 @@
   function iniciar() {
     if (!document.body || !document.body.classList.contains("home")) return;
     if (document.querySelector(".gv-backdrop")) return;
+    garantirRetorno();
     raiz = criarTela();
     document.body.appendChild(raiz);
     var primeiro = raiz.querySelector('[data-gv-acao="catalogo"]');

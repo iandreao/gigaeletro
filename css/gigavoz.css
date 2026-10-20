@@ -22,14 +22,23 @@
   margin: 0;
   padding: 28px 28px 24px;
   overflow: auto;
-  border: 1px solid #1a1a1a;
+  border: 1px solid #000;
   border-radius: 1rem;
-  background: #ffffff;
+  background: #fefce8;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
 }
 
 .gv-etapa[hidden] {
   display: none !important;
+}
+
+.gv-logo {
+  display: block;
+  width: 142.86px;
+  height: 44.63px;
+  max-width: none;
+  margin: 0 0 12px;
+  object-fit: fill;
 }
 
 .gv-marca {
@@ -89,7 +98,40 @@
 
 .gv-card:hover,
 .gv-card:focus-visible {
-  background: #fefce8;
+  background: #ffffff;
+  outline: 2px solid #1a1a1a;
+  outline-offset: 2px;
+}
+
+.gv-back-to-welcome {
+  position: fixed;
+  z-index: 36;
+  top: calc(var(--header, 76px) + 8px);
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 5px 10px;
+  border: 1px solid #1a1a1a;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1a1a1a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.gv-back-to-welcome[hidden] {
+  display: none !important;
+}
+
+.gv-back-to-welcome:hover,
+.gv-back-to-welcome:focus-visible {
+  background: #fcd800;
   outline: 2px solid #1a1a1a;
   outline-offset: 2px;
 }
@@ -146,6 +188,13 @@
   color: #ffffff;
   outline: 2px solid #fcd800;
   outline-offset: 2px;
+}
+
+@media (min-width: 981px) {
+  .gv-logo {
+    width: 91.42px;
+    height: 28.55px;
+  }
 }
 
 @media (max-width: 767px) {
