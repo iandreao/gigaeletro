@@ -382,36 +382,84 @@
     return String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   }
 
+  var ESPECS = { mm: 1, cm: 1, km: 1, pol: 1, polegada: 1, polegadas: 1, amp: 1, amper: 1, ampere: 1, amperes: 1, v: 1, volt: 1, volts: 1, w: 1, watt: 1, watts: 1, awg: 1, kva: 1, va: 1, kv: 1 };
+  var MEDIDAS = { m: 1, mt: 1, mts: 1, metro: 1, metros: 1 };
+
+  function lerNumero(valor) {
+    var qtd = parseFloat(String(valor || "").replace(",", "."));
+    return isFinite(qtd) && qtd > 0 ? qtd : null;
+  }
+
+  function unidadeDepois(texto, fim) {
+    var resto = String(texto || "").slice(fim);
+    var solto = resto.match(/^\s*([A-Za-zÀ-ÿ]+)/);
+    return solto ? semAcento(solto[1]) : "";
+  }
+
+  function quebrarPorQuantidade(texto) {
+    var fonte = String(texto || "").replace(/\s+/g, " ").trim();
+    if (!fonte) return [];
+    var re = /\b(\d+(?:[.,]\d+)?|um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|quatorze|catorze|quinze|vinte|trinta|quarenta|cinquenta|cem)\b/gi;
+    var pedacos = [];
+    var achado;
+    var inicio = 0;
+    while ((achado = re.exec(fonte))) {
+      if (achado.index <= inicio) continue;
+      var antes = fonte.slice(inicio, achado.index).trim();
+      if (!antes) {
+        inicio = achado.index;
+        continue;
+      }
+      var unidade = unidadeDepois(fonte, achado.index + achado[0].length);
+      var depois = fonte.slice(achado.index + achado[0].length).trim();
+      if (ESPECS[unidade] || !depois) continue;
+      pedacos.push(antes);
+      inicio = achado.index;
+    }
+    var resto = fonte.slice(inicio).trim();
+    if (resto) pedacos.push(resto);
+    return pedacos;
+  }
+
   function interpretarItem(trecho) {
     var texto = String(trecho || "").replace(/\s+/g, " ").trim();
     if (!texto) return null;
-    var digitos = texto.match(/^(\d+)\s*(?:x\s+)?(.+)$/i);
+    var medida = texto.match(/^(\d+(?:[.,]\d+)?)\s+(m|mt|mts|metro|metros)\b\s+(.+)$/i);
+    if (medida && MEDIDAS[semAcento(medida[2])] && medida[3].trim()) {
+      return { qtd: lerNumero(medida[1]), texto: texto, medida: true, fala: texto };
+    }
+    var digitos = texto.match(/^(\d+(?:[.,]\d+)?)\s*(?:x\s+)?(.+)$/i);
     if (digitos) {
-      var qtd = parseInt(digitos[1], 10);
-      var resto = digitos[2].replace(/\s+/g, " ").trim();
-      if (qtd >= 1 && resto) return { qtd: qtd, texto: resto };
+      var qtd = lerNumero(digitos[1]);
+      var descricao = digitos[2].replace(/\s+/g, " ").trim();
+      if (qtd && descricao) return { qtd: qtd, texto: descricao, fala: texto };
     }
     var partes = texto.split(/\s+/);
     var nomeNumero = semAcento(partes[0]);
     if (NUMEROS[nomeNumero] && partes.length > 1) {
-      return { qtd: NUMEROS[nomeNumero], texto: partes.slice(1).join(" ") };
+      return { qtd: NUMEROS[nomeNumero], texto: partes.slice(1).join(" "), extenso: true, fala: texto };
     }
-    return { qtd: null, texto: texto };
+    return { qtd: null, texto: texto, fala: texto };
   }
 
   function separarIntencoes(texto) {
-    var preparado = String(texto || "").replace(/\r\n/g, "\n").replace(/\s+e\s+/gi, "\n");
-    var partes = preparado.split(/\s*(?:,|\n)\s*/);
+    var protegido = String(texto || "").replace(/\r\n/g, "\n").replace(/(\d)\s*,\s*(\d)/g, "$1§$2");
+    protegido = protegido.replace(/\s+e\s+/gi, "\n");
+    var partes = protegido.split(/\s*(?:,|\n|;)\s*/);
     var itens = [];
     partes.forEach(function (parte) {
-      var item = interpretarItem(parte);
-      if (item) itens.push(item);
+      var limpa = parte.replace(/§/g, ",").trim();
+      quebrarPorQuantidade(limpa).forEach(function (fatia) {
+        var item = interpretarItem(fatia);
+        if (item) itens.push(item);
+      });
     });
     return itens;
   }
 
   function rotulo(item) {
     if (!item) return "";
+    if (item.medida || item.extenso) return item.fala || item.texto;
     if (item.qtd) return item.qtd + " x " + item.texto;
     return item.texto;
   }
@@ -568,17 +616,64 @@
     if (campo) campo.focus();
   }
 
+  function publicarNoOrcamento(pacote, bloco) {
+    window.gvIntencoes = pacote.map(function (item) {
+      return { qtd: item.qtd, texto: item.texto, rotulo: item.rotulo };
+    });
+    var form = document.querySelector(".cliente-form");
+    if (form) {
+      var oculto = form.querySelector('input[name="gv-intencoes"]');
+      if (!oculto) {
+        oculto = document.createElement("input");
+        oculto.type = "hidden";
+        oculto.name = "gv-intencoes";
+        oculto.className = "gv-intencoes-campo";
+        form.appendChild(oculto);
+      }
+      oculto.value = JSON.stringify(window.gvIntencoes);
+    }
+    var quadro = document.querySelector(".quote-side");
+    if (quadro) {
+      var aviso = quadro.querySelector("[data-gv-voz-resumo]");
+      if (!aviso) {
+        aviso = document.createElement("p");
+        aviso.className = "gv-voz-resumo";
+        aviso.setAttribute("data-gv-voz-resumo", "");
+        aviso.style.margin = "0 0 8px";
+        aviso.style.padding = "8px 10px";
+        aviso.style.border = "1px solid rgba(0, 0, 0, 0.18)";
+        aviso.style.borderRadius = "0.55rem";
+        aviso.style.background = "#ffffff";
+        aviso.style.color = "#1a1a1a";
+        aviso.style.fontSize = "0.92rem";
+        aviso.style.fontWeight = "700";
+        aviso.style.lineHeight = "1.35";
+        aviso.style.textAlign = "left";
+        var pe = quadro.querySelector(".drawer-foot");
+        if (pe) quadro.insertBefore(aviso, pe);
+        else quadro.appendChild(aviso);
+      }
+      aviso.textContent = "📋 [Lista de Itens via Comando de Voz Inclusa]";
+      aviso.hidden = false;
+      var vazio = quadro.querySelector("[data-resumo-vazio]");
+      if (vazio && !quadro.querySelector(".cart-list [data-qtd]")) vazio.hidden = true;
+    }
+    var enviar = document.querySelector("[data-enviar]");
+    if (enviar) enviar.disabled = false;
+    try {
+      sessionStorage.setItem("gv-intencoes", JSON.stringify({ itens: window.gvIntencoes, texto: bloco }));
+    } catch (erro) { /* o navegador pode bloquear o armazenamento */ }
+  }
+
   function confirmarEnvio() {
     if (!intencoes.length || !gravador) return;
     var pacote = intencoes.map(function (item) {
-      return { qtd: item.qtd, texto: item.texto };
+      return { qtd: item.qtd, texto: item.texto, rotulo: rotulo(item) };
     });
-    var bloco = intencoes.map(rotulo).join("\n");
+    var bloco = pacote.map(function (item) { return item.rotulo; }).join("\n");
     gravador.dataset.gvTexto = bloco;
     gravador.dataset.gvItens = JSON.stringify(pacote);
-    try {
-      sessionStorage.setItem("gv-intencoes", JSON.stringify({ itens: pacote, texto: bloco }));
-    } catch (erro) { /* o navegador pode bloquear o armazenamento */ }
+    publicarNoOrcamento(pacote, bloco);
     pararEscuta();
     gravador.hidden = true;
     focarDocumento();
