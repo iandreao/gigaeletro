@@ -616,6 +616,37 @@
     if (campo) campo.focus();
   }
 
+  function gvValidarEForçarEnvio(adiado) {
+    var quadro = document.querySelector(".quote-side") || document.querySelector("#carrinho");
+    if (quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1) {
+      var nos = quadro.querySelectorAll("*");
+      Array.prototype.forEach.call(nos, function (elemento) {
+        var texto = String(elemento.textContent || "");
+        if (texto.indexOf("Adicione ao menos um produto") === -1) return;
+        if (texto.indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1) return;
+        elemento.style.display = "none";
+        elemento.hidden = true;
+      });
+      var botao = quadro.querySelector("[data-enviar]");
+      if (!botao) {
+        var botoes = document.querySelectorAll("button");
+        var i;
+        for (i = 0; i < botoes.length; i += 1) {
+          if (String(botoes[i].textContent || "").indexOf("Enviar Orçamento") !== -1) {
+            botao = botoes[i];
+            break;
+          }
+        }
+      }
+      if (botao) {
+        botao.disabled = false;
+        botao.removeAttribute("disabled");
+      }
+    }
+    if (adiado === true) return;
+    window.setTimeout(function () { gvValidarEForçarEnvio(true); }, 0);
+  }
+
   function publicarNoOrcamento(pacote, bloco) {
     window.listaIntencoesVoz = pacote.map(function (item) {
       return { qtd: item.qtd, texto: item.texto, rotulo: item.rotulo };
@@ -708,6 +739,7 @@
     gravador.dataset.gvTexto = bloco;
     gravador.dataset.gvItens = JSON.stringify(pacote);
     publicarNoOrcamento(pacote, bloco);
+    gvValidarEForçarEnvio();
     pararEscuta();
     gravador.hidden = true;
     focarDocumento();
@@ -717,6 +749,11 @@
     if (!document.body || !document.body.classList.contains("home")) return;
     if (document.querySelector(".gv-backdrop")) return;
     garantirRetorno();
+    var formulario = document.querySelector("form");
+    if (formulario && !formulario.dataset.gvForcaEnvio) {
+      formulario.dataset.gvForcaEnvio = "1";
+      formulario.addEventListener("input", gvValidarEForçarEnvio);
+    }
     raiz = criarTela();
     document.body.appendChild(raiz);
     var primeiro = raiz.querySelector('[data-gv-acao="catalogo"]');
