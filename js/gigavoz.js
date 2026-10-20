@@ -4,25 +4,26 @@
   var TEXTO_INICIAL = "Clique no microfone e fale os materiais que você precisa.";
   var TEXTO_OUVINDO = "Ouvindo... Pode ditar seus produtos. Clique novamente para parar.";
   var TEXTO_ERRO = "Acesso ao microfone negado ou não suportado. Por favor, utilize o formulário tradicional ou revise as permissões do seu navegador.";
+  var NUMEROS = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, cem: 100 };
 
   var raiz = null;
   var retorno = null;
   var gravador = null;
+  var captura = null;
   var botaoMic = null;
   var ondas = null;
   var statusEl = null;
   var area = null;
   var avancar = null;
+  var painelLista = null;
+  var listaEl = null;
+  var campoNovo = null;
+  var confirmarLista = null;
+  var intencoes = [];
   var prefixoFala = "";
   var corteResultado = 0;
   var resultadosVistos = 0;
   var escrevendo = false;
-  var grupos = null;
-  var listaSucesso = null;
-  var listaPendente = null;
-  var timerGrupos = 0;
-  var indiceCatalogo = null;
-  var tentativasCatalogo = 0;
   var reconhecimento = null;
   var ouvindo = false;
   var iniciando = false;
@@ -97,7 +98,7 @@
   function reabrirBoasVindas() {
     pararEscuta();
     limparTranscricao();
-    limparRevisao();
+    limparIntencoes();
     if (gravador) gravador.hidden = true;
     if (raiz) {
       raiz.remove();
@@ -135,40 +136,56 @@
     gravador.setAttribute("aria-labelledby", "gv-recorder-titulo");
     gravador.innerHTML =
       '<p class="gv-recorder-titulo" id="gv-recorder-titulo">Comando de voz</p>' +
-      '<div class="gv-bloco-mic">' +
-        '<div class="gv-waves" data-gv-ondas hidden aria-hidden="true"><span></span><span></span><span></span><span></span></div>' +
-        '<button class="gv-mic" type="button" data-gv-mic aria-pressed="false" aria-label="Iniciar escuta">' +
-          '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-            '<path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"></path>' +
-            '<path d="M19 11a7 7 0 0 1-14 0"></path>' +
-            '<path d="M12 18v3"></path>' +
-          "</svg>" +
-        "</button>" +
+      '<div class="gv-captura" data-gv-passo="captura">' +
+        '<div class="gv-bloco-mic">' +
+          '<div class="gv-waves" data-gv-ondas hidden aria-hidden="true"><span></span><span></span><span></span><span></span></div>' +
+          '<button class="gv-mic" type="button" data-gv-mic aria-pressed="false" aria-label="Iniciar escuta">' +
+            '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+              '<path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"></path>' +
+              '<path d="M19 11a7 7 0 0 1-14 0"></path>' +
+              '<path d="M12 18v3"></path>' +
+            "</svg>" +
+          "</button>" +
+        "</div>" +
+        '<p class="gv-status-text" data-gv-status></p>' +
+        '<textarea class="gv-transcript-area" data-gv-transcricao aria-label="Texto falado"></textarea>' +
+        '<button class="gv-avancar" type="button" hidden disabled>Avançar para o Orçamento</button>' +
       "</div>" +
-      '<p class="gv-status-text" data-gv-status></p>' +
-      '<textarea class="gv-transcript-area" data-gv-transcricao aria-label="Texto falado"></textarea>' +
-      '<div class="gv-group-success">' +
-        '<h3 class="gv-group-titulo">🟩 Materiais Identificados no Estoque</h3>' +
-        '<ul class="gv-group-list" data-gv-success></ul>' +
-      "</div>" +
-      '<div class="gv-group-pending">' +
-        '<h3 class="gv-group-titulo">🟨 Itens para Revisão (Não Localizados)</h3>' +
-        '<ul class="gv-group-list" data-gv-pending></ul>' +
-      "</div>" +
-      '<button class="gv-btn-confirm" type="button" hidden disabled>Confirmar e Inserir no Orçamento</button>';
+      '<div class="gv-intencoes" data-gv-passo="lista" hidden>' +
+        '<p class="gv-intencoes-titulo">Lista de intenções</p>' +
+        '<ul class="gv-intencoes-lista" data-gv-lista></ul>' +
+        '<div class="gv-intencoes-add">' +
+          '<input class="gv-intencoes-input" type="text" data-gv-novo aria-label="Novo material" placeholder="Digite um material">' +
+          '<button class="gv-intencoes-mais" type="button" data-gv-adicionar aria-label="Adicionar">+</button>' +
+        "</div>" +
+        '<button class="gv-intencoes-confirmar" type="button" disabled>Confirmar e Enviar Lista</button>' +
+      "</div>";
+    captura = gravador.querySelector(".gv-captura");
     ondas = gravador.querySelector("[data-gv-ondas]");
     botaoMic = gravador.querySelector("[data-gv-mic]");
     statusEl = gravador.querySelector("[data-gv-status]");
     area = gravador.querySelector(".gv-transcript-area");
-    listaSucesso = gravador.querySelector("[data-gv-success]");
-    listaPendente = gravador.querySelector("[data-gv-pending]");
-    confirmar = gravador.querySelector(".gv-btn-confirm");
+    avancar = gravador.querySelector(".gv-avancar");
+    painelLista = gravador.querySelector(".gv-intencoes");
+    listaEl = gravador.querySelector("[data-gv-lista]");
+    campoNovo = gravador.querySelector("[data-gv-novo]");
+    confirmarLista = gravador.querySelector(".gv-intencoes-confirmar");
     statusEl.textContent = TEXTO_INICIAL;
     area.value = "";
     botaoMic.addEventListener("click", alternarMicrofone);
     area.addEventListener("input", aoEditarTranscricao);
-    area.addEventListener("keyup", agendarGrupos);
-    confirmar.addEventListener("click", confirmarOrcamento);
+    avancar.addEventListener("click", avancarLista);
+    listaEl.addEventListener("click", aoClicarLista);
+    listaEl.addEventListener("focusout", aoSairEditor);
+    listaEl.addEventListener("keydown", aoTeclarEditor);
+    campoNovo.addEventListener("keydown", function (evento) {
+      if (evento.key === "Enter") {
+        evento.preventDefault();
+        adicionarManual();
+      }
+    });
+    gravador.querySelector("[data-gv-adicionar]").addEventListener("click", adicionarManual);
+    confirmarLista.addEventListener("click", confirmarEnvio);
     document.body.appendChild(gravador);
   }
 
@@ -180,14 +197,34 @@
     pararEscuta();
     if (gravador) gravador.remove();
     criarGravador();
-    limparRevisao();
+    limparIntencoes();
     limparTranscricao();
+    mostrarCaptura();
     erroAtivo = false;
     statusEl.textContent = TEXTO_INICIAL;
     gravador.hidden = false;
     garantirRetorno().hidden = false;
     posicionarRetorno();
     botaoMic.focus();
+  }
+
+  function mostrarCaptura() {
+    if (captura) captura.hidden = false;
+    if (painelLista) painelLista.hidden = true;
+    var titulo = gravador && gravador.querySelector(".gv-recorder-titulo");
+    if (titulo) titulo.textContent = "Comando de voz";
+  }
+
+  function mostrarLista() {
+    if (captura) captura.hidden = true;
+    if (painelLista) painelLista.hidden = false;
+    var titulo = gravador && gravador.querySelector(".gv-recorder-titulo");
+    if (titulo) titulo.textContent = "Revise sua lista";
+    desenharLista();
+    if (listaEl && listaEl.firstElementChild) {
+      var editar = listaEl.querySelector(".gv-intencao-editar");
+      if (editar) editar.focus();
+    }
   }
 
   function apiReconhecimento() {
@@ -209,7 +246,7 @@
   function voltarEstadoInicial() {
     iniciando = false;
     definirOuvindo(false);
-    if (!erroAtivo && statusEl) statusEl.textContent = TEXTO_INICIAL;
+    if (!erroAtivo && statusEl && captura && !captura.hidden) statusEl.textContent = TEXTO_INICIAL;
   }
 
   function soltarMicrofone() {
@@ -241,7 +278,6 @@
     if (escrevendo) return;
     prefixoFala = area ? area.value : "";
     corteResultado = resultadosVistos;
-    agendarGrupos();
     atualizarAvanco();
   }
 
@@ -250,16 +286,17 @@
   }
 
   function atualizarAvanco() {
-    if (!confirmar) return;
-    var ativo = temPalavra() || (pedidosRevisao && pedidosRevisao.length > 0);
-    confirmar.hidden = !ativo;
-    confirmar.disabled = !ativo;
+    if (!avancar) return;
+    var ativo = temPalavra();
+    avancar.hidden = !ativo;
+    avancar.disabled = !ativo;
   }
 
   function limparTranscricao() {
     if (area) area.value = "";
-    if (timerGrupos) clearTimeout(timerGrupos);
-    atualizarGrupos();
+    prefixoFala = "";
+    corteResultado = 0;
+    resultadosVistos = 0;
     atualizarAvanco();
   }
 
@@ -278,7 +315,6 @@
     area.value = base && falado ? base + " " + falado : (falado || base);
     escrevendo = false;
     area.scrollTop = area.scrollHeight;
-    agendarGrupos();
     atualizarAvanco();
   }
 
@@ -346,297 +382,206 @@
     return String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   }
 
-  function tokensDe(texto) {
-    var limpo = semAcento(texto).replace(/[^a-z0-9]+/g, " ").trim();
-    return limpo ? limpo.split(/\s+/) : [];
+  function interpretarItem(trecho) {
+    var texto = String(trecho || "").replace(/\s+/g, " ").trim();
+    if (!texto) return null;
+    var digitos = texto.match(/^(\d+)\s*(?:x\s+)?(.+)$/i);
+    if (digitos) {
+      var qtd = parseInt(digitos[1], 10);
+      var resto = digitos[2].replace(/\s+/g, " ").trim();
+      if (qtd >= 1 && resto) return { qtd: qtd, texto: resto };
+    }
+    var partes = texto.split(/\s+/);
+    var nomeNumero = semAcento(partes[0]);
+    if (NUMEROS[nomeNumero] && partes.length > 1) {
+      return { qtd: NUMEROS[nomeNumero], texto: partes.slice(1).join(" ") };
+    }
+    return { qtd: null, texto: texto };
   }
 
-  function radical(palavra) {
-    if (palavra.length > 4 && palavra.slice(-2) === "es") return palavra.slice(0, -2);
-    if (palavra.length > 3 && palavra.slice(-1) === "s") return palavra.slice(0, -1);
-    return palavra;
-  }
-
-  function combinaPalavra(falada, nome) {
-    var a = radical(falada);
-    var b = radical(nome);
-    if (!a || !b) return false;
-    if (a === b) return true;
-    if (a.length >= 4 && b.indexOf(a) === 0) return true;
-    if (b.length >= 4 && a.indexOf(b) === 0) return true;
-    return false;
-  }
-
-  function lerQuantidade(lista) {
-    var nomes = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, quinze: 15, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, cem: 100 };
-    if (!lista.length) return { qtd: 1, resto: lista };
-    if (/^\d+$/.test(lista[0])) return { qtd: parseInt(lista[0], 10), resto: lista.slice(1) };
-    if (nomes[lista[0]]) return { qtd: nomes[lista[0]], resto: lista.slice(1) };
-    if (/^\d+$/.test(lista[lista.length - 1])) return { qtd: parseInt(lista[lista.length - 1], 10), resto: lista.slice(0, -1) };
-    if (nomes[lista[lista.length - 1]]) return { qtd: nomes[lista[lista.length - 1]], resto: lista.slice(0, -1) };
-    return { qtd: 1, resto: lista };
-  }
-
-  function catalogoVisivel() {
-    return Array.prototype.map.call(document.querySelectorAll(".add-mini[data-add]"), function (botao) {
-      var rotulo = botao.getAttribute("aria-label") || "";
-      var achado = rotulo.match(/^Adicionar (.+) ao orçamento$/);
-      var nome = achado ? achado[1] : "";
-      if (!nome) {
-        var linha = botao.closest(".catalog-row");
-        var titulo = linha && linha.querySelector(".catalog-nome");
-        nome = titulo ? titulo.textContent : "";
-      }
-      return { codigo: botao.getAttribute("data-add"), nome: nome, botao: botao };
-    }).filter(function (item) { return item.codigo && item.nome; });
-  }
-
-  function indiceProdutos() {
-    var total = document.querySelectorAll(".add-mini[data-add]").length;
-    if (indiceCatalogo && indiceCatalogo.total === total) return indiceCatalogo.itens;
-    var itens = catalogoVisivel();
-    var i;
-    for (i = 0; i < itens.length; i += 1) itens[i].tokens = tokensDe(itens[i].nome);
-    indiceCatalogo = { total: total, itens: itens };
+  function separarIntencoes(texto) {
+    var preparado = String(texto || "").replace(/\r\n/g, "\n").replace(/\s+e\s+/gi, "\n");
+    var partes = preparado.split(/\s*(?:,|\n)\s*/);
+    var itens = [];
+    partes.forEach(function (parte) {
+      var item = interpretarItem(parte);
+      if (item) itens.push(item);
+    });
     return itens;
   }
 
-  function melhorProduto(falados) {
-    var produtos = indiceProdutos();
-    var melhor = null;
-    var melhorNota = 0;
-    var melhorTamanho = 0;
-    var i;
-    for (i = 0; i < produtos.length; i += 1) {
-      var produto = produtos[i];
-      var nomes = produto.tokens;
-      var acertos = 0;
-      var p;
-      for (p = 0; p < falados.length; p += 1) {
-        var palavra = falados[p];
-        var n;
-        for (n = 0; n < nomes.length; n += 1) {
-          if (combinaPalavra(palavra, nomes[n])) {
-            acertos += 1;
-            break;
-          }
-        }
-      }
-      if (!acertos) continue;
-      var nota = acertos / falados.length;
-      var tamanho = nomes.length;
-      var ganha = nota > melhorNota || (nota === melhorNota && melhor && tamanho < melhorTamanho);
-      if (ganha) {
-        melhor = produto;
-        melhorNota = nota;
-        melhorTamanho = tamanho;
-      }
-    }
-    if (!melhor || melhorNota < 1) return null;
-    return melhor;
+  function rotulo(item) {
+    if (!item) return "";
+    if (item.qtd) return item.qtd + " x " + item.texto;
+    return item.texto;
   }
 
-  function interpretarPedido(texto) {
-    var partes = semAcento(texto).split(/\s*(?:,|;|\.| e | mais )\s*/);
-    var mapa = {};
-    var ordem = [];
-    var paradas = { de: 1, da: 1, do: 1, das: 1, dos: 1, para: 1, pra: 1, com: 1, no: 1, na: 1, em: 1, por: 1, ao: 1, aos: 1 };
-    partes.forEach(function (parte) {
-      var lista = tokensDe(parte).filter(function (token) { return !paradas[token]; });
-      var lido = lerQuantidade(lista);
-      if (!lido.resto.length || !isFinite(lido.qtd) || lido.qtd < 1) return;
-      var produto = melhorProduto(lido.resto);
-      if (!produto) return;
-      if (!mapa[produto.codigo]) {
-        mapa[produto.codigo] = { codigo: produto.codigo, qtd: 0, nome: produto.nome, botao: produto.botao };
-        ordem.push(produto.codigo);
-      }
-      mapa[produto.codigo].qtd += Math.min(500, lido.qtd);
+  function limparIntencoes() {
+    intencoes = [];
+    if (listaEl) listaEl.innerHTML = "";
+    if (campoNovo) campoNovo.value = "";
+    if (confirmarLista) confirmarLista.disabled = true;
+    if (gravador) {
+      delete gravador.dataset.gvTexto;
+      delete gravador.dataset.gvItens;
+    }
+  }
+
+  function desenharLista() {
+    if (!listaEl) return;
+    listaEl.innerHTML = "";
+    intencoes.forEach(function (item, indice) {
+      var li = document.createElement("li");
+      li.className = "gv-intencao";
+      li.setAttribute("data-gv-indice", String(indice));
+      var corpo = document.createElement("div");
+      corpo.className = "gv-intencao-corpo";
+      var texto = document.createElement("span");
+      texto.className = "gv-intencao-texto";
+      texto.textContent = rotulo(item);
+      var editor = document.createElement("input");
+      editor.className = "gv-intencao-editor";
+      editor.type = "text";
+      editor.hidden = true;
+      editor.setAttribute("aria-label", "Editar material");
+      editor.value = rotulo(item);
+      corpo.appendChild(texto);
+      corpo.appendChild(editor);
+      var acoes = document.createElement("div");
+      acoes.className = "gv-intencao-acoes";
+      var editar = document.createElement("button");
+      editar.className = "gv-intencao-editar";
+      editar.type = "button";
+      editar.setAttribute("aria-label", "Editar");
+      editar.textContent = "✏️";
+      var salvar = document.createElement("button");
+      salvar.className = "gv-intencao-salvar";
+      salvar.type = "button";
+      salvar.hidden = true;
+      salvar.textContent = "Salvar";
+      var excluir = document.createElement("button");
+      excluir.className = "gv-intencao-excluir";
+      excluir.type = "button";
+      excluir.setAttribute("aria-label", "Excluir");
+      excluir.textContent = "🗑️";
+      acoes.appendChild(editar);
+      acoes.appendChild(salvar);
+      acoes.appendChild(excluir);
+      li.appendChild(corpo);
+      li.appendChild(acoes);
+      listaEl.appendChild(li);
     });
-    return ordem.map(function (codigo) { return mapa[codigo]; });
+    if (confirmarLista) confirmarLista.disabled = !intencoes.length;
   }
 
-  function lerQtd(codigo) {
-    var alvo = document.querySelector('.quote-side [data-qtd="' + String(codigo).replace(/"/g, "") + '"]');
-    var valor = alvo ? parseInt(alvo.textContent, 10) : 0;
-    return isFinite(valor) ? valor : 0;
+  function iniciarEdicao(li) {
+    if (!li || li.classList.contains("gv-editando")) return;
+    var editor = li.querySelector(".gv-intencao-editor");
+    var texto = li.querySelector(".gv-intencao-texto");
+    var editar = li.querySelector(".gv-intencao-editar");
+    var salvar = li.querySelector(".gv-intencao-salvar");
+    li.classList.add("gv-editando");
+    texto.hidden = true;
+    editar.hidden = true;
+    editor.hidden = false;
+    salvar.hidden = false;
+    editor.value = texto.textContent;
+    editor.focus();
+    editor.select();
   }
 
-  function injetarProduto(pedido) {
-    if (!pedido || !pedido.botao) return;
-    var destino = Math.max(1, Math.min(500, pedido.qtd));
-    if (!lerQtd(pedido.codigo)) pedido.botao.click();
-    var atual = lerQtd(pedido.codigo);
-    var passos = 0;
-    while (atual < destino && passos < 500) {
-      var mais = document.querySelector('.quote-side [data-acao="mais"][data-id="' + String(pedido.codigo).replace(/"/g, "") + '"]');
-      if (!mais) break;
-      mais.click();
-      atual += 1;
-      passos += 1;
-    }
-    while (atual > destino && passos < 1000) {
-      var menos = document.querySelector('.quote-side [data-acao="menos"][data-id="' + String(pedido.codigo).replace(/"/g, "") + '"]');
-      if (!menos) break;
-      menos.click();
-      atual -= 1;
-      passos += 1;
-    }
+  function concluirEdicao(li) {
+    if (!li || !li.classList.contains("gv-editando") || li.dataset.gvFechando === "1") return;
+    li.dataset.gvFechando = "1";
+    var indice = parseInt(li.getAttribute("data-gv-indice"), 10);
+    var editor = li.querySelector(".gv-intencao-editor");
+    var texto = li.querySelector(".gv-intencao-texto");
+    var editar = li.querySelector(".gv-intencao-editar");
+    var salvar = li.querySelector(".gv-intencao-salvar");
+    var valor = editor.value.replace(/\s+/g, " ").trim();
+    if (valor && intencoes[indice]) intencoes[indice] = interpretarItem(valor);
+    texto.textContent = rotulo(intencoes[indice]);
+    texto.hidden = false;
+    editor.hidden = true;
+    salvar.hidden = true;
+    editar.hidden = false;
+    li.classList.remove("gv-editando");
+    delete li.dataset.gvFechando;
   }
 
-  function focarPrimeiroCampo() {
-    var form = document.querySelector(".cliente-form");
-    if (!form) return;
-    var campos = form.querySelectorAll("input[required]");
-    var i;
-    for (i = 0; i < campos.length; i += 1) {
-      var campo = campos[i];
-      var aviso = campo.parentElement && campo.parentElement.querySelector("[data-doc-aviso], [data-campo-aviso]");
-      if (!String(campo.value || "").trim() || (aviso && !aviso.hidden)) {
-        campo.focus();
-        return;
-      }
-    }
-    if (campos[0]) campos[0].focus();
+  function excluirItem(li) {
+    var indice = parseInt(li.getAttribute("data-gv-indice"), 10);
+    if (!isFinite(indice)) return;
+    intencoes.splice(indice, 1);
+    desenharLista();
   }
 
-  var pedidosRevisao = [];
-  var previa = null;
-  var listaPrevia = null;
-  var confirmar = null;
-
-  function escaparTexto(valor) {
-    return String(valor)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+  function aoClicarLista(evento) {
+    var li = evento.target.closest(".gv-intencao");
+    if (!li) return;
+    if (evento.target.closest(".gv-intencao-editar")) iniciarEdicao(li);
+    if (evento.target.closest(".gv-intencao-salvar")) concluirEdicao(li);
+    if (evento.target.closest(".gv-intencao-excluir")) excluirItem(li);
   }
 
-  function garantirPrevia() {
-    if (!gravador) return;
-    if (!previa) {
-      previa = document.createElement("div");
-      previa.className = "gv-preview";
-      previa.hidden = true;
-      previa.innerHTML =
-        '<p class="gv-preview-titulo">Produtos identificados</p>' +
-        '<ul class="gv-preview-list"></ul>' +
-        '<button class="gv-confirmar" type="button">Confirmar e Inserir no Orçamento</button>';
-      listaPrevia = previa.querySelector(".gv-preview-list");
-      confirmar = previa.querySelector(".gv-confirmar");
-      confirmar.addEventListener("click", confirmarOrcamento);
-      gravador.appendChild(previa);
+  function aoSairEditor(evento) {
+    var editor = evento.target.closest && evento.target.closest(".gv-intencao-editor");
+    if (!editor) return;
+    var destino = evento.relatedTarget;
+    if (destino && destino.closest && destino.closest(".gv-intencao-salvar")) return;
+    concluirEdicao(editor.closest(".gv-intencao"));
+  }
+
+  function aoTeclarEditor(evento) {
+    if (!evento.target.classList || !evento.target.classList.contains("gv-intencao-editor")) return;
+    if (evento.key === "Enter") {
+      evento.preventDefault();
+      concluirEdicao(evento.target.closest(".gv-intencao"));
     }
   }
 
-  function limparRevisao() {
-    pedidosRevisao = [];
-    if (gravador) gravador.classList.remove("gv-em-revisao");
-    if (listaPrevia) listaPrevia.innerHTML = "";
-    if (previa) previa.hidden = true;
+  function adicionarManual() {
+    if (!campoNovo) return;
+    var novos = separarIntencoes(campoNovo.value);
+    if (!novos.length) return;
+    intencoes = intencoes.concat(novos);
+    campoNovo.value = "";
+    desenharLista();
+    campoNovo.focus();
   }
 
-  function mostrarRevisao(pedidos) {
-    garantirPrevia();
-    pedidosRevisao = pedidos;
-    listaPrevia.innerHTML = pedidos.map(function (pedido) {
-      return '<li class="gv-preview-item"><span class="gv-preview-qtd">' + pedido.qtd + "</span> x <span class=\"gv-preview-nome\">" + escaparTexto(pedido.nome) + "</span></li>";
-    }).join("");
-    gravador.classList.add("gv-em-revisao");
-    previa.hidden = false;
-    if (confirmar) confirmar.focus();
-  }
-
-  function classificarTexto(texto) {
-    var preparado = String(texto || "").replace(/\s+(?=\d+\s)/g, ", ");
-    var partes = preparado.split(/\s*(?:,|;|\.|\se\s|\smais\s)\s*/i);
-    var mapa = {};
-    var ordem = [];
-    var pendentes = [];
-    var paradas = { de: 1, da: 1, do: 1, das: 1, dos: 1, para: 1, pra: 1, com: 1, no: 1, na: 1, em: 1, por: 1, ao: 1, aos: 1 };
-    partes.forEach(function (parte) {
-      var trecho = parte.replace(/\s+/g, " ").trim();
-      if (!trecho) return;
-      var lista = tokensDe(trecho).filter(function (token) { return !paradas[token]; });
-      var lido = lerQuantidade(lista);
-      if (!lido.resto.length || !isFinite(lido.qtd) || lido.qtd < 1) return;
-      var produto = melhorProduto(lido.resto);
-      if (!produto) {
-        pendentes.push(trecho);
-        return;
-      }
-      if (!mapa[produto.codigo]) {
-        mapa[produto.codigo] = { codigo: produto.codigo, nome: produto.nome, botao: produto.botao, qtd: 0 };
-        ordem.push(produto.codigo);
-      }
-      mapa[produto.codigo].qtd += Math.min(500, lido.qtd);
-    });
-    return {
-      ok: ordem.map(function (codigo) { return mapa[codigo]; }),
-      pendentes: pendentes
-    };
-  }
-
-  function desenharGrupo(itens, identificado) {
-    if (!itens.length) return '<li class="gv-group-vazio">Nenhum item neste grupo.</li>';
-    if (!identificado) {
-      return itens.map(function (trecho) {
-        return '<li class="gv-group-item">' + escaparTexto(trecho) + "</li>";
-      }).join("");
-    }
-    return itens.map(function (item) {
-      return '<li class="gv-group-item"><span class="gv-group-qtd">' + item.qtd + '</span> x <span class="gv-group-nome">' + escaparTexto(item.nome) + "</span></li>";
-    }).join("");
-  }
-
-  function agendarGrupos() {
-    tentativasCatalogo = 0;
-    if (timerGrupos) clearTimeout(timerGrupos);
-    timerGrupos = setTimeout(atualizarGrupos, 50);
-  }
-
-  function atualizarGrupos() {
-    timerGrupos = 0;
-    if (!listaSucesso || !listaPendente) return;
-    var texto = area ? area.value : "";
-    var resultado = classificarTexto(texto);
-    pedidosRevisao = resultado.ok;
-    listaSucesso.innerHTML = desenharGrupo(resultado.ok, true);
-    listaPendente.innerHTML = desenharGrupo(resultado.pendentes, false);
-    if (confirmar) {
-      var ativo = !!(texto && texto.trim()) || resultado.ok.length > 0;
-      confirmar.hidden = !ativo;
-      confirmar.disabled = !ativo;
-    }
-    if (texto.trim() && !indiceProdutos().length && tentativasCatalogo < 8) {
-      tentativasCatalogo += 1;
-      timerGrupos = setTimeout(atualizarGrupos, 400);
-    }
-  }
-
-  function confirmarOrcamento() {
-    if (!pedidosRevisao.length) return;
-    var pedidos = pedidosRevisao.slice();
-    pedidos.forEach(injetarProduto);
-    limparRevisao();
-    limparTranscricao();
-    pararEscuta();
-    if (gravador) gravador.hidden = true;
-    var documento = document.querySelector('.cliente-form input[name="documento"]');
-    if (documento) documento.focus();
-    else focarPrimeiroCampo();
-  }
-
-  function avancarOrcamento() {
+  function avancarLista() {
     if (!temPalavra()) return;
-    var texto = area.value;
     pararEscuta();
-    var pedidos = interpretarPedido(texto);
-    if (!pedidos.length) {
-      if (statusEl) statusEl.textContent = "Não encontrei esses produtos no catálogo. Ajuste o texto e tente de novo.";
+    intencoes = separarIntencoes(area.value);
+    mostrarLista();
+  }
+
+  function focarDocumento() {
+    var documento = document.querySelector('.cliente-form input[name="documento"]');
+    if (documento) {
+      documento.focus();
       return;
     }
-    mostrarRevisao(pedidos);
+    var form = document.querySelector(".cliente-form");
+    var campo = form && form.querySelector("input[required]");
+    if (campo) campo.focus();
+  }
+
+  function confirmarEnvio() {
+    if (!intencoes.length || !gravador) return;
+    var pacote = intencoes.map(function (item) {
+      return { qtd: item.qtd, texto: item.texto };
+    });
+    var bloco = intencoes.map(rotulo).join("\n");
+    gravador.dataset.gvTexto = bloco;
+    gravador.dataset.gvItens = JSON.stringify(pacote);
+    try {
+      sessionStorage.setItem("gv-intencoes", JSON.stringify({ itens: pacote, texto: bloco }));
+    } catch (erro) { /* o navegador pode bloquear o armazenamento */ }
+    pararEscuta();
+    gravador.hidden = true;
+    focarDocumento();
   }
 
   function iniciar() {
