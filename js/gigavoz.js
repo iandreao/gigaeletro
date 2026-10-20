@@ -17,6 +17,12 @@
   var corteResultado = 0;
   var resultadosVistos = 0;
   var escrevendo = false;
+  var grupos = null;
+  var listaSucesso = null;
+  var listaPendente = null;
+  var timerGrupos = 0;
+  var indiceCatalogo = null;
+  var tentativasCatalogo = 0;
   var reconhecimento = null;
   var ouvindo = false;
   var iniciando = false;
@@ -91,6 +97,7 @@
   function reabrirBoasVindas() {
     pararEscuta();
     limparTranscricao();
+    limparRevisao();
     if (gravador) gravador.hidden = true;
     if (raiz) {
       raiz.remove();
@@ -157,21 +164,41 @@
       area.setAttribute("aria-label", "Texto falado");
       area.rows = 3;
       area.addEventListener("input", aoEditarTranscricao);
-    }
-    if (!avancar) {
-      avancar = document.createElement("button");
-      avancar.className = "gv-avancar";
-      avancar.type = "button";
-      avancar.setAttribute("data-gv-avancar", "");
-      avancar.textContent = "Avançar para o Orçamento";
-      avancar.hidden = true;
-      avancar.disabled = true;
-      avancar.addEventListener("click", avancarOrcamento);
+      area.addEventListener("keyup", agendarGrupos);
     }
     statusEl.insertAdjacentElement("afterend", area);
-    area.insertAdjacentElement("afterend", avancar);
+    garantirGrupos();
     area.hidden = false;
     atualizarAvanco();
+  }
+
+  function garantirGrupos() {
+    if (!area) return;
+    if (!grupos) {
+      grupos = document.createElement("div");
+      grupos.className = "gv-groups";
+      grupos.innerHTML =
+        '<section class="gv-group-success">' +
+          '<h3 class="gv-group-titulo">🟩 Materiais Identificados no Estoque</h3>' +
+          '<ul class="gv-group-list" data-gv-success></ul>' +
+        "</section>" +
+        '<section class="gv-group-pending">' +
+          '<h3 class="gv-group-titulo">🟨 Itens para Revisão (Não Localizados)</h3>' +
+          '<ul class="gv-group-list" data-gv-pending></ul>' +
+        "</section>";
+      listaSucesso = grupos.querySelector("[data-gv-success]");
+      listaPendente = grupos.querySelector("[data-gv-pending]");
+    }
+    if (!confirmar) {
+      confirmar = document.createElement("button");
+      confirmar.className = "gv-confirmar";
+      confirmar.type = "button";
+      confirmar.textContent = "Confirmar e Inserir no Orçamento";
+      confirmar.disabled = true;
+      confirmar.addEventListener("click", confirmarOrcamento);
+    }
+    area.insertAdjacentElement("afterend", grupos);
+    grupos.insertAdjacentElement("afterend", confirmar);
   }
 
   function abrirGravador() {
@@ -182,6 +209,7 @@
     pararEscuta();
     if (!gravador) criarGravador();
     garantirCaixa();
+    limparRevisao();
     limparTranscricao();
     erroAtivo = false;
     statusEl.textContent = TEXTO_INICIAL;
@@ -242,6 +270,7 @@
     if (escrevendo) return;
     prefixoFala = area ? area.value : "";
     corteResultado = resultadosVistos;
+    agendarGrupos();
     atualizarAvanco();
   }
 
@@ -258,6 +287,8 @@
 
   function limparTranscricao() {
     if (area) area.value = "";
+    if (timerGrupos) clearTimeout(timerGrupos);
+    atualizarGrupos();
     atualizarAvanco();
   }
 
@@ -276,6 +307,7 @@
     area.value = base && falado ? base + " " + falado : (falado || base);
     escrevendo = false;
     area.scrollTop = area.scrollHeight;
+    agendarGrupos();
     atualizarAvanco();
   }
 
@@ -388,18 +420,38 @@
     }).filter(function (item) { return item.codigo && item.nome; });
   }
 
+  function indiceProdutos() {
+    var total = document.querySelectorAll(".add-mini[data-add]").length;
+    if (indiceCatalogo && indiceCatalogo.total === total) return indiceCatalogo.itens;
+    var itens = catalogoVisivel();
+    var i;
+    for (i = 0; i < itens.length; i += 1) itens[i].tokens = tokensDe(itens[i].nome);
+    indiceCatalogo = { total: total, itens: itens };
+    return itens;
+  }
+
   function melhorProduto(falados) {
-    var produtos = catalogoVisivel();
+    var produtos = indiceProdutos();
     var melhor = null;
     var melhorNota = 0;
     var melhorTamanho = 0;
-    produtos.forEach(function (produto) {
-      var nomes = tokensDe(produto.nome);
+    var i;
+    for (i = 0; i < produtos.length; i += 1) {
+      var produto = produtos[i];
+      var nomes = produto.tokens;
       var acertos = 0;
-      falados.forEach(function (palavra) {
-        if (nomes.some(function (nome) { return combinaPalavra(palavra, nome); })) acertos += 1;
-      });
-      if (!acertos) return;
+      var p;
+      for (p = 0; p < falados.length; p += 1) {
+        var palavra = falados[p];
+        var n;
+        for (n = 0; n < nomes.length; n += 1) {
+          if (combinaPalavra(palavra, nomes[n])) {
+            acertos += 1;
+            break;
+          }
+        }
+      }
+      if (!acertos) continue;
       var nota = acertos / falados.length;
       var tamanho = nomes.length;
       var ganha = nota > melhorNota || (nota === melhorNota && melhor && tamanho < melhorTamanho);
@@ -408,7 +460,7 @@
         melhorNota = nota;
         melhorTamanho = tamanho;
       }
-    });
+    }
     if (!melhor || melhorNota < 1) return null;
     return melhor;
   }
@@ -425,7 +477,7 @@
       var produto = melhorProduto(lido.resto);
       if (!produto) return;
       if (!mapa[produto.codigo]) {
-        mapa[produto.codigo] = { codigo: produto.codigo, qtd: 0, botao: produto.botao };
+        mapa[produto.codigo] = { codigo: produto.codigo, qtd: 0, nome: produto.nome, botao: produto.botao };
         ordem.push(produto.codigo);
       }
       mapa[produto.codigo].qtd += Math.min(500, lido.qtd);
@@ -477,6 +529,129 @@
     if (campos[0]) campos[0].focus();
   }
 
+  var pedidosRevisao = [];
+  var previa = null;
+  var listaPrevia = null;
+  var confirmar = null;
+
+  function escaparTexto(valor) {
+    return String(valor)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function garantirPrevia() {
+    if (!gravador) return;
+    if (!previa) {
+      previa = document.createElement("div");
+      previa.className = "gv-preview";
+      previa.hidden = true;
+      previa.innerHTML =
+        '<p class="gv-preview-titulo">Produtos identificados</p>' +
+        '<ul class="gv-preview-list"></ul>' +
+        '<button class="gv-confirmar" type="button">Confirmar e Inserir no Orçamento</button>';
+      listaPrevia = previa.querySelector(".gv-preview-list");
+      confirmar = previa.querySelector(".gv-confirmar");
+      confirmar.addEventListener("click", confirmarOrcamento);
+      gravador.appendChild(previa);
+    }
+  }
+
+  function limparRevisao() {
+    pedidosRevisao = [];
+    if (gravador) gravador.classList.remove("gv-em-revisao");
+    if (listaPrevia) listaPrevia.innerHTML = "";
+    if (previa) previa.hidden = true;
+  }
+
+  function mostrarRevisao(pedidos) {
+    garantirPrevia();
+    pedidosRevisao = pedidos;
+    listaPrevia.innerHTML = pedidos.map(function (pedido) {
+      return '<li class="gv-preview-item"><span class="gv-preview-qtd">' + pedido.qtd + "</span> x <span class=\"gv-preview-nome\">" + escaparTexto(pedido.nome) + "</span></li>";
+    }).join("");
+    gravador.classList.add("gv-em-revisao");
+    previa.hidden = false;
+    if (confirmar) confirmar.focus();
+  }
+
+  function classificarTexto(texto) {
+    var preparado = String(texto || "").replace(/\s+(?=\d+\s)/g, ", ");
+    var partes = preparado.split(/\s*(?:,|;|\.|\se\s|\smais\s)\s*/i);
+    var mapa = {};
+    var ordem = [];
+    var pendentes = [];
+    var paradas = { de: 1, da: 1, do: 1, das: 1, dos: 1, para: 1, pra: 1, com: 1, no: 1, na: 1, em: 1, por: 1, ao: 1, aos: 1 };
+    partes.forEach(function (parte) {
+      var trecho = parte.replace(/\s+/g, " ").trim();
+      if (!trecho) return;
+      var lista = tokensDe(trecho).filter(function (token) { return !paradas[token]; });
+      var lido = lerQuantidade(lista);
+      if (!lido.resto.length || !isFinite(lido.qtd) || lido.qtd < 1) return;
+      var produto = melhorProduto(lido.resto);
+      if (!produto) {
+        pendentes.push(trecho);
+        return;
+      }
+      if (!mapa[produto.codigo]) {
+        mapa[produto.codigo] = { codigo: produto.codigo, nome: produto.nome, botao: produto.botao, qtd: 0 };
+        ordem.push(produto.codigo);
+      }
+      mapa[produto.codigo].qtd += Math.min(500, lido.qtd);
+    });
+    return {
+      ok: ordem.map(function (codigo) { return mapa[codigo]; }),
+      pendentes: pendentes
+    };
+  }
+
+  function desenharGrupo(itens, identificado) {
+    if (!itens.length) return '<li class="gv-group-vazio">Nenhum item neste grupo.</li>';
+    if (!identificado) {
+      return itens.map(function (trecho) {
+        return '<li class="gv-group-item">' + escaparTexto(trecho) + "</li>";
+      }).join("");
+    }
+    return itens.map(function (item) {
+      return '<li class="gv-group-item"><span class="gv-group-qtd">' + item.qtd + '</span> x <span class="gv-group-nome">' + escaparTexto(item.nome) + "</span></li>";
+    }).join("");
+  }
+
+  function agendarGrupos() {
+    tentativasCatalogo = 0;
+    if (timerGrupos) clearTimeout(timerGrupos);
+    timerGrupos = setTimeout(atualizarGrupos, 50);
+  }
+
+  function atualizarGrupos() {
+    timerGrupos = 0;
+    if (!listaSucesso || !listaPendente) return;
+    var texto = area ? area.value : "";
+    var resultado = classificarTexto(texto);
+    pedidosRevisao = resultado.ok;
+    listaSucesso.innerHTML = desenharGrupo(resultado.ok, true);
+    listaPendente.innerHTML = desenharGrupo(resultado.pendentes, false);
+    if (confirmar) confirmar.disabled = !resultado.ok.length;
+    if (texto.trim() && !indiceProdutos().length && tentativasCatalogo < 8) {
+      tentativasCatalogo += 1;
+      timerGrupos = setTimeout(atualizarGrupos, 400);
+    }
+  }
+
+  function confirmarOrcamento() {
+    if (!pedidosRevisao.length) return;
+    var pedidos = pedidosRevisao.slice();
+    pedidos.forEach(injetarProduto);
+    limparRevisao();
+    limparTranscricao();
+    pararEscuta();
+    if (gravador) gravador.hidden = true;
+    var documento = document.querySelector('.cliente-form input[name="documento"]');
+    if (documento) documento.focus();
+    else focarPrimeiroCampo();
+  }
+
   function avancarOrcamento() {
     if (!temPalavra()) return;
     var texto = area.value;
@@ -486,9 +661,7 @@
       if (statusEl) statusEl.textContent = "Não encontrei esses produtos no catálogo. Ajuste o texto e tente de novo.";
       return;
     }
-    pedidos.forEach(injetarProduto);
-    if (gravador) gravador.hidden = true;
-    focarPrimeiroCampo();
+    mostrarRevisao(pedidos);
   }
 
   function iniciar() {
