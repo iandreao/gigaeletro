@@ -135,70 +135,41 @@
     gravador.setAttribute("aria-labelledby", "gv-recorder-titulo");
     gravador.innerHTML =
       '<p class="gv-recorder-titulo" id="gv-recorder-titulo">Comando de voz</p>' +
-      '<div class="gv-waves" data-gv-ondas hidden aria-hidden="true">' +
-        "<span></span><span></span><span></span><span></span>" +
+      '<div class="gv-bloco-mic">' +
+        '<div class="gv-waves" data-gv-ondas hidden aria-hidden="true"><span></span><span></span><span></span><span></span></div>' +
+        '<button class="gv-mic" type="button" data-gv-mic aria-pressed="false" aria-label="Iniciar escuta">' +
+          '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"></path>' +
+            '<path d="M19 11a7 7 0 0 1-14 0"></path>' +
+            '<path d="M12 18v3"></path>' +
+          "</svg>" +
+        "</button>" +
       "</div>" +
-      '<button class="gv-mic" type="button" data-gv-mic aria-pressed="false" aria-label="Iniciar escuta">' +
-        '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-          '<path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"></path>' +
-          '<path d="M19 11a7 7 0 0 1-14 0"></path>' +
-          '<path d="M12 18v3"></path>' +
-        "</svg>" +
-      "</button>" +
-      '<p class="gv-status-text" data-gv-status></p>';
-    botaoMic = gravador.querySelector("[data-gv-mic]");
+      '<p class="gv-status-text" data-gv-status></p>' +
+      '<textarea class="gv-transcript-area" data-gv-transcricao aria-label="Texto falado"></textarea>' +
+      '<div class="gv-group-success">' +
+        '<h3 class="gv-group-titulo">🟩 Materiais Identificados no Estoque</h3>' +
+        '<ul class="gv-group-list" data-gv-success></ul>' +
+      "</div>" +
+      '<div class="gv-group-pending">' +
+        '<h3 class="gv-group-titulo">🟨 Itens para Revisão (Não Localizados)</h3>' +
+        '<ul class="gv-group-list" data-gv-pending></ul>' +
+      "</div>" +
+      '<button class="gv-btn-confirm" type="button" hidden disabled>Confirmar e Inserir no Orçamento</button>';
     ondas = gravador.querySelector("[data-gv-ondas]");
+    botaoMic = gravador.querySelector("[data-gv-mic]");
     statusEl = gravador.querySelector("[data-gv-status]");
+    area = gravador.querySelector(".gv-transcript-area");
+    listaSucesso = gravador.querySelector("[data-gv-success]");
+    listaPendente = gravador.querySelector("[data-gv-pending]");
+    confirmar = gravador.querySelector(".gv-btn-confirm");
     statusEl.textContent = TEXTO_INICIAL;
+    area.value = "";
     botaoMic.addEventListener("click", alternarMicrofone);
-    garantirCaixa();
+    area.addEventListener("input", aoEditarTranscricao);
+    area.addEventListener("keyup", agendarGrupos);
+    confirmar.addEventListener("click", confirmarOrcamento);
     document.body.appendChild(gravador);
-  }
-
-  function garantirCaixa() {
-    if (!statusEl) return;
-    if (!area) {
-      area = document.createElement("textarea");
-      area.className = "gv-transcript-area";
-      area.setAttribute("data-gv-transcricao", "");
-      area.setAttribute("aria-label", "Texto falado");
-      area.rows = 3;
-      area.addEventListener("input", aoEditarTranscricao);
-      area.addEventListener("keyup", agendarGrupos);
-    }
-    statusEl.insertAdjacentElement("afterend", area);
-    garantirGrupos();
-    area.hidden = false;
-    atualizarAvanco();
-  }
-
-  function garantirGrupos() {
-    if (!area) return;
-    if (!grupos) {
-      grupos = document.createElement("div");
-      grupos.className = "gv-groups";
-      grupos.innerHTML =
-        '<section class="gv-group-success">' +
-          '<h3 class="gv-group-titulo">🟩 Materiais Identificados no Estoque</h3>' +
-          '<ul class="gv-group-list" data-gv-success></ul>' +
-        "</section>" +
-        '<section class="gv-group-pending">' +
-          '<h3 class="gv-group-titulo">🟨 Itens para Revisão (Não Localizados)</h3>' +
-          '<ul class="gv-group-list" data-gv-pending></ul>' +
-        "</section>";
-      listaSucesso = grupos.querySelector("[data-gv-success]");
-      listaPendente = grupos.querySelector("[data-gv-pending]");
-    }
-    if (!confirmar) {
-      confirmar = document.createElement("button");
-      confirmar.className = "gv-confirmar";
-      confirmar.type = "button";
-      confirmar.textContent = "Confirmar e Inserir no Orçamento";
-      confirmar.disabled = true;
-      confirmar.addEventListener("click", confirmarOrcamento);
-    }
-    area.insertAdjacentElement("afterend", grupos);
-    grupos.insertAdjacentElement("afterend", confirmar);
   }
 
   function abrirGravador() {
@@ -207,8 +178,8 @@
       raiz = null;
     }
     pararEscuta();
-    if (!gravador) criarGravador();
-    garantirCaixa();
+    if (gravador) gravador.remove();
+    criarGravador();
     limparRevisao();
     limparTranscricao();
     erroAtivo = false;
@@ -279,10 +250,10 @@
   }
 
   function atualizarAvanco() {
-    if (!avancar) return;
-    var ativo = temPalavra();
-    avancar.hidden = !ativo;
-    avancar.disabled = !ativo;
+    if (!confirmar) return;
+    var ativo = temPalavra() || (pedidosRevisao && pedidosRevisao.length > 0);
+    confirmar.hidden = !ativo;
+    confirmar.disabled = !ativo;
   }
 
   function limparTranscricao() {
@@ -632,7 +603,11 @@
     pedidosRevisao = resultado.ok;
     listaSucesso.innerHTML = desenharGrupo(resultado.ok, true);
     listaPendente.innerHTML = desenharGrupo(resultado.pendentes, false);
-    if (confirmar) confirmar.disabled = !resultado.ok.length;
+    if (confirmar) {
+      var ativo = !!(texto && texto.trim()) || resultado.ok.length > 0;
+      confirmar.hidden = !ativo;
+      confirmar.disabled = !ativo;
+    }
     if (texto.trim() && !indiceProdutos().length && tentativasCatalogo < 8) {
       tentativasCatalogo += 1;
       timerGrupos = setTimeout(atualizarGrupos, 400);
