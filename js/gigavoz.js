@@ -617,9 +617,10 @@
   }
 
   function publicarNoOrcamento(pacote, bloco) {
-    window.gvIntencoes = pacote.map(function (item) {
+    window.listaIntencoesVoz = pacote.map(function (item) {
       return { qtd: item.qtd, texto: item.texto, rotulo: item.rotulo };
     });
+    window.gvIntencoes = window.listaIntencoesVoz;
     var form = document.querySelector(".cliente-form");
     if (form) {
       var oculto = form.querySelector('input[name="gv-intencoes"]');
@@ -630,7 +631,7 @@
         oculto.className = "gv-intencoes-campo";
         form.appendChild(oculto);
       }
-      oculto.value = JSON.stringify(window.gvIntencoes);
+      oculto.value = JSON.stringify(window.listaIntencoesVoz);
     }
     var quadro = document.querySelector(".quote-side");
     if (quadro) {
@@ -663,8 +664,13 @@
       enviar.disabled = false;
       enviar.removeAttribute("disabled");
     }
+    var erroEnvio = document.querySelector("[data-envio-aviso]");
+    if (erroEnvio && String(erroEnvio.textContent || "").indexOf("Adicione ao menos um produto") !== -1) {
+      erroEnvio.hidden = true;
+      erroEnvio.textContent = "";
+    }
     try {
-      sessionStorage.setItem("gv-intencoes", JSON.stringify({ itens: window.gvIntencoes, texto: bloco }));
+      sessionStorage.setItem("gv-intencoes", JSON.stringify({ itens: window.listaIntencoesVoz, texto: bloco }));
     } catch (erro) { /* o navegador pode bloquear o armazenamento */ }
   }
 
