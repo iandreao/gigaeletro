@@ -679,14 +679,20 @@
     if (protegerBotaoEnvio.ligado) return;
     protegerBotaoEnvio.ligado = true;
     function manter() {
-      var lista = window.listaIntencoesVoz;
-      var marcador = document.querySelector("[data-gv-voz-resumo]");
-      var visual = marcador && !marcador.hidden && String(marcador.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1;
+      var lista = window.listaIntencoesVoz || window.gvIntencoes;
+      var quadro = document.querySelector(".quote-side");
+      var visual = quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1;
       if ((!lista || !lista.length) && !visual) return;
       var botao = document.querySelector("[data-enviar]");
-      if (!botao) return;
-      botao.disabled = false;
-      botao.removeAttribute("disabled");
+      if (botao) {
+        botao.disabled = false;
+        botao.removeAttribute("disabled");
+      }
+      var erro = document.querySelector("[data-envio-aviso]");
+      if (erro && String(erro.textContent || "").indexOf("Adicione ao menos um produto") !== -1) {
+        erro.hidden = true;
+        erro.textContent = "";
+      }
     }
     document.addEventListener("input", manter, false);
     document.addEventListener("keyup", manter, false);
