@@ -574,8 +574,15 @@
       ? String((cliente && cliente.razaoSocial) || (cliente && cliente.nome) || "").trim()
       : String((cliente && cliente.nome) || "").trim();
     const celularCliente = String((cliente && cliente.celular) || "").trim();
+    const contatoCliente = `${nomeCliente} – Contato ${celularCliente}`;
 
-    const textoWhats = `Olá, segue orçamento no valor de R$ ${valorTotal}. Clicar no link para visualizar.\n\nhttps://gigaeletro.vercel.app/api/ver-pdf?id=${idOrcamento}\n\n${nomeCliente} – Contato ${celularCliente}${textoListaVoz()}`;
+    if (vozInclusa()) {
+      const lista = textoListaVoz();
+      const saudacao = "Olá, abaixo segue a lista dos produtos para orçamento.";
+      return (lista ? saudacao + "\n" + lista : saudacao) + "\n\n\n" + contatoCliente;
+    }
+
+    const textoWhats = `Olá, segue orçamento no valor de R$ ${valorTotal}. Clicar no link para visualizar.\n\nhttps://gigaeletro.vercel.app/api/ver-pdf?id=${idOrcamento}\n\n${contatoCliente}`;
 
     return textoWhats;
   }
@@ -1205,7 +1212,7 @@
       return String((item && (item.rotulo || item.texto)) || "").trim();
     }).filter(Boolean);
     if (!linhas.length) return "";
-    return "\n\nLista de Itens via Comando de Voz:\n" + linhas.join("\n");
+    return linhas.join("\n");
   }
 
   function carrinhoValido() {
