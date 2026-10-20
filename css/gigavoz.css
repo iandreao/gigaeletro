@@ -616,3 +616,7 @@ input.gv-intencoes-input {
     border-radius: 0;
   }
 }
+
+.quote-side:has([data-gv-voz-resumo]) [data-envio-aviso]:not(.gv-aviso-livre) {
+  display: none !important;
+}

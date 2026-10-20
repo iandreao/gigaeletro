@@ -504,7 +504,7 @@
   }
 
   function renderResumo() {
-    if (resumoVazio) resumoVazio.hidden = selecionados.length > 0;
+    if (resumoVazio) resumoVazio.hidden = carrinhoValido();
     var abrirCatalogo = document.querySelector(".hero-acao [data-abrir-catalogo]");
     if (abrirCatalogo) {
       abrirCatalogo.hidden = false;
@@ -575,7 +575,7 @@
       : String((cliente && cliente.nome) || "").trim();
     const celularCliente = String((cliente && cliente.celular) || "").trim();
 
-    const textoWhats = `Olá, segue orçamento no valor de R$ ${valorTotal}. Clicar no link para visualizar.\n\nhttps://gigaeletro.vercel.app/api/ver-pdf?id=${idOrcamento}\n\n${nomeCliente} – Contato ${celularCliente}`;
+    const textoWhats = `Olá, segue orçamento no valor de R$ ${valorTotal}. Clicar no link para visualizar.\n\nhttps://gigaeletro.vercel.app/api/ver-pdf?id=${idOrcamento}\n\n${nomeCliente} – Contato ${celularCliente}${textoListaVoz()}`;
 
     return textoWhats;
   }
@@ -695,10 +695,22 @@
       return;
     }
     setCatalogo(false);
-    if (!selecionados.length) {
+    var quadroOrcamento = document.querySelector(".quote-side") || document.querySelector("#carrinho");
+    var listaVozNaTela = !!(quadroOrcamento && String(quadroOrcamento.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1);
+    if (!carrinhoValido() && !listaVozNaTela) {
       mostrarAviso("Adicione ao menos um produto ao orçamento.");
       soltarBotaoEnvio();
       return;
+    }
+    if (avisoEnvio && (listaVozNaTela || String(avisoEnvio.textContent || "").indexOf("Adicione ao menos um produto") !== -1)) {
+      avisoEnvio.classList.remove("gv-aviso-livre");
+      avisoEnvio.style.display = "none";
+      avisoEnvio.hidden = true;
+      if (String(avisoEnvio.textContent || "").indexOf("Adicione ao menos um produto") !== -1) avisoEnvio.textContent = "";
+    }
+    if (enviar && formularioPreenchido() && (carrinhoValido() || listaVozNaTela)) {
+      enviar.disabled = false;
+      enviar.removeAttribute("disabled");
     }
     var cliente = lerCliente();
     var erro = validarCliente(cliente);
@@ -775,7 +787,14 @@
           qtd: item.qtd,
           preco: item.preco
         };
-      })
+      }).concat(itensVoz().map(function (item) {
+        return {
+          codigo: "",
+          produto: String((item && (item.rotulo || item.texto)) || "").trim(),
+          qtd: item && item.qtd ? item.qtd : 1,
+          preco: 0
+        };
+      }).filter(function (item) { return item.produto; }))
     };
     return fetch("/api/orcamentos", {
       method: "POST",
@@ -809,7 +828,19 @@
 
   function mostrarAviso(texto) {
     if (!avisoEnvio) return;
+    var quadro = document.querySelector(".quote-side") || document.querySelector("#carrinho");
+    var listaVozNaTela = !!(quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1);
+    if (String(texto || "").indexOf("Adicione ao menos um produto") !== -1 && (listaVozNaTela || itensVoz().length >= 1 || vozInclusa())) {
+      avisoEnvio.classList.remove("gv-aviso-livre");
+      avisoEnvio.style.display = "none";
+      avisoEnvio.hidden = true;
+      avisoEnvio.textContent = "";
+      liberarEnvio();
+      return;
+    }
+    avisoEnvio.classList.add("gv-aviso-livre");
     avisoEnvio.hidden = false;
+    avisoEnvio.style.display = "";
     avisoEnvio.textContent = texto;
   }
 
@@ -1118,9 +1149,82 @@
     return true;
   }
 
+  function itensVoz() {
+    var lista = window.listaIntencoesVoz;
+    if (Array.isArray(lista) && lista.length) return lista;
+    var extra = window.gvIntencoes;
+    if (Array.isArray(extra) && extra.length) {
+      window.listaIntencoesVoz = extra;
+      return extra;
+    }
+    var campo = document.querySelector('input[name="gv-intencoes"]');
+    if (campo && String(campo.value || "").trim()) {
+      try {
+        var dados = JSON.parse(campo.value);
+        if (Array.isArray(dados) && dados.length) {
+          window.listaIntencoesVoz = dados;
+          return dados;
+        }
+      } catch (erro) { /* o campo oculto pode estar vazio */ }
+    }
+    try {
+      var guardado = sessionStorage.getItem("gv-intencoes");
+      if (guardado) {
+        var salvo = JSON.parse(guardado);
+        var itens = salvo && (salvo.itens || salvo);
+        if (Array.isArray(itens) && itens.length) {
+          window.listaIntencoesVoz = itens;
+          return itens;
+        }
+      }
+    } catch (erroGuardado) { /* o navegador pode bloquear o armazenamento */ }
+    return [];
+  }
+
+  function marcadorVozNoDom() {
+    var quadro = document.querySelector(".quote-side");
+    if (quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1) return true;
+    var marcador = document.querySelector("[data-gv-voz-resumo]");
+    return !!(marcador && String(marcador.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1);
+  }
+
+  function vozInclusa() {
+    return itensVoz().length > 0 || marcadorVozNoDom();
+  }
+
+  function ocultarErroCarrinho() {
+    if (!avisoEnvio) return;
+    if (String(avisoEnvio.textContent || "").indexOf("Adicione ao menos um produto") === -1) return;
+    avisoEnvio.style.display = "none";
+    avisoEnvio.hidden = true;
+    avisoEnvio.textContent = "";
+  }
+
+  function textoListaVoz() {
+    var linhas = itensVoz().map(function (item) {
+      return String((item && (item.rotulo || item.texto)) || "").trim();
+    }).filter(Boolean);
+    if (!linhas.length) return "";
+    return "\n\nLista de Itens via Comando de Voz:\n" + linhas.join("\n");
+  }
+
+  function carrinhoValido() {
+    var quadro = document.querySelector(".quote-side") || document.querySelector("#carrinho");
+    var listaVozNaTela = !!(quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1);
+    return selecionados.length > 0 || itensVoz().length >= 1 || listaVozNaTela;
+  }
+
   function liberarEnvio() {
     if (!enviar || envioEmCurso) return;
-    enviar.disabled = selecionados.length === 0;
+    var quadro = document.querySelector(".quote-side") || document.querySelector("#carrinho");
+    var listaVozNaTela = !!(quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1);
+    if (itensVoz().length >= 1 || listaVozNaTela) {
+      ocultarErroCarrinho();
+      if (resumoVazio) resumoVazio.hidden = true;
+    }
+    var liberar = carrinhoValido() && formularioPreenchido();
+    enviar.disabled = !liberar;
+    if (liberar) enviar.removeAttribute("disabled");
   }
 
   function consultarCnpj(cnpj) {
@@ -1380,6 +1484,12 @@
       doc.text(moeda(subtotal), xTotal + larguraTotal / 2, yRodape + alturaRodape / 2 + 7.4, { align: "center" });
     }
 
+    var itensDocumento = selecionados.slice();
+    itensVoz().forEach(function (item) {
+      var nome = String((item && (item.rotulo || item.texto)) || "").trim();
+      if (!nome) return;
+      itensDocumento.push({ codigo: "", produto: nome, qtd: item.qtd || 1, preco: 0 });
+    });
     var inicioItem = 0;
     var primeira = true;
     var acabou = false;
@@ -1395,10 +1505,10 @@
       }
       doc.text("PEDIDO DE ORÇAMENTO", largura / 2, 16, { align: "center" });
       var yTabela = primeira ? desenharCliente(22) + 6 : 24;
-      var lote = selecionados.slice(inicioItem, inicioItem + Math.max(1, Math.floor((yRodape - 4 - yTabela - alturaCabeca) / alturaLinha)));
+      var lote = itensDocumento.slice(inicioItem, inicioItem + Math.max(1, Math.floor((yRodape - 4 - yTabela - alturaCabeca) / alturaLinha)));
       desenharTabela(yTabela, yRodape - 4 - yTabela, lote, inicioItem);
       inicioItem += lote.length;
-      acabou = inicioItem >= selecionados.length;
+      acabou = inicioItem >= itensDocumento.length;
       if (acabou) desenharRodape();
       primeira = false;
     }
