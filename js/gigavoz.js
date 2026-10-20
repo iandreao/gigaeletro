@@ -11,6 +11,8 @@
   var botaoMic = null;
   var ondas = null;
   var statusEl = null;
+  var area = null;
+  var avancar = null;
   var reconhecimento = null;
   var ouvindo = false;
   var iniciando = false;
@@ -84,6 +86,7 @@
 
   function reabrirBoasVindas() {
     pararEscuta();
+    limparTranscricao();
     if (gravador) gravador.hidden = true;
     if (raiz) {
       raiz.remove();
@@ -131,12 +134,17 @@
           '<path d="M12 18v3"></path>' +
         "</svg>" +
       "</button>" +
-      '<p class="gv-status-text" data-gv-status></p>';
+      '<p class="gv-status-text" data-gv-status></p>' +
+      '<textarea class="gv-transcript-area" data-gv-transcricao rows="5" aria-label="Texto falado"></textarea>' +
+      '<button class="gv-avancar" type="button" data-gv-avancar hidden disabled>Avançar para o Orçamento</button>';
     botaoMic = gravador.querySelector("[data-gv-mic]");
     ondas = gravador.querySelector("[data-gv-ondas]");
     statusEl = gravador.querySelector("[data-gv-status]");
+    area = gravador.querySelector("[data-gv-transcricao]");
+    avancar = gravador.querySelector("[data-gv-avancar]");
     statusEl.textContent = TEXTO_INICIAL;
     botaoMic.addEventListener("click", alternarMicrofone);
+    area.addEventListener("input", atualizarAvanco);
     document.body.appendChild(gravador);
   }
 
@@ -147,6 +155,7 @@
     }
     pararEscuta();
     if (!gravador) criarGravador();
+    limparTranscricao();
     erroAtivo = false;
     statusEl.textContent = TEXTO_INICIAL;
     gravador.hidden = false;
@@ -202,6 +211,40 @@
     voltarEstadoInicial();
   }
 
+  function temPalavra() {
+    return !!(area && area.value.trim());
+  }
+
+  function atualizarAvanco() {
+    if (!avancar) return;
+    var ativo = temPalavra();
+    avancar.hidden = !ativo;
+    avancar.disabled = !ativo;
+  }
+
+  function limparTranscricao() {
+    if (area) area.value = "";
+    atualizarAvanco();
+  }
+
+  function acrescentarFala(evento) {
+    if (!area || !evento || !evento.results) return;
+    var trecho = "";
+    var inicio = typeof evento.resultIndex === "number" ? evento.resultIndex : 0;
+    for (var i = inicio; i < evento.results.length; i++) {
+      var resultado = evento.results[i];
+      if (!resultado || resultado.isFinal === false) continue;
+      var alternativa = resultado[0];
+      if (alternativa && alternativa.transcript) trecho += alternativa.transcript;
+    }
+    trecho = trecho.replace(/\s+/g, " ").trim();
+    if (!trecho) return;
+    var atual = area.value.replace(/\s+$/, "");
+    area.value = atual ? atual + " " + trecho : trecho;
+    area.scrollTop = area.scrollHeight;
+    atualizarAvanco();
+  }
+
   function iniciarEscuta() {
     var API = apiReconhecimento();
     if (!API) {
@@ -216,7 +259,10 @@
     sessao.lang = "pt-BR";
     sessao.continuous = true;
     sessao.interimResults = false;
-    sessao.onresult = function () {};
+    sessao.onresult = function (evento) {
+      if (reconhecimento !== sessao) return;
+      acrescentarFala(evento);
+    };
     sessao.onstart = function () {
       if (reconhecimento !== sessao) return;
       iniciando = false;
