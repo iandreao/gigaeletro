@@ -13,6 +13,10 @@
   var statusEl = null;
   var area = null;
   var avancar = null;
+  var prefixoFala = "";
+  var corteResultado = 0;
+  var resultadosVistos = 0;
+  var escrevendo = false;
   var reconhecimento = null;
   var ouvindo = false;
   var iniciando = false;
@@ -134,18 +138,40 @@
           '<path d="M12 18v3"></path>' +
         "</svg>" +
       "</button>" +
-      '<p class="gv-status-text" data-gv-status></p>' +
-      '<textarea class="gv-transcript-area" data-gv-transcricao rows="5" aria-label="Texto falado"></textarea>' +
-      '<button class="gv-avancar" type="button" data-gv-avancar hidden disabled>Avançar para o Orçamento</button>';
+      '<p class="gv-status-text" data-gv-status></p>';
     botaoMic = gravador.querySelector("[data-gv-mic]");
     ondas = gravador.querySelector("[data-gv-ondas]");
     statusEl = gravador.querySelector("[data-gv-status]");
-    area = gravador.querySelector("[data-gv-transcricao]");
-    avancar = gravador.querySelector("[data-gv-avancar]");
     statusEl.textContent = TEXTO_INICIAL;
     botaoMic.addEventListener("click", alternarMicrofone);
-    area.addEventListener("input", atualizarAvanco);
+    garantirCaixa();
     document.body.appendChild(gravador);
+  }
+
+  function garantirCaixa() {
+    if (!statusEl) return;
+    if (!area) {
+      area = document.createElement("textarea");
+      area.className = "gv-transcript-area";
+      area.setAttribute("data-gv-transcricao", "");
+      area.setAttribute("aria-label", "Texto falado");
+      area.rows = 3;
+      area.addEventListener("input", aoEditarTranscricao);
+    }
+    if (!avancar) {
+      avancar = document.createElement("button");
+      avancar.className = "gv-avancar";
+      avancar.type = "button";
+      avancar.setAttribute("data-gv-avancar", "");
+      avancar.textContent = "Avançar para o Orçamento";
+      avancar.hidden = true;
+      avancar.disabled = true;
+      avancar.addEventListener("click", avancarOrcamento);
+    }
+    statusEl.insertAdjacentElement("afterend", area);
+    area.insertAdjacentElement("afterend", avancar);
+    area.hidden = false;
+    atualizarAvanco();
   }
 
   function abrirGravador() {
@@ -155,6 +181,7 @@
     }
     pararEscuta();
     if (!gravador) criarGravador();
+    garantirCaixa();
     limparTranscricao();
     erroAtivo = false;
     statusEl.textContent = TEXTO_INICIAL;
@@ -211,6 +238,13 @@
     voltarEstadoInicial();
   }
 
+  function aoEditarTranscricao() {
+    if (escrevendo) return;
+    prefixoFala = area ? area.value : "";
+    corteResultado = resultadosVistos;
+    atualizarAvanco();
+  }
+
   function temPalavra() {
     return !!(area && area.value.trim());
   }
@@ -229,18 +263,18 @@
 
   function acrescentarFala(evento) {
     if (!area || !evento || !evento.results) return;
-    var trecho = "";
-    var inicio = typeof evento.resultIndex === "number" ? evento.resultIndex : 0;
-    for (var i = inicio; i < evento.results.length; i++) {
-      var resultado = evento.results[i];
-      if (!resultado || resultado.isFinal === false) continue;
-      var alternativa = resultado[0];
-      if (alternativa && alternativa.transcript) trecho += alternativa.transcript;
+    resultadosVistos = evento.results.length;
+    var falado = "";
+    var i;
+    for (i = corteResultado; i < evento.results.length; i++) {
+      var trecho = evento.results[i][0] && evento.results[i][0].transcript;
+      if (trecho) falado += trecho;
     }
-    trecho = trecho.replace(/\s+/g, " ").trim();
-    if (!trecho) return;
-    var atual = area.value.replace(/\s+$/, "");
-    area.value = atual ? atual + " " + trecho : trecho;
+    falado = falado.replace(/\s+/g, " ").trim();
+    var base = prefixoFala.replace(/\s+$/, "");
+    escrevendo = true;
+    area.value = base && falado ? base + " " + falado : (falado || base);
+    escrevendo = false;
     area.scrollTop = area.scrollHeight;
     atualizarAvanco();
   }
@@ -254,11 +288,14 @@
     soltarMicrofone();
     erroAtivo = false;
     iniciando = true;
+    prefixoFala = area ? area.value.replace(/\s+$/, "") : "";
+    corteResultado = 0;
+    resultadosVistos = 0;
     var sessao = new API();
     reconhecimento = sessao;
     sessao.lang = "pt-BR";
     sessao.continuous = true;
-    sessao.interimResults = false;
+    sessao.interimResults = true;
     sessao.onresult = function (evento) {
       if (reconhecimento !== sessao) return;
       acrescentarFala(evento);
@@ -277,6 +314,15 @@
     };
     sessao.onend = function () {
       if (reconhecimento !== sessao) return;
+      if (ouvindo && !erroAtivo) {
+        prefixoFala = area ? area.value.replace(/\s+$/, "") : "";
+        corteResultado = 0;
+        resultadosVistos = 0;
+        try {
+          sessao.start();
+          return;
+        } catch (erro) { /* segue para encerrar */ }
+      }
       reconhecimento = null;
       voltarEstadoInicial();
     };
@@ -291,6 +337,158 @@
   function alternarMicrofone() {
     if (ouvindo || iniciando) pararEscuta();
     else iniciarEscuta();
+  }
+
+  function semAcento(texto) {
+    return String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  }
+
+  function tokensDe(texto) {
+    var limpo = semAcento(texto).replace(/[^a-z0-9]+/g, " ").trim();
+    return limpo ? limpo.split(/\s+/) : [];
+  }
+
+  function radical(palavra) {
+    if (palavra.length > 4 && palavra.slice(-2) === "es") return palavra.slice(0, -2);
+    if (palavra.length > 3 && palavra.slice(-1) === "s") return palavra.slice(0, -1);
+    return palavra;
+  }
+
+  function combinaPalavra(falada, nome) {
+    var a = radical(falada);
+    var b = radical(nome);
+    if (!a || !b) return false;
+    if (a === b) return true;
+    if (a.length >= 4 && b.indexOf(a) === 0) return true;
+    if (b.length >= 4 && a.indexOf(b) === 0) return true;
+    return false;
+  }
+
+  function lerQuantidade(lista) {
+    var nomes = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, quinze: 15, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, cem: 100 };
+    if (!lista.length) return { qtd: 1, resto: lista };
+    if (/^\d+$/.test(lista[0])) return { qtd: parseInt(lista[0], 10), resto: lista.slice(1) };
+    if (nomes[lista[0]]) return { qtd: nomes[lista[0]], resto: lista.slice(1) };
+    if (/^\d+$/.test(lista[lista.length - 1])) return { qtd: parseInt(lista[lista.length - 1], 10), resto: lista.slice(0, -1) };
+    if (nomes[lista[lista.length - 1]]) return { qtd: nomes[lista[lista.length - 1]], resto: lista.slice(0, -1) };
+    return { qtd: 1, resto: lista };
+  }
+
+  function catalogoVisivel() {
+    return Array.prototype.map.call(document.querySelectorAll(".add-mini[data-add]"), function (botao) {
+      var rotulo = botao.getAttribute("aria-label") || "";
+      var achado = rotulo.match(/^Adicionar (.+) ao orçamento$/);
+      var nome = achado ? achado[1] : "";
+      if (!nome) {
+        var linha = botao.closest(".catalog-row");
+        var titulo = linha && linha.querySelector(".catalog-nome");
+        nome = titulo ? titulo.textContent : "";
+      }
+      return { codigo: botao.getAttribute("data-add"), nome: nome, botao: botao };
+    }).filter(function (item) { return item.codigo && item.nome; });
+  }
+
+  function melhorProduto(falados) {
+    var produtos = catalogoVisivel();
+    var melhor = null;
+    var melhorNota = 0;
+    var melhorTamanho = 0;
+    produtos.forEach(function (produto) {
+      var nomes = tokensDe(produto.nome);
+      var acertos = 0;
+      falados.forEach(function (palavra) {
+        if (nomes.some(function (nome) { return combinaPalavra(palavra, nome); })) acertos += 1;
+      });
+      if (!acertos) return;
+      var nota = acertos / falados.length;
+      var tamanho = nomes.length;
+      var ganha = nota > melhorNota || (nota === melhorNota && melhor && tamanho < melhorTamanho);
+      if (ganha) {
+        melhor = produto;
+        melhorNota = nota;
+        melhorTamanho = tamanho;
+      }
+    });
+    if (!melhor || melhorNota < 1) return null;
+    return melhor;
+  }
+
+  function interpretarPedido(texto) {
+    var partes = semAcento(texto).split(/\s*(?:,|;|\.| e | mais )\s*/);
+    var mapa = {};
+    var ordem = [];
+    var paradas = { de: 1, da: 1, do: 1, das: 1, dos: 1, para: 1, pra: 1, com: 1, no: 1, na: 1, em: 1, por: 1, ao: 1, aos: 1 };
+    partes.forEach(function (parte) {
+      var lista = tokensDe(parte).filter(function (token) { return !paradas[token]; });
+      var lido = lerQuantidade(lista);
+      if (!lido.resto.length || !isFinite(lido.qtd) || lido.qtd < 1) return;
+      var produto = melhorProduto(lido.resto);
+      if (!produto) return;
+      if (!mapa[produto.codigo]) {
+        mapa[produto.codigo] = { codigo: produto.codigo, qtd: 0, botao: produto.botao };
+        ordem.push(produto.codigo);
+      }
+      mapa[produto.codigo].qtd += Math.min(500, lido.qtd);
+    });
+    return ordem.map(function (codigo) { return mapa[codigo]; });
+  }
+
+  function lerQtd(codigo) {
+    var alvo = document.querySelector('.quote-side [data-qtd="' + String(codigo).replace(/"/g, "") + '"]');
+    var valor = alvo ? parseInt(alvo.textContent, 10) : 0;
+    return isFinite(valor) ? valor : 0;
+  }
+
+  function injetarProduto(pedido) {
+    if (!pedido || !pedido.botao) return;
+    var destino = Math.max(1, Math.min(500, pedido.qtd));
+    if (!lerQtd(pedido.codigo)) pedido.botao.click();
+    var atual = lerQtd(pedido.codigo);
+    var passos = 0;
+    while (atual < destino && passos < 500) {
+      var mais = document.querySelector('.quote-side [data-acao="mais"][data-id="' + String(pedido.codigo).replace(/"/g, "") + '"]');
+      if (!mais) break;
+      mais.click();
+      atual += 1;
+      passos += 1;
+    }
+    while (atual > destino && passos < 1000) {
+      var menos = document.querySelector('.quote-side [data-acao="menos"][data-id="' + String(pedido.codigo).replace(/"/g, "") + '"]');
+      if (!menos) break;
+      menos.click();
+      atual -= 1;
+      passos += 1;
+    }
+  }
+
+  function focarPrimeiroCampo() {
+    var form = document.querySelector(".cliente-form");
+    if (!form) return;
+    var campos = form.querySelectorAll("input[required]");
+    var i;
+    for (i = 0; i < campos.length; i += 1) {
+      var campo = campos[i];
+      var aviso = campo.parentElement && campo.parentElement.querySelector("[data-doc-aviso], [data-campo-aviso]");
+      if (!String(campo.value || "").trim() || (aviso && !aviso.hidden)) {
+        campo.focus();
+        return;
+      }
+    }
+    if (campos[0]) campos[0].focus();
+  }
+
+  function avancarOrcamento() {
+    if (!temPalavra()) return;
+    var texto = area.value;
+    pararEscuta();
+    var pedidos = interpretarPedido(texto);
+    if (!pedidos.length) {
+      if (statusEl) statusEl.textContent = "Não encontrei esses produtos no catálogo. Ajuste o texto e tente de novo.";
+      return;
+    }
+    pedidos.forEach(injetarProduto);
+    if (gravador) gravador.hidden = true;
+    focarPrimeiroCampo();
   }
 
   function iniciar() {

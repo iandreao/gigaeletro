@@ -334,15 +334,19 @@
 }
 
 .gv-transcript-area {
+  display: block !important;
+  visibility: visible !important;
+  flex: none;
   box-sizing: border-box;
-  width: 100%;
-  min-height: 120px;
-  max-height: 180px;
-  margin: 14px 0 0;
-  padding: 10px 12px;
+  width: 90%;
+  height: 80px;
+  min-height: 80px;
+  max-height: 80px;
+  margin: 12px auto;
+  padding: 8px 10px;
   overflow-x: hidden;
   overflow-y: auto;
-  border: 1px solid #1a1a1a;
+  border: 1px solid #cccccc;
   border-radius: 0.75rem;
   background: #ffffff;
   color: #1a1a1a;
@@ -381,6 +385,6 @@
 }
 
 .gv-recorder-container {
-  max-height: calc(100dvh - 96px);
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
 }
