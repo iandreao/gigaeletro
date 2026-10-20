@@ -659,7 +659,10 @@
       if (vazio && !quadro.querySelector(".cart-list [data-qtd]")) vazio.hidden = true;
     }
     var enviar = document.querySelector("[data-enviar]");
-    if (enviar) enviar.disabled = false;
+    if (enviar) {
+      enviar.disabled = false;
+      enviar.removeAttribute("disabled");
+    }
     try {
       sessionStorage.setItem("gv-intencoes", JSON.stringify({ itens: window.gvIntencoes, texto: bloco }));
     } catch (erro) { /* o navegador pode bloquear o armazenamento */ }
