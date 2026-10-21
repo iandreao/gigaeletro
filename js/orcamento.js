@@ -1473,10 +1473,14 @@
       });
       doc.setFont("helvetica", "normal");
       itens.forEach(function (item, indice) {
+        var codigoCelula = itemVoz(item) ? "" : String(item.codigo || "").replace(/^voz-.*$/i, "");
+        var nomeCelula = String(item.produto || "").replace(/^voz-[a-z0-9]+-\d+\s*-\s*/i, "");
+        if (itemVoz(item)) nomeCelula = nomeCelula.replace(/^\d+\s*-\s*/, "");
+        nomeCelula = nomeCelula.trim();
         var valores = [
           String(inicio + indice + 1),
-          String(item.codigo || ""),
-          String(item.produto || ""),
+          codigoCelula,
+          nomeCelula,
           String(item.qtd),
           numero(item.preco),
           numero(item.preco * item.qtd)

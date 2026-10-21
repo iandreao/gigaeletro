@@ -767,28 +767,103 @@ def _pdf_literal(texto):
     return b"(" + bytes(saida) + b")"
 
 
-def pdf_intencoes(nome, telefone, linhas):
+_RE_PREFIXO_VOZ = re.compile(r"^voz-[a-z0-9]+-\d+\s*-\s*", re.IGNORECASE)
+_RE_PREFIXO_QTD = re.compile(r"^\d+\s*-\s*")
+
+
+def limpar_nome_intencao(texto):
+    """Nome da coluna 3: só a descrição falada, sem id voz- nem quantidade."""
+    nome = str(texto or "").strip()
+    nome = _RE_PREFIXO_VOZ.sub("", nome)
+    nome = _RE_PREFIXO_QTD.sub("", nome)
+    return nome.strip()[:160]
+
+
+def itens_pdf_intencoes(corpo, linhas):
+    brutos = corpo.get("itens") if isinstance(corpo, dict) and isinstance(corpo.get("itens"), list) else []
+    saida = []
+    for item in brutos:
+        if not isinstance(item, dict):
+            continue
+        nome = limpar_nome_intencao(item.get("produto") or item.get("rotulo") or item.get("texto") or "")
+        try:
+            qtd = int(item.get("qtd") or 1)
+        except (TypeError, ValueError):
+            qtd = 1
+        if qtd < 1:
+            qtd = 1
+        if qtd > 99999:
+            qtd = 99999
+        if nome:
+            saida.append({"codigo": "", "produto": nome, "qtd": qtd, "preco": 0})
+    if saida:
+        return saida[:200]
+    for linha in linhas or []:
+        nome = limpar_nome_intencao(linha)
+        if nome:
+            saida.append({"codigo": "", "produto": nome, "qtd": 1, "preco": 0})
+    return saida[:200]
+
+
+def _celula_pdf(x, y, texto, tamanho=9):
+    return b"BT /F1 %d Tf 1 0 0 1 %.2f %.2f Tm %s Tj ET" % (
+        tamanho,
+        float(x),
+        float(y),
+        _pdf_literal(texto),
+    )
+
+
+def pdf_intencoes(nome, telefone, itens):
+    """Tabela do PDF de intenções: Código vazio e Nome só com a descrição falada."""
     cabecalho = [
-        "Lista de Produtos Solicitados",
-        "Cliente: " + (str(nome or "").strip() or "-"),
-        "Contato: " + (str(telefone or "").strip() or "-"),
-        "",
+        (40, "Lista de Produtos Solicitados", 12),
+        (40, "Cliente: " + (str(nome or "").strip() or "-"), 10),
+        (40, "Contato: " + (str(telefone or "").strip() or "-"), 10),
     ]
-    corpo = cabecalho + [str(linha).strip()[:180] for linha in linhas if str(linha or "").strip()]
-    if len(corpo) == len(cabecalho):
-        corpo.append("Sem itens.")
-    margem = 48
+    colunas = [
+        (40, "Itens"),
+        (78, "Código"),
+        (150, "Nome"),
+        (400, "Qte"),
+        (445, "Pr.Unitário"),
+        (520, "Total"),
+    ]
+    registros = itens if isinstance(itens, list) else []
+    if not registros:
+        registros = [{"codigo": "", "produto": "Sem itens.", "qtd": 1, "preco": 0}]
     salto = 16
-    capacidade = max(1, (842 - margem * 2) // salto)
-    fatias = [corpo[indice:indice + capacidade] for indice in range(0, len(corpo), capacidade)]
+    capacidade = 28
+    fatias = [registros[indice:indice + capacidade] for indice in range(0, len(registros), capacidade)]
     fluxos = []
-    for fatia in fatias:
-        comandos = [b"BT", b"/F1 11 Tf", b"%d %d Td" % (margem, 842 - margem)]
-        for posicao, texto in enumerate(fatia):
-            if posicao:
-                comandos.append(b"0 -%d Td" % salto)
-            comandos.append(_pdf_literal(texto) + b" Tj")
-        comandos.append(b"ET")
+    for numero, fatia in enumerate(fatias):
+        comandos = []
+        y = 800
+        if numero == 0:
+            for x, texto, tamanho in cabecalho:
+                comandos.append(_celula_pdf(x, y, texto, tamanho))
+                y -= salto
+            y -= 6
+        for x, titulo in colunas:
+            comandos.append(_celula_pdf(x, y, titulo, 9))
+        y -= salto
+        for ordem, item in enumerate(fatia, start=1 + numero * capacidade):
+            nome = limpar_nome_intencao(item.get("produto") if isinstance(item, dict) else item)
+            qtd = 1
+            if isinstance(item, dict):
+                try:
+                    qtd = int(item.get("qtd") or 1)
+                except (TypeError, ValueError):
+                    qtd = 1
+            if qtd < 1:
+                qtd = 1
+            comandos.append(_celula_pdf(40, y, str(ordem), 9))
+            comandos.append(_celula_pdf(78, y, "", 9))
+            comandos.append(_celula_pdf(150, y, nome or "", 9))
+            comandos.append(_celula_pdf(400, y, str(qtd), 9))
+            comandos.append(_celula_pdf(445, y, "0,00", 9))
+            comandos.append(_celula_pdf(520, y, "0,00", 9))
+            y -= salto
         fluxos.append(b"\n".join(comandos))
     total = 3 + len(fluxos) * 2
     objetos = [b""] * total
@@ -1220,16 +1295,9 @@ def registrar_intencoes(corpo):
     if not isinstance(corpo, dict):
         return None
     linhas = linhas_intencoes(corpo)
-    if not linhas:
-        return None
     pedido = dict(corpo)
     pedido["tipo"] = "intencoes"
-    pedido["itens"] = []
-    for linha in linhas:
-        pedido["itens"].append({"codigo": "", "produto": linha, "qtd": 1, "preco": 0})
-    brutos = corpo.get("itens")
-    if isinstance(brutos, list) and normalizar_itens_painel(brutos):
-        pedido["itens"] = brutos
+    pedido["itens"] = itens_pdf_intencoes(corpo, linhas)
     if not normalizar_itens_painel(pedido["itens"]):
         return None
     nome = str(pedido.get("nome") or "").strip()[:120]
@@ -1237,7 +1305,7 @@ def registrar_intencoes(corpo):
     telefone = apenas_digitos(pedido.get("telefone") or "")
     if not nome or not (cpf_valido(documento) or cnpj_valido(documento)) or not telefone_painel_valido(telefone):
         return None
-    pedido["pdfId"] = guardar_pdf(nome, pdf_intencoes(nome, formatar_telefone(telefone), linhas))
+    pedido["pdfId"] = guardar_pdf(nome, pdf_intencoes(nome, formatar_telefone(telefone), pedido["itens"]))
     registro = incluir_orcamento_painel(pedido)
     if not registro:
         return None
