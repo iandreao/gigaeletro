@@ -241,12 +241,19 @@
     });
   }
 
-  var inicio = document.querySelector('.nav a[href="#inicio"]');
+  var inicio = document.getElementById("btnInicio") || document.querySelector('.nav a[href="#inicio"]');
   if (inicio) {
     inicio.addEventListener("click", function () {
+      /* Reset total: fecha o que estiver sobre a home e zera o orçamento. */
+      setCatalogo(false);
+      setHistorico(false);
+      setRestrita(false);
+      fecharSugestoes();
       limparDepoisDoEnvio();
     });
   }
+
+  document.addEventListener("gv-limpar-orcamento", zerarQuadroOrcamento);
 
   var documentoConsulta = "";
   var historicoConsulta = [];
@@ -332,6 +339,7 @@
   });
 
   function adicionar(codigo) {
+    if (document.body.dataset.gvCatalogoTravado === "1" || selecionados.some(itemVoz)) return;
     var produto = catalogo.find(function (item) { return item.codigo === codigo; });
     if (!produto) return;
     var atual = selecionados.find(function (item) { return item.codigo === codigo; });
@@ -402,6 +410,8 @@
   }
 
   function setCatalogo(aberto) {
+    /* Trava híbrida: catálogo tradicional não abre com comando de voz ativo ou com itens de voz. */
+    if (aberto && (document.body.dataset.gvCatalogoTravado === "1" || selecionados.some(itemVoz))) return;
     if (aberto) {
       setHistorico(false);
       setRestrita(false);
@@ -949,6 +959,7 @@
 
   function limparVozDoOrcamento() {
     window.listaIntencoesVoz = [];
+    window.listaIntencoes = [];
     window.gvIntencoes = [];
     var campo = document.querySelector('input[name="gv-intencoes"]');
     if (campo) campo.value = "";
@@ -958,18 +969,23 @@
     });
   }
 
-  function limparDepoisDoEnvio() {
-    var fisico = formCliente && formCliente.querySelector('input[name="tipo"][value="pf"]');
-    if (fisico) fisico.checked = true;
-    limparCamposCliente();
+  function zerarQuadroOrcamento() {
     selecionados = [];
     limparVozDoOrcamento();
     salvarPedido();
     renderResumo();
-    if (resumoVazio && !selecionados.length) {
+    if (resumoVazio) {
       resumoVazio.hidden = false;
       resumoVazio.textContent = "Nenhum produto no orçamento.";
     }
+    liberarEnvio();
+  }
+
+  function limparDepoisDoEnvio() {
+    var fisico = formCliente && formCliente.querySelector('input[name="tipo"][value="pf"]');
+    if (fisico) fisico.checked = true;
+    limparCamposCliente();
+    zerarQuadroOrcamento();
     orcamentoSendoEditadoId = "";
     orcamentoSendoEditadoDocumento = "";
     if (enviar) enviar.textContent = "Enviar Orçamento";
@@ -1238,6 +1254,8 @@
 
   function incluirItensVoz(pacote) {
     if (!Array.isArray(pacote)) return;
+    /* Trava híbrida: item de catálogo não permanece junto da lista falada. */
+    if (selecionados.some(function (item) { return !itemVoz(item); })) selecionados = [];
     var carimbo = Date.now().toString(36);
     pacote.forEach(function (item, indice) {
       var nome = String((item && (item.rotulo || item.texto)) || "").trim();
@@ -1792,6 +1810,10 @@
   }
 
   function editarRecente(id) {
+    if (document.body.dataset.gvCatalogoTravado === "1" || selecionados.some(itemVoz)) {
+      window.alert("Envie o orçamento ou clique em Início antes de abrir outro orçamento.");
+      return;
+    }
     var registro = historicoConsulta.find(function (item) { return item.id === id; });
     var itens = registro ? copiarItens(registro.itens) : [];
     if (!itens.length) {

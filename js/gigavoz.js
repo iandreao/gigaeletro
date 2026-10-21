@@ -28,6 +28,7 @@
   var iniciando = false;
   var erroAtivo = false;
   var modoIntencoes = false;
+  var catalogoTravado = false;
 
   function criarTela() {
     var fundo = document.createElement("div");
@@ -55,16 +56,33 @@
     return fundo;
   }
 
-  function botaoCatalogo() {
-    return document.getElementById("btnVerCatalogo") || document.querySelector(".hero-acao [data-abrir-catalogo]");
+  function botoesCatalogo() {
+    var hero = document.getElementById("btnVerCatalogo") || document.querySelector(".hero-acao [data-abrir-catalogo]");
+    var menu = document.getElementById("btnProdutos");
+    return [hero, menu].filter(Boolean);
   }
 
   function definirCatalogo(ativo) {
-    var botao = botaoCatalogo();
-    if (!botao) return;
-    botao.disabled = !ativo;
-    if (ativo) botao.removeAttribute("disabled");
-    botao.setAttribute("aria-disabled", ativo ? "false" : "true");
+    /* Comando de voz trava o catálogo até o envio ou o Início. */
+    if (catalogoTravado) ativo = false;
+    botoesCatalogo().forEach(function (botao) {
+      botao.disabled = !ativo;
+      if (ativo) botao.removeAttribute("disabled");
+      else botao.setAttribute("disabled", "disabled");
+      botao.setAttribute("aria-disabled", ativo ? "false" : "true");
+    });
+  }
+
+  function travarCatalogo() {
+    catalogoTravado = true;
+    document.body.dataset.gvCatalogoTravado = "1";
+    definirCatalogo(false);
+  }
+
+  function liberarCatalogo() {
+    catalogoTravado = false;
+    if (document.body.dataset.gvCatalogoTravado) delete document.body.dataset.gvCatalogoTravado;
+    definirCatalogo(true);
   }
 
   function reabrirBoasVindas() {
@@ -99,7 +117,7 @@
 
   function desligarModoGigaVoz() {
     pararEscuta();
-    /* Volta ao modo Tradicional: único desbloqueio manual do catálogo. */
+    /* Fecha a voz. O catálogo só destrava no Enviar Orçamento ou no Início. */
     modoIntencoes = false;
     definirCatalogo(true);
     limparTranscricao();
@@ -114,6 +132,12 @@
 
   function alternarTipoOrcamento(evento) {
     if (evento) evento.preventDefault();
+    var saindoDaVoz = modoIntencoes || !!(gravador && !gravador.hidden);
+    var abrindoTroca = !modoGigaVozAberto();
+    /* Trava híbrida: zera o quadro antes de sair da voz ou de abrir a troca de modelo. */
+    if (saindoDaVoz || abrindoTroca) {
+      document.dispatchEvent(new CustomEvent("gv-limpar-orcamento"));
+    }
     if (modoGigaVozAberto()) desligarModoGigaVoz();
     else reabrirBoasVindas();
   }
@@ -199,6 +223,8 @@
   }
 
   function abrirGravador() {
+    /* Entrada no comando de voz: o orçamento tradicional sai antes da lista falada. */
+    document.dispatchEvent(new CustomEvent("gv-limpar-orcamento"));
     if (raiz) {
       raiz.remove();
       raiz = null;
@@ -213,7 +239,7 @@
     statusEl.textContent = TEXTO_INICIAL;
     gravador.hidden = false;
     modoIntencoes = true;
-    definirCatalogo(false);
+    travarCatalogo();
     refletirTipoOrcamento();
     botaoMic.focus();
   }
@@ -871,15 +897,23 @@
     pararEscuta();
     limparIntencoes();
     gravador.hidden = true;
-    /* A lista já entrou no orçamento: o catálogo continua bloqueado. */
+    /* A lista já entrou no orçamento: Produtos continua bloqueado. */
     modoIntencoes = true;
-    definirCatalogo(false);
+    travarCatalogo();
     refletirTipoOrcamento();
   }
 
-  function liberarCatalogoAposEnvio() {
+  function concluirFluxoOrcamento() {
+    pararEscuta();
+    limparTranscricao();
+    limparIntencoes();
     modoIntencoes = false;
-    definirCatalogo(true);
+    if (gravador) gravador.hidden = true;
+    if (raiz && document.body.contains(raiz)) {
+      raiz.remove();
+      raiz = null;
+    }
+    liberarCatalogo();
     refletirTipoOrcamento();
   }
 
@@ -887,7 +921,7 @@
     if (!document.body || !document.body.classList.contains("home")) return;
     if (document.querySelector(".gv-backdrop")) return;
     window.addEventListener("resize", alinharComEnvio);
-    document.addEventListener("gv-orcamento-enviado", liberarCatalogoAposEnvio);
+    document.addEventListener("gv-orcamento-enviado", concluirFluxoOrcamento);
     var formulario = document.querySelector("form");
     if (formulario && !formulario.dataset.gvForcaEnvio) {
       formulario.dataset.gvForcaEnvio = "1";
