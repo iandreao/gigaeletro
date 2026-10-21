@@ -249,19 +249,19 @@
 
   function alinharEscolha() {
     var modal = document.querySelector(".gv-welcome-modal");
+    var coluna = document.querySelector(".hero-centro .hero-acao") || document.querySelector(".hero-acao");
     var formulario = document.querySelector(".hero-centro .cliente-form") || document.querySelector(".cliente-form");
     if (!modal || !formulario) return;
-    var rect = formulario.getBoundingClientRect();
-    if (rect.width < 1) return;
-    /* A largura e a coluna vêm do formulário amarelo, não do centro da janela. */
+    var alvo = coluna || formulario;
+    var colunaRect = alvo.getBoundingClientRect();
+    var formRect = formulario.getBoundingClientRect();
+    if (formRect.width < 1 || colunaRect.height < 1) return;
+    /* A largura segue o formulário. A altura cobre a coluna central inteira. */
     var raizCss = document.documentElement;
-    raizCss.style.setProperty("--gv-escolha-largura", rect.width + "px");
-    raizCss.style.setProperty("--gv-escolha-esq", rect.left + "px");
-    var altura = modal.offsetHeight;
-    var topo = rect.top;
-    if (altura && altura < rect.height) topo = rect.top + (rect.height - altura) / 2;
-    var maximo = Math.max(8, window.innerHeight - (altura || 0) - 8);
-    raizCss.style.setProperty("--gv-escolha-topo", Math.max(8, Math.min(topo, maximo)) + "px");
+    raizCss.style.setProperty("--gv-escolha-largura", formRect.width + "px");
+    raizCss.style.setProperty("--gv-escolha-esq", formRect.left + "px");
+    raizCss.style.setProperty("--gv-escolha-topo", colunaRect.top + "px");
+    raizCss.style.setProperty("--gv-escolha-altura", colunaRect.height + "px");
   }
 
   function alinharComEnvio() {

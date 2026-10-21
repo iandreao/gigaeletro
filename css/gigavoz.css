@@ -16,17 +16,21 @@
 }
 
 .gv-welcome-modal {
-  /* Mesma largura do formulário amarelo; o painel não atravessa as colunas laterais. */
+  /* Mesma largura do formulário e a altura útil da coluna central, para cobrir os campos. */
   position: fixed;
   top: var(--gv-escolha-topo, 16px);
   left: var(--gv-escolha-esq, 16px);
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   width: var(--gv-escolha-largura, min(416px, calc(100vw - 32px)));
   max-width: var(--gv-escolha-largura, min(416px, calc(100vw - 32px)));
-  max-height: calc(100dvh - 16px);
+  height: var(--gv-escolha-altura, auto);
+  min-height: var(--gv-escolha-altura, 0);
+  max-height: var(--gv-escolha-altura, calc(100dvh - 16px));
   margin: 0;
-  padding: 8px 18px 14px;
-  overflow: auto;
+  padding: 1.6rem 18px 1rem;
+  overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.28);
   border-radius: 1.25rem;
   background: #fefce8;
@@ -36,6 +40,15 @@
 
 .gv-etapa[hidden] {
   display: none !important;
+}
+
+.gv-etapa[data-gv-etapa="escolha"] {
+  /* A saudação permanece no topo; o miolo restante separa as duas barras. */
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
 }
 
 .gv-marca {
@@ -49,8 +62,9 @@
 }
 
 .gv-titulo {
-  /* Ocupa o topo deixado pela logo e permanece centrado na largura do quadro. */
+  /* Recuo do topo, centrado na largura do quadro. */
   display: block;
+  flex: 0 0 auto;
   width: 100%;
   max-width: none;
   margin: 0;
@@ -71,11 +85,14 @@
 }
 
 .gv-cards {
-  /* Uma opção abaixo da outra, ocupando a largura do formulário. */
+  /* O vão entre as barras cresce com a coluna; a última barra encosta na base. */
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 14px;
+  justify-content: space-between;
+  gap: 0;
+  min-height: 0;
+  margin-top: clamp(1.25rem, 9%, 2.5rem);
 }
 
 .gv-card {
@@ -173,9 +190,7 @@
   }
 
   .gv-welcome-modal {
-    height: auto;
-    max-height: calc(100dvh - 24px);
-    padding: 8px 12px 12px;
+    padding: 1.25rem 12px 0.85rem;
   }
 
   .gv-titulo {
