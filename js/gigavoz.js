@@ -19,6 +19,7 @@
   var listaEl = null;
   var campoNovo = null;
   var confirmarLista = null;
+  var avisoLista = null;
   var intencoes = [];
   var prefixoFala = "";
   var corteResultado = 0;
@@ -91,12 +92,26 @@
     retorno.hidden = true;
     retorno.addEventListener("click", reabrirBoasVindas);
     window.addEventListener("resize", posicionarRetorno);
+    window.addEventListener("resize", alinharComEnvio);
     document.body.appendChild(retorno);
     return retorno;
   }
 
+  function botaoCatalogo() {
+    return document.getElementById("btnVerCatalogo") || document.querySelector(".hero-acao [data-abrir-catalogo]");
+  }
+
+  function definirCatalogo(ativo) {
+    var botao = botaoCatalogo();
+    if (!botao) return;
+    botao.disabled = !ativo;
+    if (ativo) botao.removeAttribute("disabled");
+    botao.setAttribute("aria-disabled", ativo ? "false" : "true");
+  }
+
   function reabrirBoasVindas() {
     pararEscuta();
+    definirCatalogo(true);
     limparTranscricao();
     limparIntencoes();
     if (gravador) gravador.hidden = true;
@@ -113,6 +128,7 @@
 
   function fecharBoasVindas() {
     if (!raiz) return;
+    definirCatalogo(true);
     raiz.remove();
     raiz = null;
     garantirRetorno().hidden = false;
@@ -152,12 +168,14 @@
         '<button class="gv-avancar" type="button" hidden disabled>Avançar para o Orçamento</button>' +
       "</div>" +
       '<div class="gv-intencoes" data-gv-passo="lista" hidden>' +
-        '<p class="gv-intencoes-titulo">Lista de intenções</p>' +
+        '<p class="gv-intencoes-titulo">Lista de Produtos Solicitados</p>' +
         '<ul class="gv-intencoes-lista" data-gv-lista></ul>' +
         '<div class="gv-intencoes-add">' +
           '<input class="gv-intencoes-input" type="text" data-gv-novo aria-label="Novo material" placeholder="Digite um material">' +
           '<button class="gv-intencoes-mais" type="button" data-gv-adicionar aria-label="Adicionar">+</button>' +
         "</div>" +
+        '<div class="gv-intencoes-espaco"></div>' +
+        '<p class="gv-intencoes-aviso" data-gv-aviso hidden></p>' +
         '<button class="gv-intencoes-confirmar" type="button" disabled>Confirmar e Enviar Lista</button>' +
       "</div>";
     captura = gravador.querySelector(".gv-captura");
@@ -170,6 +188,7 @@
     listaEl = gravador.querySelector("[data-gv-lista]");
     campoNovo = gravador.querySelector("[data-gv-novo]");
     confirmarLista = gravador.querySelector(".gv-intencoes-confirmar");
+    avisoLista = gravador.querySelector("[data-gv-aviso]");
     statusEl.textContent = TEXTO_INICIAL;
     area.value = "";
     botaoMic.addEventListener("click", alternarMicrofone);
@@ -203,6 +222,7 @@
     erroAtivo = false;
     statusEl.textContent = TEXTO_INICIAL;
     gravador.hidden = false;
+    definirCatalogo(false);
     garantirRetorno().hidden = false;
     posicionarRetorno();
     botaoMic.focus();
@@ -212,15 +232,45 @@
     if (captura) captura.hidden = false;
     if (painelLista) painelLista.hidden = true;
     var titulo = gravador && gravador.querySelector(".gv-recorder-titulo");
-    if (titulo) titulo.textContent = "Comando de voz";
+    if (titulo) {
+      titulo.hidden = false;
+      titulo.textContent = "Comando de voz";
+    }
+    alinharComEnvio();
+  }
+
+  function alinharComEnvio() {
+    if (!gravador) return;
+    var listaAberta = painelLista && !painelLista.hidden && !gravador.hidden;
+    var enviar = document.querySelector(".quote-side [data-enviar]");
+    var estreito = window.matchMedia("(max-width: 767px)").matches;
+    if (!listaAberta || estreito || !enviar || !confirmarLista) {
+      gravador.style.height = "";
+      gravador.style.top = "";
+      gravador.style.transform = "";
+      gravador.style.maxHeight = "";
+      return;
+    }
+    var topo = 16;
+    var maximo = Math.max(240, Math.round(window.innerHeight - topo - 12));
+    gravador.style.top = topo + "px";
+    gravador.style.transform = "translateX(-50%)";
+    gravador.style.maxHeight = maximo + "px";
+    gravador.style.height = maximo + "px";
+    var delta = enviar.getBoundingClientRect().bottom - confirmarLista.getBoundingClientRect().bottom;
+    var altura = Math.round(gravador.getBoundingClientRect().height + delta);
+    if (altura > maximo) altura = maximo;
+    if (altura < 240) altura = Math.min(maximo, 240);
+    gravador.style.height = altura + "px";
   }
 
   function mostrarLista() {
     if (captura) captura.hidden = true;
     if (painelLista) painelLista.hidden = false;
     var titulo = gravador && gravador.querySelector(".gv-recorder-titulo");
-    if (titulo) titulo.textContent = "Revise sua lista";
+    if (titulo) titulo.hidden = true;
     desenharLista();
+    alinharComEnvio();
     if (listaEl && listaEl.firstElementChild) {
       var editar = listaEl.querySelector(".gv-intencao-editar");
       if (editar) editar.focus();
@@ -745,19 +795,116 @@
     document.addEventListener("change", manter, false);
   }
 
+  function mostrarAvisoLista(texto) {
+    if (!avisoLista) return;
+    avisoLista.hidden = !texto;
+    avisoLista.textContent = texto || "";
+  }
+
+  function lerFormularioAmarelo() {
+    var form = document.querySelector(".cliente-form");
+    var dados = form ? new FormData(form) : new FormData();
+    var tipo = "pf";
+    var marcado = form && form.querySelector('input[name="tipo"]:checked');
+    if (marcado && marcado.value) tipo = String(marcado.value).toLowerCase();
+    var nome = String(dados.get("nome") || "").trim();
+    var celular = String(dados.get("celular") || "").trim();
+    return {
+      tipo: tipo === "pj" ? "pj" : "pf",
+      nome: nome,
+      documento: String(dados.get("documento") || "").trim(),
+      telefone: celular,
+      celular: celular,
+      email: String(dados.get("email") || "").trim(),
+      cep: String(dados.get("cep") || "").trim(),
+      endereco: String(dados.get("endereco") || "").trim(),
+      numero: String(dados.get("numero") || "").trim(),
+      bairro: String(dados.get("bairro") || "").trim(),
+      cidade: String(dados.get("cidade") || "").trim(),
+      uf: String(dados.get("uf") || "").trim().toUpperCase()
+    };
+  }
+
+  function descartarListaPublicada() {
+    window.listaIntencoesVoz = [];
+    window.gvIntencoes = [];
+    var campo = document.querySelector('input[name="gv-intencoes"]');
+    if (campo) campo.value = "";
+    try { sessionStorage.removeItem("gv-intencoes"); } catch (erro) { /* o navegador pode bloquear o armazenamento */ }
+    var marcador = document.querySelector("[data-gv-voz-resumo]");
+    if (marcador) marcador.remove();
+  }
+
+  function abrirWhatsApp(texto) {
+    var digitos = "5527998021221";
+    var url = "https://wa.me/" + digitos + "?text=" + encodeURIComponent(texto);
+    var aba = null;
+    try { aba = window.open(url, "whatsapp-gigaeletro"); } catch (erro) { aba = null; }
+    if (aba) return;
+    var link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  function soltarConfirmar() {
+    if (!confirmarLista) return;
+    delete confirmarLista.dataset.gvEnviando;
+    confirmarLista.textContent = "Confirmar e Enviar Lista";
+    confirmarLista.disabled = !intencoes.length;
+  }
+
   function confirmarEnvio() {
-    if (!intencoes.length || !gravador) return;
+    if (!intencoes.length || !gravador || !confirmarLista) return;
+    if (confirmarLista.dataset.gvEnviando === "1") return;
+    mostrarAvisoLista("");
+    if (!formularioAmareloPronto()) {
+      mostrarAvisoLista("Preencha o formulário amarelo antes de confirmar a lista.");
+      focarDocumento();
+      return;
+    }
+    var cliente = lerFormularioAmarelo();
     var pacote = intencoes.map(function (item) {
-      return { qtd: item.qtd, texto: item.texto, rotulo: rotulo(item) };
+      return { qtd: item.qtd || 1, texto: item.texto, rotulo: rotulo(item) };
+    }).filter(function (item) { return item.rotulo; });
+    if (!pacote.length) return;
+    confirmarLista.dataset.gvEnviando = "1";
+    confirmarLista.disabled = true;
+    confirmarLista.textContent = "Enviando...";
+    fetch("/api/orcamentos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tipo: "intencoes",
+        nome: cliente.nome,
+        documento: cliente.documento,
+        telefone: cliente.telefone,
+        cliente: cliente,
+        textos: pacote.map(function (item) { return item.rotulo; }),
+        itens: pacote.map(function (item) {
+          return { codigo: "", produto: item.rotulo, qtd: item.qtd || 1, preco: 0 };
+        })
+      })
+    }).then(function (resposta) {
+      return resposta.json().catch(function () { return null; }).then(function (corpo) {
+        if (!resposta.ok || !corpo || !corpo.ok || !corpo.id) throw new Error("envio");
+        return corpo;
+      });
+    }).then(function (corpo) {
+      var link = "https://gigaeletro.vercel.app/api/pdf/" + corpo.id;
+      descartarListaPublicada();
+      limparIntencoes();
+      pararEscuta();
+      gravador.hidden = true;
+      definirCatalogo(true);
+      abrirWhatsApp(link);
+    }).catch(function () {
+      mostrarAvisoLista("Não foi possível enviar a lista. Revise o formulário e tente de novo.");
+      soltarConfirmar();
     });
-    var bloco = pacote.map(function (item) { return item.rotulo; }).join("\n");
-    gravador.dataset.gvTexto = bloco;
-    gravador.dataset.gvItens = JSON.stringify(pacote);
-    publicarNoOrcamento(pacote, bloco);
-    gvValidarEForçarEnvio();
-    pararEscuta();
-    gravador.hidden = true;
-    focarDocumento();
   }
 
   function iniciar() {

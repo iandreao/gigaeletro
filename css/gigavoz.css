@@ -414,38 +414,56 @@
   display: none !important;
 }
 
+.gv-recorder-container:has(.gv-intencoes:not([hidden])) {
+  overflow: hidden;
+}
+
+.gv-recorder-container:has(.gv-intencoes:not([hidden])) .gv-recorder-titulo {
+  display: none;
+}
+
 .gv-intencoes {
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
   width: 100%;
+  min-height: 0;
   margin: 0;
   text-align: left;
 }
 
 .gv-intencoes-titulo {
-  margin: 0 0 12px;
+  flex: none;
+  margin: 0 0 4px;
   color: #1a1a1a;
-  font-size: 1rem;
-  font-weight: 800;
-  line-height: 1.3;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.15;
   text-align: center;
 }
 
 .gv-intencoes-lista {
   list-style: none;
+  flex: 1 1 auto;
   width: 100%;
+  min-height: 0;
+  max-height: 215px;
   margin: 0;
-  padding: 0;
+  padding: 0 2px 0 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .gv-intencao {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   box-sizing: border-box;
-  margin: 0 0 8px;
-  padding: 8px 8px 8px 10px;
+  margin: 0 0 4px;
+  padding: 3px 4px 3px 8px;
   border: 1px solid rgba(0, 0, 0, 0.18);
-  border-radius: 0.75rem;
+  border-radius: 0.45rem;
   background: #ffffff;
 }
 
@@ -457,19 +475,19 @@
 .gv-intencao-texto {
   display: block;
   color: #1a1a1a;
-  font-size: 0.95rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.15;
   overflow-wrap: anywhere;
 }
 
 input.gv-intencao-editor {
   box-sizing: border-box;
   width: 100%;
-  height: 36px;
-  min-height: 36px;
+  height: 28px;
+  min-height: 28px;
   margin: 0;
-  padding: 6px 8px;
+  padding: 2px 6px;
   border: 1px solid #d1d5db;
   border-radius: 0.55rem;
   background: #ffffff;
@@ -492,10 +510,10 @@ input.gv-intencao-editor {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 36px;
-  min-height: 36px;
+  min-width: 28px;
+  min-height: 28px;
   margin: 0;
-  padding: 0 8px;
+  padding: 0 6px;
   border: 1px solid rgba(0, 0, 0, 0.18);
   border-radius: 0.55rem;
   background: #ffffff;
@@ -529,9 +547,10 @@ input.gv-intencao-editor {
 
 .gv-intencoes-add {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 8px;
-  margin: 4px 0 0;
+  gap: 6px;
+  margin: 6px 0 0;
 }
 
 input.gv-intencoes-input {
@@ -581,14 +600,34 @@ input.gv-intencoes-input {
   outline-offset: 2px;
 }
 
+.gv-intencoes-espaco {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.gv-intencoes-aviso {
+  flex: none;
+  margin: 6px 0 0;
+  color: #1a1a1a;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.gv-intencoes-aviso[hidden] {
+  display: none !important;
+}
+
 .gv-intencoes-confirmar {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 44px;
-  margin: 12px 0 0;
-  padding: 0.55rem 1rem;
+  min-height: 34px;
+  margin: 8px 0 0;
+  padding: 0.2rem 0.7rem;
   border: 1px solid #000;
   border-radius: 0.55rem;
   background: #000;
@@ -596,7 +635,7 @@ input.gv-intencoes-input {
   font: inherit;
   font-size: 0.95rem;
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1.1;
   cursor: pointer;
 }
 
@@ -619,4 +658,9 @@ input.gv-intencoes-input {
 
 .quote-side:has([data-gv-voz-resumo]) [data-envio-aviso]:not(.gv-aviso-livre) {
   display: none !important;
+}
+
+#btnVerCatalogo:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

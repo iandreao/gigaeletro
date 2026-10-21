@@ -947,13 +947,29 @@
     campo.focus();
   }
 
+  function limparVozDoOrcamento() {
+    window.listaIntencoesVoz = [];
+    window.gvIntencoes = [];
+    var campo = document.querySelector('input[name="gv-intencoes"]');
+    if (campo) campo.value = "";
+    try { sessionStorage.removeItem("gv-intencoes"); } catch (erro) { /* o navegador pode bloquear o armazenamento */ }
+    Array.prototype.forEach.call(document.querySelectorAll("[data-gv-voz-resumo]"), function (marcador) {
+      marcador.remove();
+    });
+  }
+
   function limparDepoisDoEnvio() {
     var fisico = formCliente && formCliente.querySelector('input[name="tipo"][value="pf"]');
     if (fisico) fisico.checked = true;
     limparCamposCliente();
     selecionados = [];
+    limparVozDoOrcamento();
     salvarPedido();
     renderResumo();
+    if (resumoVazio && !selecionados.length) {
+      resumoVazio.hidden = false;
+      resumoVazio.textContent = "Nenhum produto no orçamento.";
+    }
     orcamentoSendoEditadoId = "";
     orcamentoSendoEditadoDocumento = "";
     if (enviar) enviar.textContent = "Enviar Orçamento";

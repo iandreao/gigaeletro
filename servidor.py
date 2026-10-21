@@ -754,6 +754,71 @@ def baixar_pdf_blob(ident):
     return conteudo
 
 
+def _pdf_literal(texto):
+    dados = str(texto or "").encode("cp1252", "replace")
+    saida = bytearray()
+    for byte in dados:
+        if byte in (40, 41, 92):
+            saida.extend(b"\\" + bytes((byte,)))
+        elif 32 <= byte <= 126:
+            saida.append(byte)
+        else:
+            saida.extend(("\\%03o" % byte).encode("ascii"))
+    return b"(" + bytes(saida) + b")"
+
+
+def pdf_intencoes(nome, telefone, linhas):
+    cabecalho = [
+        "Lista de Produtos Solicitados",
+        "Cliente: " + (str(nome or "").strip() or "-"),
+        "Contato: " + (str(telefone or "").strip() or "-"),
+        "",
+    ]
+    corpo = cabecalho + [str(linha).strip()[:180] for linha in linhas if str(linha or "").strip()]
+    if len(corpo) == len(cabecalho):
+        corpo.append("Sem itens.")
+    margem = 48
+    salto = 16
+    capacidade = max(1, (842 - margem * 2) // salto)
+    fatias = [corpo[indice:indice + capacidade] for indice in range(0, len(corpo), capacidade)]
+    fluxos = []
+    for fatia in fatias:
+        comandos = [b"BT", b"/F1 11 Tf", b"%d %d Td" % (margem, 842 - margem)]
+        for posicao, texto in enumerate(fatia):
+            if posicao:
+                comandos.append(b"0 -%d Td" % salto)
+            comandos.append(_pdf_literal(texto) + b" Tj")
+        comandos.append(b"ET")
+        fluxos.append(b"\n".join(comandos))
+    total = 3 + len(fluxos) * 2
+    objetos = [b""] * total
+    kids = []
+    for indice, fluxo in enumerate(fluxos):
+        numero_pagina = 4 + indice * 2
+        numero_fluxo = numero_pagina + 1
+        kids.append("%d 0 R" % numero_pagina)
+        objetos[numero_pagina - 1] = (
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents %d 0 R /Resources << /Font << /F1 3 0 R >> >> >>"
+            % numero_fluxo
+        ).encode("ascii")
+        objetos[numero_fluxo - 1] = (b"<< /Length %d >>\nstream\n" % len(fluxo)) + fluxo + b"\nendstream"
+    objetos[0] = b"<< /Type /Catalog /Pages 2 0 R >>"
+    objetos[1] = ("<< /Type /Pages /Count %d /Kids [%s] >>" % (len(fluxos), " ".join(kids))).encode("ascii")
+    objetos[2] = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+    partes = [b"%PDF-1.4\n"]
+    offsets = [0]
+    for indice, objeto in enumerate(objetos, start=1):
+        offsets.append(sum(len(parte) for parte in partes))
+        partes.append(("%d 0 obj\n" % indice).encode("ascii") + objeto + b"\nendobj\n")
+    xref = sum(len(parte) for parte in partes)
+    partes.append(("xref\n0 %d\n" % (total + 1)).encode("ascii"))
+    partes.append(b"0000000000 65535 f \n")
+    for deslocamento in offsets[1:]:
+        partes.append(("%010d 00000 n \n" % deslocamento).encode("ascii"))
+    partes.append(("trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF" % (total + 1, xref)).encode("ascii"))
+    return b"".join(partes)
+
+
 def guardar_pdf(nome, conteudo):
     if not conteudo or not conteudo.startswith(b"%PDF") or len(conteudo) > LIMITE_PDF:
         raise ValueError("pdf")
@@ -1129,6 +1194,57 @@ def atualizar_atendimento_painel(identificador, status=None, vendedor=None):
     return True
 
 
+def linhas_intencoes(corpo):
+    linhas = []
+    textos = corpo.get("textos") if isinstance(corpo, dict) else None
+    if isinstance(textos, list):
+        for item in textos:
+            texto = str(item or "").strip()[:160]
+            if texto:
+                linhas.append(texto)
+    if linhas:
+        return linhas[:200]
+    itens = corpo.get("itens") if isinstance(corpo, dict) else None
+    if isinstance(itens, list):
+        for item in itens:
+            if isinstance(item, dict):
+                texto = str(item.get("produto") or item.get("rotulo") or item.get("texto") or "").strip()[:160]
+            else:
+                texto = str(item or "").strip()[:160]
+            if texto:
+                linhas.append(texto)
+    return linhas[:200]
+
+
+def registrar_intencoes(corpo):
+    if not isinstance(corpo, dict):
+        return None
+    linhas = linhas_intencoes(corpo)
+    if not linhas:
+        return None
+    pedido = dict(corpo)
+    pedido["tipo"] = "intencoes"
+    pedido["itens"] = []
+    for linha in linhas:
+        pedido["itens"].append({"codigo": "", "produto": linha, "qtd": 1, "preco": 0})
+    brutos = corpo.get("itens")
+    if isinstance(brutos, list) and normalizar_itens_painel(brutos):
+        pedido["itens"] = brutos
+    if not normalizar_itens_painel(pedido["itens"]):
+        return None
+    nome = str(pedido.get("nome") or "").strip()[:120]
+    documento = apenas_digitos(pedido.get("documento") or "")
+    telefone = apenas_digitos(pedido.get("telefone") or "")
+    if not nome or not (cpf_valido(documento) or cnpj_valido(documento)) or not telefone_painel_valido(telefone):
+        return None
+    pedido["pdfId"] = guardar_pdf(nome, pdf_intencoes(nome, formatar_telefone(telefone), linhas))
+    registro = incluir_orcamento_painel(pedido)
+    if not registro:
+        return None
+    registro["pdfId"] = pedido["pdfId"]
+    return registro
+
+
 def incluir_orcamento_painel(corpo):
     if not isinstance(corpo, dict):
         return None
@@ -1238,6 +1354,17 @@ def responder_orcamentos(saida):
             return
         escrever_json(saida, {"ok": True})
         return
+    if str(corpo.get("tipo") or "").strip().lower() == "intencoes":
+        try:
+            registro = registrar_intencoes(corpo)
+        except (OSError, ValueError):
+            escrever_json(saida, {"ok": False, "erro": "Não foi possível gravar o orçamento."}, 500)
+            return
+        if not registro or not registro.get("pdfId"):
+            escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
+            return
+        escrever_json(saida, {"ok": True, "id": registro["pdfId"]})
+        return
     try:
         registro = incluir_orcamento_painel(corpo)
     except OSError:
@@ -1341,6 +1468,14 @@ class Handler(SimpleHTTPRequestHandler):
             responder_orcamentos(self)
             return
         if caminho == "/api/ver-pdf":
+            responder_ver_pdf(self)
+            return
+        if caminho.startswith("/api/pdf/"):
+            ident = caminho[len("/api/pdf/"):].strip("/")
+            if not id_pdf_valido(ident):
+                self.send_error(404)
+                return
+            self.path = "/api/ver-pdf?id=" + ident
             responder_ver_pdf(self)
             return
         if caminho == "/admin-estoque":

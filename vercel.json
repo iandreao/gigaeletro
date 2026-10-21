@@ -16,6 +16,7 @@
     }
   ],
   "routes": [
+    { "src": "/api/pdf/([A-Za-z0-9-]+)", "dest": "/api/ver-pdf.py?id=$1" },
     { "src": "/api/(.*)", "dest": "/api/$1.py" },
     { "src": "/admin-estoque", "dest": "/admin.html" },
     { "handle": "filesystem" }
