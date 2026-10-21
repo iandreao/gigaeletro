@@ -63,7 +63,7 @@
   }
 
   function definirCatalogo(ativo) {
-    /* Comando de voz trava o catálogo até o envio ou o Início. */
+    /* Produtos fica travado somente enquanto o Comando de Voz é o modelo ativo. */
     if (catalogoTravado) ativo = false;
     botoesCatalogo().forEach(function (botao) {
       botao.disabled = !ativo;
@@ -87,7 +87,8 @@
 
   function reabrirBoasVindas() {
     pararEscuta();
-    definirCatalogo(true);
+    /* A escolha ainda não é voz: o catálogo tradicional volta. */
+    liberarCatalogo();
     limparTranscricao();
     limparIntencoes();
     if (gravador) gravador.hidden = true;
@@ -117,9 +118,9 @@
 
   function desligarModoGigaVoz() {
     pararEscuta();
-    /* Fecha a voz. O catálogo só destrava no Enviar Orçamento ou no Início. */
+    /* Tradicional ativo: o orçamento permanece e Produtos volta na hora. */
     modoIntencoes = false;
-    definirCatalogo(true);
+    liberarCatalogo();
     limparTranscricao();
     limparIntencoes();
     if (gravador) gravador.hidden = true;
@@ -132,12 +133,7 @@
 
   function alternarTipoOrcamento(evento) {
     if (evento) evento.preventDefault();
-    var saindoDaVoz = modoIntencoes || !!(gravador && !gravador.hidden);
-    var abrindoTroca = !modoGigaVozAberto();
-    /* Trava híbrida: zera o quadro antes de sair da voz ou de abrir a troca de modelo. */
-    if (saindoDaVoz || abrindoTroca) {
-      document.dispatchEvent(new CustomEvent("gv-limpar-orcamento"));
-    }
+    /* A troca de modelo não apaga selecionados. A limpeza ocorre só ao inserir o modelo oposto. */
     if (modoGigaVozAberto()) desligarModoGigaVoz();
     else reabrirBoasVindas();
   }
@@ -145,7 +141,7 @@
   function fecharBoasVindas() {
     if (!raiz) return;
     modoIntencoes = false;
-    definirCatalogo(true);
+    liberarCatalogo();
     raiz.remove();
     raiz = null;
     refletirTipoOrcamento();
@@ -223,8 +219,6 @@
   }
 
   function abrirGravador() {
-    /* Entrada no comando de voz: o orçamento tradicional sai antes da lista falada. */
-    document.dispatchEvent(new CustomEvent("gv-limpar-orcamento"));
     if (raiz) {
       raiz.remove();
       raiz = null;

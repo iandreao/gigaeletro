@@ -253,8 +253,6 @@
     });
   }
 
-  document.addEventListener("gv-limpar-orcamento", zerarQuadroOrcamento);
-
   var documentoConsulta = "";
   var historicoConsulta = [];
   var historicoPedido = 0;
@@ -339,7 +337,12 @@
   });
 
   function adicionar(codigo) {
-    if (document.body.dataset.gvCatalogoTravado === "1" || selecionados.some(itemVoz)) return;
+    if (document.body.dataset.gvCatalogoTravado === "1") return;
+    /* Item de catálogo entra no lugar da lista de voz, e só neste momento. */
+    if (selecionados.some(itemVoz)) {
+      selecionados = selecionados.filter(function (item) { return !itemVoz(item); });
+      limparVozDoOrcamento();
+    }
     var produto = catalogo.find(function (item) { return item.codigo === codigo; });
     if (!produto) return;
     var atual = selecionados.find(function (item) { return item.codigo === codigo; });
@@ -410,8 +413,8 @@
   }
 
   function setCatalogo(aberto) {
-    /* Trava híbrida: catálogo tradicional não abre com comando de voz ativo ou com itens de voz. */
-    if (aberto && (document.body.dataset.gvCatalogoTravado === "1" || selecionados.some(itemVoz))) return;
+    /* O catálogo abre no modo tradicional, mesmo que ainda exista lista de voz no quadro. */
+    if (aberto && document.body.dataset.gvCatalogoTravado === "1") return;
     if (aberto) {
       setHistorico(false);
       setRestrita(false);
@@ -774,13 +777,13 @@
       var texto = textoOrcamento(cliente, subtotal, idSalvo);
       return publicarPainel(cliente, idSalvo).then(function () {
         limparDepoisDoEnvio();
-        mostrarAviso("Orçamento enviado com sucesso para o WhatsApp!");
+        mostrarSucessoEnvio();
         dispararWhatsApp(texto);
       });
     }, function () {
       return publicarPainel(cliente, "").then(function () {
         limparDepoisDoEnvio();
-        mostrarAviso("Orçamento enviado com sucesso para o WhatsApp!");
+        mostrarSucessoEnvio();
         dispararWhatsApp(textoSemPdf);
       });
     }).then(function () {
@@ -843,8 +846,30 @@
     }).catch(function () { return null; });
   }
 
+  var timerSucessoEnvio = 0;
+
+  function mostrarSucessoEnvio() {
+    mostrarAviso("Orçamento enviado com sucesso via Whatsapp");
+  }
+
+  function encerrarSucessoEnvio() {
+    timerSucessoEnvio = 0;
+    if (!avisoEnvio || !avisoEnvio.classList.contains("gv-aviso-sucesso")) return;
+    avisoEnvio.classList.remove("gv-aviso-sucesso");
+    avisoEnvio.hidden = true;
+    avisoEnvio.textContent = "";
+    if (resumoVazio && !selecionados.length) {
+      resumoVazio.hidden = false;
+      resumoVazio.textContent = "Nenhum produto no orçamento.";
+    }
+  }
+
   function mostrarAviso(texto) {
     if (!avisoEnvio) return;
+    if (timerSucessoEnvio) {
+      window.clearTimeout(timerSucessoEnvio);
+      timerSucessoEnvio = 0;
+    }
     var quadro = document.querySelector(".quote-side") || document.querySelector("#carrinho");
     var listaVozNaTela = !!(quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1);
     if (String(texto || "").indexOf("Adicione ao menos um produto") !== -1 && (listaVozNaTela || itensVoz().length >= 1 || vozInclusa())) {
@@ -856,9 +881,13 @@
       return;
     }
     avisoEnvio.classList.add("gv-aviso-livre");
+    avisoEnvio.classList.toggle("gv-aviso-sucesso", texto === "Orçamento enviado com sucesso via Whatsapp");
     avisoEnvio.hidden = false;
     avisoEnvio.style.display = "";
     avisoEnvio.textContent = texto;
+    if (avisoEnvio.classList.contains("gv-aviso-sucesso")) {
+      timerSucessoEnvio = window.setTimeout(encerrarSucessoEnvio, 5000);
+    }
   }
 
   function lerCliente() {
@@ -1254,7 +1283,7 @@
 
   function incluirItensVoz(pacote) {
     if (!Array.isArray(pacote)) return;
-    /* Trava híbrida: item de catálogo não permanece junto da lista falada. */
+    /* Confirmar a lista de voz substitui os itens de catálogo. A troca de modo não faz isso. */
     if (selecionados.some(function (item) { return !itemVoz(item); })) selecionados = [];
     var carimbo = Date.now().toString(36);
     pacote.forEach(function (item, indice) {
