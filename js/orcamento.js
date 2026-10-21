@@ -583,6 +583,10 @@
     return digitos;
   }
 
+  function modeloComandoDeVoz() {
+    return document.body.dataset.gvCatalogoTravado === "1";
+  }
+
   function textoOrcamento(cliente, subtotal, id) {
     const valorTotal = numero(subtotal);
     const idOrcamento = String(id || "").trim();
@@ -591,16 +595,12 @@
       : String((cliente && cliente.nome) || "").trim();
     const celularCliente = String((cliente && cliente.celular) || "").trim();
     const contatoCliente = `${nomeCliente} – Contato ${celularCliente}`;
-
-    if (vozInclusa()) {
-      const lista = textoListaVoz();
-      const saudacao = "Olá, abaixo segue a lista dos produtos para orçamento.";
-      return (lista ? saudacao + "\n" + lista : saudacao) + "\n\n\n" + contatoCliente;
+    const link = "https://gigaeletro.vercel.app/api/ver-pdf?id=" + idOrcamento;
+    /* O texto segue o modelo ativo, e não o tipo de item que ainda esteja no quadro. */
+    if (modeloComandoDeVoz()) {
+      return "Olá, segue lista de produtos para orçamento. Clicar no link para visualizar.\n\n" + link + "\n\n" + contatoCliente;
     }
-
-    const textoWhats = `Olá, segue orçamento no valor de R$ ${valorTotal}. Clicar no link para visualizar.\n\nhttps://gigaeletro.vercel.app/api/ver-pdf?id=${idOrcamento}\n\n${contatoCliente}`;
-
-    return textoWhats;
+    return "Olá, segue orçamento no valor de R$ " + valorTotal + ". Clicar no link para visualizar.\n\n" + link + "\n\n" + contatoCliente;
   }
 
   function urlWhatsApp(texto) {
@@ -886,7 +886,7 @@
     avisoEnvio.style.display = "";
     avisoEnvio.textContent = texto;
     if (avisoEnvio.classList.contains("gv-aviso-sucesso")) {
-      timerSucessoEnvio = window.setTimeout(encerrarSucessoEnvio, 5000);
+      timerSucessoEnvio = window.setTimeout(encerrarSucessoEnvio, 30000);
     }
   }
 
@@ -1267,14 +1267,6 @@
     avisoEnvio.style.display = "none";
     avisoEnvio.hidden = true;
     avisoEnvio.textContent = "";
-  }
-
-  function textoListaVoz() {
-    var linhas = itensVoz().map(function (item) {
-      return String((item && (item.rotulo || item.texto)) || "").trim();
-    }).filter(Boolean);
-    if (!linhas.length) return "";
-    return linhas.join("\n");
   }
 
   function itemVoz(item) {
