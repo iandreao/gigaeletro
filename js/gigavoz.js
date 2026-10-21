@@ -247,39 +247,72 @@
     alinharComEnvio();
   }
 
+  function medirColunaCentral() {
+    var formulario = document.querySelector(".hero-centro .cliente-form") || document.querySelector(".cliente-form");
+    if (!formulario) return null;
+    var formRect = formulario.getBoundingClientRect();
+    if (formRect.width < 1) return null;
+    var tipo = formulario.querySelector(".form-tipo") || formulario.querySelector(".tipo-pessoa");
+    var catalogo = document.getElementById("btnVerCatalogo");
+    var tipoRect = tipo ? tipo.getBoundingClientRect() : null;
+    var catRect = catalogo ? catalogo.getBoundingClientRect() : null;
+    var topo = tipoRect ? tipoRect.bottom + 12 : formRect.top;
+    var base = catRect && catRect.top > topo + 120 ? catRect.top - 8 : formRect.bottom;
+    return {
+      left: formRect.left,
+      width: formRect.width,
+      top: topo,
+      height: Math.max(160, base - topo)
+    };
+  }
+
+  function publicarColuna(medida) {
+    if (!medida) return;
+    var raizCss = document.documentElement;
+    /* Largura e coluna do formulário, compartilhadas pela escolha e pelo microfone. */
+    raizCss.style.setProperty("--gv-escolha-largura", medida.width + "px");
+    raizCss.style.setProperty("--gv-escolha-esq", medida.left + "px");
+    raizCss.style.setProperty("--gv-escolha-topo", medida.top + "px");
+    raizCss.style.setProperty("--gv-escolha-altura", medida.height + "px");
+  }
+
   function alinharEscolha() {
     var modal = document.querySelector(".gv-welcome-modal");
-    var coluna = document.querySelector(".hero-centro .hero-acao") || document.querySelector(".hero-acao");
-    var formulario = document.querySelector(".hero-centro .cliente-form") || document.querySelector(".cliente-form");
-    if (!modal || !formulario) return;
-    var alvo = coluna || formulario;
-    var colunaRect = alvo.getBoundingClientRect();
-    var formRect = formulario.getBoundingClientRect();
-    if (formRect.width < 1 || colunaRect.height < 1) return;
-    /* A largura segue o formulário. A altura cobre a coluna central inteira. */
-    var raizCss = document.documentElement;
-    raizCss.style.setProperty("--gv-escolha-largura", formRect.width + "px");
-    raizCss.style.setProperty("--gv-escolha-esq", formRect.left + "px");
-    raizCss.style.setProperty("--gv-escolha-topo", colunaRect.top + "px");
-    raizCss.style.setProperty("--gv-escolha-altura", colunaRect.height + "px");
+    var medida = medirColunaCentral();
+    if (!medida) return;
+    publicarColuna(medida);
+    if (!modal) return;
+  }
+
+  function posicionarGravador() {
+    if (!gravador || gravador.hidden) return;
+    var medida = medirColunaCentral();
+    if (!medida) return;
+    publicarColuna(medida);
+    gravador.style.left = medida.left + "px";
+    gravador.style.width = medida.width + "px";
+    gravador.style.maxWidth = medida.width + "px";
+    gravador.style.right = "auto";
+    gravador.style.transform = "none";
   }
 
   function alinharComEnvio() {
     if (!gravador) return;
+    posicionarGravador();
     var listaAberta = painelLista && !painelLista.hidden && !gravador.hidden;
     var enviar = document.querySelector(".quote-side [data-enviar]");
     var estreito = window.matchMedia("(max-width: 767px)").matches;
     if (!listaAberta || estreito || !enviar || !confirmarLista) {
       gravador.style.height = "";
-      gravador.style.top = "";
-      gravador.style.transform = "";
       gravador.style.maxHeight = "";
+      var alturaCaixa = gravador.offsetHeight || 280;
+      var topoCaixa = Math.max(12, Math.round((window.innerHeight - alturaCaixa) / 2));
+      gravador.style.top = topoCaixa + "px";
       return;
     }
     var topo = 16;
     var maximo = Math.max(240, Math.round(window.innerHeight - topo - 12));
     gravador.style.top = topo + "px";
-    gravador.style.transform = "translateX(-50%)";
     gravador.style.maxHeight = maximo + "px";
     gravador.style.height = maximo + "px";
     var delta = enviar.getBoundingClientRect().bottom - confirmarLista.getBoundingClientRect().bottom;
