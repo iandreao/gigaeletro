@@ -105,39 +105,6 @@
   outline-offset: 2px;
 }
 
-.gv-back-to-welcome {
-  position: fixed;
-  z-index: 36;
-  top: 6px;
-  right: 12px;
-  display: inline-flex;
-  align-items: center;
-  max-width: calc(100% - 24px);
-  margin: 0;
-  padding: 5px 10px;
-  border: 1px solid #1a1a1a;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #1a1a1a;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  font-family: "Manrope", "Segoe UI", sans-serif;
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.2;
-  cursor: pointer;
-}
-
-.gv-back-to-welcome[hidden] {
-  display: none !important;
-}
-
-.gv-back-to-welcome:hover,
-.gv-back-to-welcome:focus-visible {
-  background: #fcd800;
-  outline: 2px solid #1a1a1a;
-  outline-offset: 2px;
-}
-
 .gv-card-selo {
   display: inline-block;
   padding: 3px 8px;
@@ -224,12 +191,6 @@
 
   .gv-titulo {
     font-size: 0.98rem;
-  }
-
-  .gv-back-to-welcome {
-    font-size: 0.68rem;
-    line-height: 1.15;
-    text-align: center;
   }
 }
 

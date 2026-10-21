@@ -973,6 +973,7 @@
     orcamentoSendoEditadoId = "";
     orcamentoSendoEditadoDocumento = "";
     if (enviar) enviar.textContent = "Enviar Orçamento";
+    document.dispatchEvent(new CustomEvent("gv-orcamento-enviado"));
   }
 
   function preencherCliente(cliente) {

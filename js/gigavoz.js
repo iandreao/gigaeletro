@@ -7,7 +7,6 @@
   var NUMEROS = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, cem: 100 };
 
   var raiz = null;
-  var retorno = null;
   var gravador = null;
   var captura = null;
   var botaoMic = null;
@@ -28,6 +27,7 @@
   var ouvindo = false;
   var iniciando = false;
   var erroAtivo = false;
+  var modoIntencoes = false;
 
   function criarTela() {
     var fundo = document.createElement("div");
@@ -36,7 +36,7 @@
       '<div class="gv-welcome-modal" role="dialog" aria-modal="true" aria-labelledby="gv-titulo">' +
         '<div class="gv-etapa" data-gv-etapa="escolha">' +
           '<img class="gv-logo" src="assets/logo-gigaeletro.jpg?v=3" width="366" height="184" alt="Gigaeletro Material Elétrico">' +
-          '<h2 class="gv-titulo" id="gv-titulo">Olá, seja muito bem-vindo! É um grande prazer atender — escolha a forma que deseja solicitar seu orçamento.</h2>' +
+          '<h2 class="gv-titulo" id="gv-titulo">Olá, seja muito bem-vindo! É um grande prazer atendê-lo — escolha o Tipo de Orçamento que preferir.</h2>' +
           '<div class="gv-cards">' +
             '<button class="gv-card" type="button" data-gv-acao="catalogo">' +
               '<span class="gv-card-selo">Tradicional</span>' +
@@ -53,47 +53,6 @@
       "</div>";
     fundo.addEventListener("click", aoClicar);
     return fundo;
-  }
-
-  function ancoraRetorno() {
-    var estreito = window.matchMedia("(max-width: 767px)").matches;
-    return document.querySelector(estreito ? ".nav-toggle" : ".nav");
-  }
-
-  function posicionarRetorno() {
-    if (!retorno || retorno.hidden) return;
-    var ancora = ancoraRetorno();
-    if (!ancora) return;
-    var rect = ancora.getBoundingClientRect();
-    var estreito = window.matchMedia("(max-width: 767px)").matches;
-    if (estreito) {
-      var logo = document.querySelector(".brand");
-      var livre = logo ? rect.left - logo.getBoundingClientRect().right - 16 : 140;
-      retorno.style.maxWidth = Math.max(96, Math.round(livre)) + "px";
-      retorno.style.whiteSpace = "normal";
-    } else {
-      retorno.style.maxWidth = "";
-      retorno.style.whiteSpace = "";
-    }
-    var altura = retorno.offsetHeight || 26;
-    var topo = rect.top + Math.max(0, (rect.height - altura) / 2);
-    retorno.style.top = Math.max(4, Math.round(topo)) + "px";
-    retorno.style.right = Math.max(8, Math.round(window.innerWidth - rect.left + 8)) + "px";
-    retorno.style.left = "auto";
-  }
-
-  function garantirRetorno() {
-    if (retorno) return retorno;
-    retorno = document.createElement("button");
-    retorno.type = "button";
-    retorno.className = "gv-back-to-welcome";
-    retorno.textContent = "🔄 Mudar modo de atendimento";
-    retorno.hidden = true;
-    retorno.addEventListener("click", reabrirBoasVindas);
-    window.addEventListener("resize", posicionarRetorno);
-    window.addEventListener("resize", alinharComEnvio);
-    document.body.appendChild(retorno);
-    return retorno;
   }
 
   function botaoCatalogo() {
@@ -118,15 +77,16 @@
       raiz.remove();
       raiz = null;
     }
+    modoIntencoes = false;
     raiz = criarTela();
     document.body.appendChild(raiz);
-    garantirRetorno().hidden = true;
     refletirTipoOrcamento();
     var primeiro = raiz.querySelector('[data-gv-acao="catalogo"]');
     if (primeiro) primeiro.focus();
   }
 
   function modoGigaVozAberto() {
+    if (modoIntencoes) return true;
     if (raiz && document.body.contains(raiz)) return true;
     return !!(gravador && !gravador.hidden);
   }
@@ -139,6 +99,8 @@
 
   function desligarModoGigaVoz() {
     pararEscuta();
+    /* Volta ao modo Tradicional: único desbloqueio manual do catálogo. */
+    modoIntencoes = false;
     definirCatalogo(true);
     limparTranscricao();
     limparIntencoes();
@@ -147,7 +109,6 @@
       raiz.remove();
       raiz = null;
     }
-    if (retorno) retorno.hidden = true;
     refletirTipoOrcamento();
   }
 
@@ -159,11 +120,10 @@
 
   function fecharBoasVindas() {
     if (!raiz) return;
+    modoIntencoes = false;
     definirCatalogo(true);
     raiz.remove();
     raiz = null;
-    garantirRetorno().hidden = false;
-    posicionarRetorno();
     refletirTipoOrcamento();
     var campo = document.querySelector('.cliente-form input[name="documento"]');
     if (campo) campo.focus();
@@ -252,10 +212,9 @@
     erroAtivo = false;
     statusEl.textContent = TEXTO_INICIAL;
     gravador.hidden = false;
+    modoIntencoes = true;
     definirCatalogo(false);
     refletirTipoOrcamento();
-    garantirRetorno().hidden = false;
-    posicionarRetorno();
     botaoMic.focus();
   }
 
@@ -912,6 +871,14 @@
     pararEscuta();
     limparIntencoes();
     gravador.hidden = true;
+    /* A lista já entrou no orçamento: o catálogo continua bloqueado. */
+    modoIntencoes = true;
+    definirCatalogo(false);
+    refletirTipoOrcamento();
+  }
+
+  function liberarCatalogoAposEnvio() {
+    modoIntencoes = false;
     definirCatalogo(true);
     refletirTipoOrcamento();
   }
@@ -919,7 +886,8 @@
   function iniciar() {
     if (!document.body || !document.body.classList.contains("home")) return;
     if (document.querySelector(".gv-backdrop")) return;
-    garantirRetorno();
+    window.addEventListener("resize", alinharComEnvio);
+    document.addEventListener("gv-orcamento-enviado", liberarCatalogoAposEnvio);
     var formulario = document.querySelector("form");
     if (formulario && !formulario.dataset.gvForcaEnvio) {
       formulario.dataset.gvForcaEnvio = "1";
