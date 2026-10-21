@@ -41,13 +41,11 @@
           '<div class="gv-cards">' +
             '<button class="gv-card" type="button" data-gv-acao="catalogo">' +
               '<span class="gv-card-selo">Tradicional</span>' +
-              '<span class="gv-card-titulo">Consultar Catálogo de Produtos</span>' +
-              '<span class="gv-card-texto">Use o formulário e o catálogo que já estão na página.</span>' +
+              '<span class="gv-card-titulo">Consulta Catálogo de Produtos</span>' +
             "</button>" +
             '<button class="gv-card" type="button" data-gv-acao="voz">' +
               '<span class="gv-card-selo">Comando de voz</span>' +
-              '<span class="gv-card-titulo">Falar os Produtos que Deseja</span>' +
-              '<span class="gv-card-texto">Informe os itens por voz no tradutor GigaVoz.</span>' +
+              '<span class="gv-card-titulo">Fale os Produtos que Deseja</span>' +
             "</button>" +
           "</div>" +
         "</div>" +
@@ -99,6 +97,7 @@
     modoIntencoes = false;
     raiz = criarTela();
     document.body.appendChild(raiz);
+    alinharEscolha();
     refletirTipoOrcamento();
     var primeiro = raiz.querySelector('[data-gv-acao="catalogo"]');
     if (primeiro) primeiro.focus();
@@ -247,6 +246,23 @@
       titulo.textContent = "Comando de voz";
     }
     alinharComEnvio();
+  }
+
+  function alinharEscolha() {
+    var modal = document.querySelector(".gv-welcome-modal");
+    var formulario = document.querySelector(".hero-centro .cliente-form") || document.querySelector(".cliente-form");
+    if (!modal || !formulario) return;
+    var rect = formulario.getBoundingClientRect();
+    if (rect.width < 1) return;
+    /* A largura e a coluna vêm do formulário amarelo, não do centro da janela. */
+    var raizCss = document.documentElement;
+    raizCss.style.setProperty("--gv-escolha-largura", rect.width + "px");
+    raizCss.style.setProperty("--gv-escolha-esq", rect.left + "px");
+    var altura = modal.offsetHeight;
+    var topo = rect.top;
+    if (altura && altura < rect.height) topo = rect.top + (rect.height - altura) / 2;
+    var maximo = Math.max(8, window.innerHeight - (altura || 0) - 8);
+    raizCss.style.setProperty("--gv-escolha-topo", Math.max(8, Math.min(topo, maximo)) + "px");
   }
 
   function alinharComEnvio() {
@@ -914,7 +930,10 @@
   function iniciar() {
     if (!document.body || !document.body.classList.contains("home")) return;
     if (document.querySelector(".gv-backdrop")) return;
-    window.addEventListener("resize", alinharComEnvio);
+    window.addEventListener("resize", function () {
+      alinharComEnvio();
+      alinharEscolha();
+    });
     document.addEventListener("gv-orcamento-enviado", concluirFluxoOrcamento);
     var formulario = document.querySelector("form");
     if (formulario && !formulario.dataset.gvForcaEnvio) {
@@ -923,6 +942,7 @@
     }
     raiz = criarTela();
     document.body.appendChild(raiz);
+    alinharEscolha();
     var tipo = document.getElementById("btnTipoOrcamento");
     if (tipo && !tipo.dataset.gvTipo) {
       tipo.dataset.gvTipo = "1";
