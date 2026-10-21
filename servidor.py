@@ -1471,15 +1471,29 @@ def responder_orcamento_pdf(saida):
     })
 
 
-def pedido_preview_whatsapp(saida):
-    agente = saida.headers.get("User-Agent") or ""
-    baixo = agente.lower()
-    if "facebookexternalhit" in baixo or "facebot" in baixo:
-        return True
-    return "whatsapp" in baixo and "mozilla" not in baixo
+def navegador_humano(saida):
+    agente = (saida.headers.get("User-Agent") or "").lower()
+    if "facebookexternalhit" in agente or "facebot" in agente:
+        return False
+    if "whatsapp" in agente and "mozilla" not in agente:
+        return False
+    return True
 
 
-def html_preview_orcamento():
+def enviar_pdf_cliente(saida, conteudo):
+    saida.send_response(200)
+    saida.send_header("Content-Type", "application/pdf")
+    saida.send_header("Content-Length", str(len(conteudo)))
+    saida.send_header("Content-Disposition", 'inline; filename="Pedido-de-Orcamento-Gigaeletro.pdf"')
+    saida.send_header("X-Content-Type-Options", "nosniff")
+    saida.send_header("Cache-Control", "private, no-store")
+    saida.send_header("Vary", "User-Agent")
+    saida.end_headers()
+    saida.wfile.write(conteudo)
+
+
+def html_preview_orcamento(ident):
+    destino = "/api/ver-pdf?id=" + ident + "&arquivo=pdf"
     return (
         "<!DOCTYPE html>\n"
         '<html lang="pt-BR">\n'
@@ -1489,35 +1503,36 @@ def html_preview_orcamento():
         '<meta property="og:description" content=" Sempre a postos para atende-lo. Fale com um especialista agora mesmo.">\n'
         '<meta property="og:site_name" content="GigaEletro Venda Nova">\n'
         "<title>GigaEletro - Orçamento On-Line</title>\n"
+        "<script>location.replace(" + repr(destino) + ")</script>\n"
         "</head>\n"
-        "<body></body>\n"
+        "<body>\n"
+        '<p><a href="' + destino + '">Abrir o orçamento em PDF</a></p>\n'
+        "</body>\n"
         "</html>\n"
     ).encode("utf-8")
 
 
 def responder_ver_pdf(saida):
     ident = parametro_consulta(saida.path, "id")
+    if not ident:
+        saida.send_error(404)
+        return
     conteudo = ler_pdf_guardado(ident)
     if not conteudo:
         saida.send_error(404)
         return
-    if pedido_preview_whatsapp(saida):
-        pagina = html_preview_orcamento()
-        saida.send_response(200)
-        saida.send_header("Content-Type", "text/html; charset=utf-8")
-        saida.send_header("Content-Length", str(len(pagina)))
-        saida.send_header("Cache-Control", "public, max-age=86400")
-        saida.end_headers()
-        saida.wfile.write(pagina)
+    # arquivo=pdf e o navegador comum recebem o PDF. O robô do WhatsApp fica nas tags.
+    if parametro_consulta(saida.path, "arquivo") == "pdf" or navegador_humano(saida):
+        enviar_pdf_cliente(saida, conteudo)
         return
+    pagina = html_preview_orcamento(ident)
     saida.send_response(200)
-    saida.send_header("Content-Type", "application/pdf")
-    saida.send_header("Content-Length", str(len(conteudo)))
-    saida.send_header("Content-Disposition", 'inline; filename="Pedido-de-Orcamento-Gigaeletro.pdf"')
-    saida.send_header("X-Content-Type-Options", "nosniff")
-    saida.send_header("Cache-Control", "private, max-age=86400")
+    saida.send_header("Content-Type", "text/html; charset=utf-8")
+    saida.send_header("Content-Length", str(len(pagina)))
+    saida.send_header("Cache-Control", "private, no-store")
+    saida.send_header("Vary", "User-Agent")
     saida.end_headers()
-    saida.wfile.write(conteudo)
+    saida.wfile.write(pagina)
 
 
 def responder_upload(saida):
