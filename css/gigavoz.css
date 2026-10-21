@@ -25,7 +25,7 @@
   max-width: var(--gv-escolha-largura, min(416px, calc(100vw - 32px)));
   max-height: calc(100dvh - 16px);
   margin: 0;
-  padding: 16px 18px 14px;
+  padding: 8px 18px 14px;
   overflow: auto;
   border: 1px solid rgba(0, 0, 0, 0.28);
   border-radius: 1.25rem;
@@ -36,15 +36,6 @@
 
 .gv-etapa[hidden] {
   display: none !important;
-}
-
-.gv-logo {
-  display: block;
-  width: 142.86px;
-  height: 44.63px;
-  max-width: none;
-  margin: 0 0 12px;
-  object-fit: fill;
 }
 
 .gv-marca {
@@ -58,9 +49,13 @@
 }
 
 .gv-titulo {
+  /* Ocupa o topo deixado pela logo e permanece centrado na largura do quadro. */
+  display: block;
+  width: 100%;
+  max-width: none;
   margin: 0;
   color: #1a1a1a;
-  font-size: 1.02rem;
+  font-size: 1.14rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.35;
@@ -88,12 +83,12 @@
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
-  gap: 12px;
+  gap: 8px;
   box-sizing: border-box;
   width: 100%;
   min-height: 3.25rem;
   margin: 0;
-  padding: 0.75rem 0.9rem;
+  padding: 0.6rem 0.7rem;
   border: 1px solid #1a1a1a;
   border-left: 6px solid #fcd800;
   border-radius: 0.75rem;
@@ -127,14 +122,16 @@
 }
 
 .gv-card-titulo {
+  /* Uma linha só, à direita do selo, sem quebra dentro da barra. */
   display: block;
   flex: 1 1 auto;
   min-width: 0;
   color: #1a1a1a;
-  font-size: 1rem;
+  font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  line-height: 1.25;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .gv-btn {
@@ -162,9 +159,8 @@
 }
 
 @media (min-width: 981px) {
-  .gv-logo {
-    width: 91.42px;
-    height: 28.55px;
+  .gv-card-titulo {
+    font-size: 0.84rem;
   }
 }
 
@@ -179,15 +175,20 @@
   .gv-welcome-modal {
     height: auto;
     max-height: calc(100dvh - 24px);
-    padding: 16px 14px 14px;
-  }
-
-  .gv-card-titulo {
-    font-size: 0.95rem;
+    padding: 8px 12px 12px;
   }
 
   .gv-titulo {
-    font-size: 0.98rem;
+    font-size: 1.05rem;
+  }
+
+  .gv-card {
+    gap: 6px;
+    padding: 0.55rem 0.55rem;
+  }
+
+  .gv-card-titulo {
+    font-size: 0.72rem;
   }
 }
 

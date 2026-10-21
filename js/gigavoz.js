@@ -36,7 +36,6 @@
     fundo.innerHTML =
       '<div class="gv-welcome-modal" role="dialog" aria-modal="true" aria-labelledby="gv-titulo">' +
         '<div class="gv-etapa" data-gv-etapa="escolha">' +
-          '<img class="gv-logo" src="assets/logo-gigaeletro.jpg?v=3" width="366" height="184" alt="Gigaeletro Material Elétrico">' +
           '<h2 class="gv-titulo" id="gv-titulo">Olá, seja muito bem-vindo! É um grande prazer atendê-lo — escolha o Tipo de Orçamento que preferir.</h2>' +
           '<div class="gv-cards">' +
             '<button class="gv-card" type="button" data-gv-acao="catalogo">' +
