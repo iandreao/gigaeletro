@@ -121,8 +121,40 @@
     raiz = criarTela();
     document.body.appendChild(raiz);
     garantirRetorno().hidden = true;
+    refletirTipoOrcamento();
     var primeiro = raiz.querySelector('[data-gv-acao="catalogo"]');
     if (primeiro) primeiro.focus();
+  }
+
+  function modoGigaVozAberto() {
+    if (raiz && document.body.contains(raiz)) return true;
+    return !!(gravador && !gravador.hidden);
+  }
+
+  function refletirTipoOrcamento() {
+    var botao = document.getElementById("btnTipoOrcamento");
+    if (!botao) return;
+    botao.setAttribute("aria-pressed", modoGigaVozAberto() ? "true" : "false");
+  }
+
+  function desligarModoGigaVoz() {
+    pararEscuta();
+    definirCatalogo(true);
+    limparTranscricao();
+    limparIntencoes();
+    if (gravador) gravador.hidden = true;
+    if (raiz) {
+      raiz.remove();
+      raiz = null;
+    }
+    if (retorno) retorno.hidden = true;
+    refletirTipoOrcamento();
+  }
+
+  function alternarTipoOrcamento(evento) {
+    if (evento) evento.preventDefault();
+    if (modoGigaVozAberto()) desligarModoGigaVoz();
+    else reabrirBoasVindas();
   }
 
   function fecharBoasVindas() {
@@ -132,6 +164,7 @@
     raiz = null;
     garantirRetorno().hidden = false;
     posicionarRetorno();
+    refletirTipoOrcamento();
     var campo = document.querySelector('.cliente-form input[name="documento"]');
     if (campo) campo.focus();
   }
@@ -220,6 +253,7 @@
     statusEl.textContent = TEXTO_INICIAL;
     gravador.hidden = false;
     definirCatalogo(false);
+    refletirTipoOrcamento();
     garantirRetorno().hidden = false;
     posicionarRetorno();
     botaoMic.focus();
@@ -879,6 +913,7 @@
     limparIntencoes();
     gravador.hidden = true;
     definirCatalogo(true);
+    refletirTipoOrcamento();
   }
 
   function iniciar() {
@@ -892,6 +927,12 @@
     }
     raiz = criarTela();
     document.body.appendChild(raiz);
+    var tipo = document.getElementById("btnTipoOrcamento");
+    if (tipo && !tipo.dataset.gvTipo) {
+      tipo.dataset.gvTipo = "1";
+      tipo.addEventListener("click", alternarTipoOrcamento);
+    }
+    refletirTipoOrcamento();
     var primeiro = raiz.querySelector('[data-gv-acao="catalogo"]');
     if (primeiro) primeiro.focus();
   }

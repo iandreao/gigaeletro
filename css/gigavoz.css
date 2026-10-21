@@ -665,3 +665,9 @@ input.gv-intencoes-input {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+@media (min-width: 761px) {
+  .nav #btnTipoOrcamento[aria-pressed="true"] {
+    box-shadow: inset 0 -2px 0 #1a1a1a;
+  }
+}
