@@ -448,7 +448,8 @@
   flex: 1 1 auto;
   width: 100%;
   min-height: 0;
-  max-height: 215px;
+  /* 215px anteriores + 3 linhas (~39px) antes da rolagem interna. */
+  max-height: 332px;
   margin: 0;
   padding: 0 2px 0 0;
   overflow-x: hidden;

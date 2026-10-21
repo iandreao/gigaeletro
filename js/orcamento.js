@@ -236,6 +236,9 @@
   if (enviar) {
     enviar.textContent = "Enviar Orçamento";
     enviar.addEventListener("click", enviarWhatsApp);
+    document.addEventListener("gv-itens-orcamento", function (evento) {
+      incluirItensVoz(evento && evento.detail);
+    });
   }
 
   var inicio = document.querySelector('.nav a[href="#inicio"]');
@@ -528,9 +531,9 @@
               '<button class="qtd-btn" type="button" data-acao="mais" data-id="' + codigo + '" aria-label="Aumentar quantidade">+</button>' +
             "</span>" +
             '<strong class="cart-rotulo">Vlr. Unit:</strong>' +
-            '<span class="cart-preco">' + numero(item.preco) + "</span>" +
+            '<span class="cart-preco">' + (itemVoz(item) ? "Sob consulta" : numero(item.preco)) + "</span>" +
             '<strong class="cart-rotulo">Total:</strong>' +
-            '<span class="cart-total" data-linha-total="' + codigo + '">' + numero(item.preco * item.qtd) + "</span>" +
+            '<span class="cart-total" data-linha-total="' + codigo + '">' + (itemVoz(item) ? "Sob consulta" : numero(item.preco * item.qtd)) + "</span>" +
             '<button class="remover" type="button" data-acao="remover" data-id="' + codigo + '" aria-label="Remover" title="Remover">' + icone("lixeira") + "</button>" +
           "</div>" +
         "</li>"
@@ -545,7 +548,7 @@
       Array.prototype.forEach.call(resumoEl.querySelectorAll("[data-linha-total]"), function (el) {
         var codigo = el.getAttribute("data-linha-total");
         var item = selecionados.find(function (atual) { return atual.codigo === codigo; });
-        if (item) el.textContent = numero(item.preco * item.qtd);
+        if (item) el.textContent = itemVoz(item) ? "Sob consulta" : numero(item.preco * item.qtd);
       });
     }
     liberarEnvio();
@@ -682,15 +685,12 @@
   function enviarWhatsApp() {
     if (envioEmCurso) return;
     setCatalogo(false);
+    /* Enviar Orçamento só segue com o formulário amarelo completo e válido. */
     var pendente = primeiroCampoIncompleto();
-    if (pendente) {
-      if (!formularioPreenchido()) alert("Preencher suas informações");
-      else if (campoMonitorado(pendente)) mostrarDadoInvalido(pendente);
-      pendente.focus();
-      return;
-    }
-    if (!formularioPreenchido()) {
-      alert("Preencher suas informações");
+    if (pendente || !formularioPreenchido()) {
+      alert("Favor preencher os dados do cliente");
+      if (!pendente && formCliente) pendente = formCliente.querySelector("input[required]");
+      if (pendente) pendente.focus();
       return;
     }
     if (enviar) {
@@ -1231,6 +1231,29 @@
     return linhas.join("\n");
   }
 
+  function itemVoz(item) {
+    return String(item && item.codigo || "").indexOf("voz-") === 0;
+  }
+
+  function incluirItensVoz(pacote) {
+    if (!Array.isArray(pacote)) return;
+    var carimbo = Date.now().toString(36);
+    pacote.forEach(function (item, indice) {
+      var nome = String((item && (item.rotulo || item.texto)) || "").trim();
+      if (!nome) return;
+      selecionados.push({
+        codigo: "voz-" + carimbo + "-" + indice,
+        produto: nome,
+        preco: 0,
+        estoque: 0,
+        qtd: item && item.qtd ? item.qtd : 1
+      });
+    });
+    salvarPedido();
+    renderResumo();
+    liberarEnvio();
+  }
+
   function carrinhoValido() {
     var quadro = document.querySelector(".quote-side") || document.querySelector("#carrinho");
     var listaVozNaTela = !!(quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1);
@@ -1245,7 +1268,8 @@
       ocultarErroCarrinho();
       if (resumoVazio) resumoVazio.hidden = true;
     }
-    var liberar = carrinhoValido() && formularioPreenchido();
+    /* O botão fica clicável com itens no quadro; a checagem do cliente acontece no clique. */
+    var liberar = carrinhoValido();
     enviar.disabled = !liberar;
     if (liberar) enviar.removeAttribute("disabled");
   }

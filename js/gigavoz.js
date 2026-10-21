@@ -19,7 +19,6 @@
   var listaEl = null;
   var campoNovo = null;
   var confirmarLista = null;
-  var avisoLista = null;
   var intencoes = [];
   var prefixoFala = "";
   var corteResultado = 0;
@@ -175,7 +174,6 @@
           '<button class="gv-intencoes-mais" type="button" data-gv-adicionar aria-label="Adicionar">+</button>' +
         "</div>" +
         '<div class="gv-intencoes-espaco"></div>' +
-        '<p class="gv-intencoes-aviso" data-gv-aviso hidden></p>' +
         '<button class="gv-intencoes-confirmar" type="button" disabled>Confirmar e Enviar Lista</button>' +
       "</div>";
     captura = gravador.querySelector(".gv-captura");
@@ -188,7 +186,6 @@
     listaEl = gravador.querySelector("[data-gv-lista]");
     campoNovo = gravador.querySelector("[data-gv-novo]");
     confirmarLista = gravador.querySelector(".gv-intencoes-confirmar");
-    avisoLista = gravador.querySelector("[data-gv-aviso]");
     statusEl.textContent = TEXTO_INICIAL;
     area.value = "";
     botaoMic.addEventListener("click", alternarMicrofone);
@@ -510,7 +507,8 @@
   function rotulo(item) {
     if (!item) return "";
     if (item.medida || item.extenso) return item.fala || item.texto;
-    if (item.qtd) return item.qtd + " x " + item.texto;
+    /* Separador visual da linha: "10 - lâmpadas comuns". */
+    if (item.qtd) return item.qtd + " - " + item.texto;
     return item.texto;
   }
 
@@ -705,9 +703,8 @@
           }
         }
         if (botao) {
-          var liberar = formularioAmareloPronto();
-          botao.disabled = !liberar;
-          if (liberar) botao.removeAttribute("disabled");
+          botao.disabled = false;
+          botao.removeAttribute("disabled");
         }
       }
     }
@@ -786,19 +783,12 @@
       if (!lista || lista.length < 1) return;
       var botao = document.querySelector("[data-enviar]");
       if (!botao) return;
-      var liberar = formularioAmareloPronto();
-      botao.disabled = !liberar;
-      if (liberar) botao.removeAttribute("disabled");
+      botao.disabled = false;
+      botao.removeAttribute("disabled");
     }
     document.addEventListener("input", manter, false);
     document.addEventListener("keyup", manter, false);
     document.addEventListener("change", manter, false);
-  }
-
-  function mostrarAvisoLista(texto) {
-    if (!avisoLista) return;
-    avisoLista.hidden = !texto;
-    avisoLista.textContent = texto || "";
   }
 
   function lerFormularioAmarelo() {
@@ -860,12 +850,6 @@
   function confirmarEnvio() {
     if (!intencoes.length || !gravador || !confirmarLista) return;
     if (confirmarLista.dataset.gvEnviando === "1") return;
-    mostrarAvisoLista("");
-    if (!formularioAmareloPronto()) {
-      mostrarAvisoLista("Preencha o formulário amarelo antes de confirmar a lista.");
-      focarDocumento();
-      return;
-    }
     var cliente = lerFormularioAmarelo();
     var pacote = intencoes.map(function (item) {
       return { qtd: item.qtd || 1, texto: item.texto, rotulo: rotulo(item) };
@@ -874,6 +858,8 @@
     confirmarLista.dataset.gvEnviando = "1";
     confirmarLista.disabled = true;
     confirmarLista.textContent = "Enviando...";
+    /* O quadro da direita recebe os itens na hora; o PDF de intenções segue em paralelo. */
+    document.dispatchEvent(new CustomEvent("gv-itens-orcamento", { detail: pacote }));
     fetch("/api/orcamentos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -888,23 +874,11 @@
           return { codigo: "", produto: item.rotulo, qtd: item.qtd || 1, preco: 0 };
         })
       })
-    }).then(function (resposta) {
-      return resposta.json().catch(function () { return null; }).then(function (corpo) {
-        if (!resposta.ok || !corpo || !corpo.ok || !corpo.id) throw new Error("envio");
-        return corpo;
-      });
-    }).then(function (corpo) {
-      var link = "https://gigaeletro.vercel.app/api/pdf/" + corpo.id;
-      descartarListaPublicada();
-      limparIntencoes();
-      pararEscuta();
-      gravador.hidden = true;
-      definirCatalogo(true);
-      abrirWhatsApp(link);
-    }).catch(function () {
-      mostrarAvisoLista("Não foi possível enviar a lista. Revise o formulário e tente de novo.");
-      soltarConfirmar();
-    });
+    }).catch(function () { /* o orçamento da direita permanece mesmo se o PDF de intenções falhar */ });
+    pararEscuta();
+    limparIntencoes();
+    gravador.hidden = true;
+    definirCatalogo(true);
   }
 
   function iniciar() {
