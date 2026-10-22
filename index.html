@@ -1,220 +1,220 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gigaeletro | Catálogo e orçamento pelo WhatsApp</title>
-  <meta name="description" content="Monte o orçamento de materiais elétricos da Gigaeletro e envie a lista pelo WhatsApp. Fios, iluminação, infraestrutura e proteção em Venda Nova do Imigrante.">
-  <meta name="theme-color" content="#fefce8">
-  <link rel="icon" href="assets/logo-gigaeletro.jpg?v=3" type="image/jpeg">
-  <link rel="preload" as="image" href="assets/loja-gigaeletro.jpg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/site.css?v=105">
-  <link rel="stylesheet" href="css/gigavoz.css?v=1.0.25">
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "Store",
-    "name": "Gigaeletro",
-    "legalName": "Gigaeletro Comércio de Material Elétrico Ltda",
-    "taxID": "08.882.111/0001-80",
-    "telephone": ["+55-28-3546-2723", "+55-28-3546-1139", "+55-27-99802-1221"],
-    "address": {
-      "@type": "PostalAddress",
-      "streetAddress": "Avenida Domingos Perim, 720, Vila da Mata",
-      "addressLocality": "Venda Nova do Imigrante",
-      "addressRegion": "ES",
-      "postalCode": "29375-000",
-      "addressCountry": "BR"
-    }
-  }
-  </script>
-</head>
-<body class="home">
-  <a class="skip" href="#inicio">Ir para o conteúdo</a>
-  <p class="sr-only" data-cart-status aria-live="polite"></p>
-  <header class="site-header">
-    <div class="wrap bar">
-      <a class="brand" href="#inicio">
-        <img src="assets/logo-gigaeletro.jpg?v=3" width="366" height="184" alt="Gigaeletro Material Elétrico">
-      </a>
-      <nav id="menu" class="nav" aria-label="Seções">
-        <a id="btnInicio" href="#inicio">Início</a>
-        <button id="btnProdutos" type="button" data-abrir-catalogo>Produtos</button>
-        <a id="btnTipoOrcamento" href="#inicio" aria-pressed="false">Tipo de Orçamento</a>
-        <button type="button" data-abrir-historico>Meus Orçamentos</button>
-        <a href="admin.html">Área Restrita</a>
-      </nav>
-      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="menu">
-        <span class="sr-only">Abrir menu</span>
-        <span class="bars" aria-hidden="true"></span>
-      </button>
-    </div>
-  </header>
-
-  <main>
-    <section class="hero" id="inicio">
-      <div class="wrap hero-grid">
-        <div class="hero-par">
-        <div class="hero-foto">
-        <div class="hero-foto-quadro">
-        <img class="hero-photo" src="assets/loja-gigaeletro.jpg" alt="Ilustração de uma loja de materiais elétricos, com fios, lâmpadas e ferramentas">
-        </div>
-        <div class="foot-col foot-fiscal">
-          <p>Avenida Domingos Perim, 720 – Vila da Mata – Venda Nova do Imigrante – ES</p>
-          <p>Gigaeletro Comércio de Material Elétrico Ltda | CNPJ: 08.882.111/0001-80</p>
-        </div>
-        </div>
-        <div class="hero-centro">
-        <div class="hero-copy">
-          <h1>As melhores soluções para sua empresa e sua residência, você encontra na GigaEletro. Faça seu orçamento</h1>
-        </div>
-        <div class="hero-acao">
-          <div>
-          <form class="cliente-form" data-cliente novalidate autocomplete="off" style="height: auto !important; max-height: none !important; margin: 0 !important; padding: 0 !important; display: flex !important; flex-direction: column !important; justify-content: flex-start !important;">
-            <div class="cliente-honeypot" aria-hidden="true">
-              <label>Sobrenome
-                <input name="sobrenome_confirmacao" type="text" tabindex="-1" autocomplete="off" autocapitalize="off" spellcheck="false">
-              </label>
-            </div>
-            <div class="form-linha form-tipo" style="margin-bottom: 20px !important; display: block !important;">
-              <fieldset class="tipo-pessoa">
-                <legend>Tipo de Pessoa:</legend>
-                <div class="tipo-opcoes">
-                  <label><input type="radio" name="tipo" value="pf" checked> Física</label>
-                  <label><input type="radio" name="tipo" value="pj"> Jurídica</label>
-                </div>
-              </fieldset>
-            </div>
-            <div class="hero-campos" style="height: auto !important; max-height: none !important; margin: 0 !important; padding: 0 !important; margin-bottom: 0 !important;">
-            <div class="form-linha form-doc">
-              <label class="doc-campo"><span data-doc-rotulo>CPF</span>
-                <input name="documento" type="text" required inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="000.000.000-00">
-                <span class="doc-aviso" data-doc-aviso hidden>CPF inválido.</span>
-              </label>
-              <label>CEP
-                <input name="cep" required inputmode="numeric" autocomplete="off" maxlength="9" placeholder="00000-000">
-                <span class="doc-aviso" data-campo-aviso hidden>Dado Inválido</span>
-              </label>
-            </div>
-            <div class="form-linha">
-              <label><span data-nome-rotulo>Nome</span>
-                <input name="nome" required autocomplete="off" maxlength="120">
-              </label>
-            </div>
-            <div class="form-linha form-end">
-              <label>Endereço
-                <input name="endereco" required autocomplete="off" maxlength="120">
-              </label>
-              <label>Número
-                <input name="numero" required autocomplete="off" maxlength="12">
-              </label>
-            </div>
-            <div class="form-linha form-local">
-              <label>Bairro
-                <input name="bairro" required autocomplete="off" maxlength="80">
-              </label>
-              <label>Cidade
-                <input name="cidade" required autocomplete="off" maxlength="80">
-              </label>
-              <label>UF
-                <input name="uf" required maxlength="2" autocomplete="off">
-              </label>
-            </div>
-            <div class="form-linha form-contato">
-              <label>Telefone / Celular
-                <input name="celular" required inputmode="tel" autocomplete="off" maxlength="15" placeholder="(00) 00000-0000">
-                <span class="doc-aviso" data-campo-aviso hidden>Dado Inválido</span>
-              </label>
-              <label>E-mail
-                <input name="email" type="email" required autocomplete="off" inputmode="email" maxlength="120">
-                <span class="doc-aviso" data-campo-aviso hidden>Dado Inválido</span>
-              </label>
-            </div>
-            </div>
-          </form>
-          <button class="btn btn-lg" id="btnVerCatalogo" type="button" data-abrir-catalogo style="margin-top: 8px !important; margin-bottom: 0 !important;">Ver Catálogo de Produtos</button>
-          </div>
-        </div>
-          <footer class="site-footer" id="quem-somos">
-            <div class="foot">
-              <div class="foot-col foot-contatos">
-                <p>Telefones: <a href="tel:+552835462723">(28) 3546-2723</a> / <a href="tel:+552835461139">(28) 3546-1139</a></p>
-                <p>WhatsApp: <a href="https://wa.me/5527998021221">(27) 99802-1221</a></p>
-              </div>
-              <div class="foot-col foot-links">
-                <a class="foot-mapa" href="https://www.google.com/maps/dir/?api=1&amp;destination=Avenida+Domingos+Perim,+720,+Venda+Nova+do+Imigrante,+ES" target="_blank" rel="noopener noreferrer">
-                  <svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"></path>
-                    <circle cx="12" cy="10" r="2.5"></circle>
-                  </svg>
-                  Como chegar
-                </a>
-              </div>
-            </div>
-          </footer>
-        </div>
-        </div>
-        <aside class="quote-side" id="carrinho" aria-labelledby="titulo-carrinho">
-          <div class="drawer-head">
-            <h2 id="titulo-carrinho">Seu orçamento</h2>
-          </div>
-          <p class="empty" data-resumo-vazio>Nenhum produto no orçamento.</p>
-          <ul class="cart-list" data-resumo></ul>
-          <div class="drawer-foot">
-            <p class="subtotal estimado">Total estimado: <strong data-subtotal>R$ 0,00</strong></p>
-            <p class="aviso" data-envio-aviso hidden></p>
-            <button class="btn btn-lg" type="button" data-enviar disabled>Enviar Orçamento</button>
-            <p class="legal">Os preços têm validade de 15 dias a contar do envio do orçamento. O estoque e o frete serão confirmados no Whatsapp</p>
-          </div>
-        </aside>
-      </div>
-    </section>
-
-  </main>
-
-  <div class="overlay" data-catalogo-overlay data-fechar-catalogo hidden></div>
-  <div class="catalogo-modal" data-catalogo-modal hidden role="dialog" aria-modal="true" aria-labelledby="titulo-produtos">
-    <div class="catalogo-modal-head">
-      <h2 id="titulo-produtos">Catálogo de Produtos</h2>
-      <button class="catalogo-fechar" type="button" data-fechar-catalogo aria-label="Fechar">[X]</button>
-    </div>
-    <div class="search-combo" data-busca-combo>
-      <label class="search-label" for="busca-produto">Buscar produto
-        <input id="busca-produto" type="search" data-busca placeholder="Buscar produto..." autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugestoes">
-      </label>
-      <ul class="suggest" id="sugestoes" data-sugestoes hidden role="listbox"></ul>
-    </div>
-    <div class="catalog-list" data-catalogo></div>
-  </div>
-
-  <div class="overlay" data-historico-overlay data-fechar-historico hidden></div>
-  <div class="modal historico-modal" data-historico hidden role="dialog" aria-modal="true" aria-labelledby="titulo-historico">
-    <div class="drawer-head">
-      <h2 id="titulo-historico">Histórico de Orçamentos</h2>
-      <button class="catalogo-fechar" type="button" data-fechar-historico aria-label="Fechar">[X]</button>
-    </div>
-    <div class="historico-corpo">
-      <form class="historico-busca" data-historico-busca>
-        <p class="historico-instrucao">Digite seu CPF ou CNPJ para consultar seu histórico de orçamentos</p>
-        <div class="historico-busca-linha">
-          <input type="text" inputmode="numeric" autocomplete="off" data-historico-documento placeholder="000.000.000-00" aria-label="CPF ou CNPJ">
-          <button class="btn" type="submit">Buscar</button>
-        </div>
-        <p class="historico-erro" data-historico-erro hidden>CPF ou CNPJ inválido</p>
-      </form>
-      <p class="historico-vazio" data-historico-vazio hidden>Nenhum orçamento salvo para este CPF/CNPJ</p>
-      <ul class="historico-lista" data-recentes-lista></ul>
-    </div>
-  </div>
-
-  <script src="js/vendor/jspdf.umd.min.js"></script>
-  <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
-  <script src="js/site.js?v=12"></script>
-  <script src="js/orcamento.js?v=93"></script>
-  <script src="js/gigavoz.js?v=1.0.25"></script>
-</body>
-</html>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gigaeletro | Catálogo e orçamento pelo WhatsApp</title>
+  <meta name="description" content="Monte o orçamento de materiais elétricos da Gigaeletro e envie a lista pelo WhatsApp. Fios, iluminação, infraestrutura e proteção em Venda Nova do Imigrante.">
+  <meta name="theme-color" content="#fefce8">
+  <link rel="icon" href="assets/logo-gigaeletro.jpg?v=3" type="image/jpeg">
+  <link rel="preload" as="image" href="assets/loja-gigaeletro.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/site.css?v=105">
+  <link rel="stylesheet" href="css/gigavoz.css?v=1.0.25">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Store",
+    "name": "Gigaeletro",
+    "legalName": "Gigaeletro Comércio de Material Elétrico Ltda",
+    "taxID": "08.882.111/0001-80",
+    "telephone": ["+55-28-3546-2723", "+55-28-3546-1139", "+55-27-99802-1221"],
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "Avenida Domingos Perim, 720, Vila da Mata",
+      "addressLocality": "Venda Nova do Imigrante",
+      "addressRegion": "ES",
+      "postalCode": "29375-000",
+      "addressCountry": "BR"
+    }
+  }
+  </script>
+</head>
+<body class="home">
+  <a class="skip" href="#inicio">Ir para o conteúdo</a>
+  <p class="sr-only" data-cart-status aria-live="polite"></p>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="brand" href="#inicio">
+        <img src="assets/logo-gigaeletro.jpg?v=3" width="366" height="184" alt="Gigaeletro Material Elétrico">
+      </a>
+      <nav id="menu" class="nav" aria-label="Seções">
+        <a id="btnInicio" href="#inicio">Início</a>
+        <button id="btnProdutos" type="button" data-abrir-catalogo>Produtos</button>
+        <a id="btnTipoOrcamento" href="#inicio" aria-pressed="false">Tipo de Orçamento</a>
+        <button type="button" data-abrir-historico>Meus Orçamentos</button>
+        <a href="admin.html">Área Restrita</a>
+      </nav>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="menu">
+        <span class="sr-only">Abrir menu</span>
+        <span class="bars" aria-hidden="true"></span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="inicio">
+      <div class="wrap hero-grid">
+        <div class="hero-par">
+        <div class="hero-foto">
+        <div class="hero-foto-quadro">
+        <img class="hero-photo" src="assets/loja-gigaeletro.jpg" alt="Ilustração de uma loja de materiais elétricos, com fios, lâmpadas e ferramentas">
+        </div>
+        <div class="foot-col foot-fiscal">
+          <p>Avenida Domingos Perim, 720 – Vila da Mata – Venda Nova do Imigrante – ES</p>
+          <p>Gigaeletro Comércio de Material Elétrico Ltda | CNPJ: 08.882.111/0001-80</p>
+        </div>
+        </div>
+        <div class="hero-centro">
+        <div class="hero-copy">
+          <h1>As melhores soluções para sua empresa e sua residência, você encontra na GigaEletro. Faça seu orçamento</h1>
+        </div>
+        <div class="hero-acao">
+          <div>
+          <form class="cliente-form" data-cliente novalidate autocomplete="off" style="height: auto !important; max-height: none !important; margin: 0 !important; padding: 0 !important; display: flex !important; flex-direction: column !important; justify-content: flex-start !important;">
+            <div class="cliente-honeypot" aria-hidden="true">
+              <label>Sobrenome
+                <input name="sobrenome_confirmacao" type="text" tabindex="-1" autocomplete="off" autocapitalize="off" spellcheck="false">
+              </label>
+            </div>
+            <div class="form-linha form-tipo" style="margin-bottom: 20px !important; display: block !important;">
+              <fieldset class="tipo-pessoa">
+                <legend>Tipo de Pessoa:</legend>
+                <div class="tipo-opcoes">
+                  <label><input type="radio" name="tipo" value="pf" checked> Física</label>
+                  <label><input type="radio" name="tipo" value="pj"> Jurídica</label>
+                </div>
+              </fieldset>
+            </div>
+            <div class="hero-campos" style="height: auto !important; max-height: none !important; margin: 0 !important; padding: 0 !important; margin-bottom: 0 !important;">
+            <div class="form-linha form-doc">
+              <label class="doc-campo"><span data-doc-rotulo>CPF</span>
+                <input name="documento" type="text" required inputmode="numeric" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="000.000.000-00">
+                <span class="doc-aviso" data-doc-aviso hidden>CPF inválido.</span>
+              </label>
+              <label>CEP
+                <input name="cep" required inputmode="numeric" autocomplete="off" maxlength="9" placeholder="00000-000">
+                <span class="doc-aviso" data-campo-aviso hidden>Dado Inválido</span>
+              </label>
+            </div>
+            <div class="form-linha">
+              <label><span data-nome-rotulo>Nome</span>
+                <input name="nome" required autocomplete="off" maxlength="120">
+              </label>
+            </div>
+            <div class="form-linha form-end">
+              <label>Endereço
+                <input name="endereco" required autocomplete="off" maxlength="120">
+              </label>
+              <label>Número
+                <input name="numero" required autocomplete="off" maxlength="12">
+              </label>
+            </div>
+            <div class="form-linha form-local">
+              <label>Bairro
+                <input name="bairro" required autocomplete="off" maxlength="80">
+              </label>
+              <label>Cidade
+                <input name="cidade" required autocomplete="off" maxlength="80">
+              </label>
+              <label>UF
+                <input name="uf" required maxlength="2" autocomplete="off">
+              </label>
+            </div>
+            <div class="form-linha form-contato">
+              <label>Telefone / Celular
+                <input name="celular" required inputmode="tel" autocomplete="off" maxlength="15" placeholder="(00) 00000-0000">
+                <span class="doc-aviso" data-campo-aviso hidden>Dado Inválido</span>
+              </label>
+              <label>E-mail
+                <input name="email" type="email" required autocomplete="off" inputmode="email" maxlength="120">
+                <span class="doc-aviso" data-campo-aviso hidden>Dado Inválido</span>
+              </label>
+            </div>
+            </div>
+          </form>
+          <button class="btn btn-lg" id="btnVerCatalogo" type="button" data-abrir-catalogo style="margin-top: 8px !important; margin-bottom: 0 !important;">Ver Catálogo de Produtos</button>
+          </div>
+        </div>
+          <footer class="site-footer" id="quem-somos">
+            <div class="foot">
+              <div class="foot-col foot-contatos">
+                <p>Telefones: <a href="tel:+552835462723">(28) 3546-2723</a> / <a href="tel:+552835461139">(28) 3546-1139</a></p>
+                <p>WhatsApp: <a href="https://wa.me/5527998021221">(27) 99802-1221</a></p>
+              </div>
+              <div class="foot-col foot-links">
+                <a class="foot-mapa" href="https://www.google.com/maps/dir/?api=1&amp;destination=Avenida+Domingos+Perim,+720,+Venda+Nova+do+Imigrante,+ES" target="_blank" rel="noopener noreferrer">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"></path>
+                    <circle cx="12" cy="10" r="2.5"></circle>
+                  </svg>
+                  Como chegar
+                </a>
+              </div>
+            </div>
+          </footer>
+        </div>
+        </div>
+        <aside class="quote-side" id="carrinho" aria-labelledby="titulo-carrinho">
+          <div class="drawer-head">
+            <h2 id="titulo-carrinho">Seu orçamento</h2>
+          </div>
+          <p class="empty" data-resumo-vazio>Nenhum produto no orçamento.</p>
+          <ul class="cart-list" data-resumo></ul>
+          <div class="drawer-foot">
+            <p class="subtotal estimado">Total estimado: <strong data-subtotal>R$ 0,00</strong></p>
+            <p class="aviso" data-envio-aviso hidden></p>
+            <button class="btn btn-lg" type="button" data-enviar disabled>Enviar Orçamento</button>
+            <p class="legal">Os preços têm validade de 15 dias a contar do envio do orçamento. O estoque e o frete serão confirmados no Whatsapp</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="overlay" data-catalogo-overlay data-fechar-catalogo hidden></div>
+  <div class="catalogo-modal" data-catalogo-modal hidden role="dialog" aria-modal="true" aria-labelledby="titulo-produtos">
+    <div class="catalogo-modal-head">
+      <h2 id="titulo-produtos">Catálogo de Produtos</h2>
+      <button class="catalogo-fechar" type="button" data-fechar-catalogo aria-label="Fechar">[X]</button>
+    </div>
+    <div class="search-combo" data-busca-combo>
+      <label class="search-label" for="busca-produto">Buscar produto
+        <input id="busca-produto" type="search" data-busca placeholder="Buscar produto..." autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugestoes">
+      </label>
+      <ul class="suggest" id="sugestoes" data-sugestoes hidden role="listbox"></ul>
+    </div>
+    <div class="catalog-list" data-catalogo></div>
+  </div>
+
+  <div class="overlay" data-historico-overlay data-fechar-historico hidden></div>
+  <div class="modal historico-modal" data-historico hidden role="dialog" aria-modal="true" aria-labelledby="titulo-historico">
+    <div class="drawer-head">
+      <h2 id="titulo-historico">Histórico de Orçamentos</h2>
+      <button class="catalogo-fechar" type="button" data-fechar-historico aria-label="Fechar">[X]</button>
+    </div>
+    <div class="historico-corpo">
+      <form class="historico-busca" data-historico-busca>
+        <p class="historico-instrucao">Digite seu CPF ou CNPJ para consultar seu histórico de orçamentos</p>
+        <div class="historico-busca-linha">
+          <input type="text" inputmode="numeric" autocomplete="off" data-historico-documento placeholder="000.000.000-00" aria-label="CPF ou CNPJ">
+          <button class="btn" type="submit">Buscar</button>
+        </div>
+        <p class="historico-erro" data-historico-erro hidden>CPF ou CNPJ inválido</p>
+      </form>
+      <p class="historico-vazio" data-historico-vazio hidden>Nenhum orçamento salvo para este CPF/CNPJ</p>
+      <ul class="historico-lista" data-recentes-lista></ul>
+    </div>
+  </div>
+
+  <script src="js/vendor/jspdf.umd.min.js"></script>
+  <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
+  <script src="js/site.js?v=12"></script>
+  <script src="js/orcamento.js?v=93"></script>
+  <script src="js/gigavoz.js?v=1.0.26"></script>
+</body>
+</html>
