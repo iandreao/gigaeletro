@@ -728,6 +728,19 @@ body.home .catalogo-modal .catalog-nome {
   line-height: 1.15;
 }
 
+@media (max-width: 760px) {
+  /* O hambúrguer fica acima da voz e do catálogo e continua recebendo o toque. */
+  body.home .site-header {
+    z-index: 5000;
+  }
+
+  body.home .nav-toggle {
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
+  }
+}
+
 @media (min-width: 761px) {
   .nav #btnTipoOrcamento[aria-pressed="true"] {
     box-shadow: inset 0 -2px 0 #1a1a1a;

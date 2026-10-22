@@ -112,6 +112,26 @@
     botao.setAttribute("aria-pressed", modoGigaVozAberto() ? "true" : "false");
   }
 
+  function fecharCatalogoAberto() {
+    var catalogo = document.querySelector("[data-catalogo-modal]");
+    if (!catalogo || catalogo.hidden) return;
+    var fechar = catalogo.querySelector("[data-fechar-catalogo]");
+    if (fechar) fechar.dispatchEvent(new MouseEvent("click", { bubbles: false, cancelable: true }));
+  }
+
+  function aoAbrirMenuMobile() {
+    if (!window.matchMedia("(max-width: 760px)").matches) return;
+    if (modoGigaVozAberto()) desligarModoGigaVoz();
+    fecharCatalogoAberto();
+  }
+
+  function ligarMenuMobile() {
+    var menu = document.querySelector(".nav-toggle");
+    if (!menu || menu.dataset.gvMenu) return;
+    menu.dataset.gvMenu = "1";
+    menu.addEventListener("click", aoAbrirMenuMobile);
+  }
+
   function desligarModoGigaVoz() {
     pararEscuta();
     /* Tradicional ativo: o orçamento permanece e Produtos volta na hora. */
@@ -1061,6 +1081,7 @@
     }
     refletirTipoOrcamento();
     observarModaisHome();
+    ligarMenuMobile();
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", iniciar);
