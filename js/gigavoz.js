@@ -256,12 +256,12 @@
     var catalogo = document.getElementById("btnVerCatalogo");
     var tipoRect = tipo ? tipo.getBoundingClientRect() : null;
     var catRect = catalogo ? catalogo.getBoundingClientRect() : null;
-    /* Começa sob Tipo de Pessoa, com o respiro de 12px, e desce até a borda do catálogo. */
+    /* Começa 12px abaixo de Tipo de Pessoa e termina rente a Ver Catálogo. Largura máxima: 416px. */
     var topo = tipoRect ? tipoRect.bottom + 12 : formRect.top;
     var base = catRect && catRect.top > topo + 120 ? catRect.top : formRect.bottom;
     return {
       left: formRect.left,
-      width: formRect.width,
+      width: Math.min(416, formRect.width),
       top: topo,
       height: Math.max(160, base - topo)
     };
@@ -278,11 +278,9 @@
   }
 
   function alinharEscolha() {
-    var modal = document.querySelector(".gv-welcome-modal");
     var medida = medirColunaCentral();
     if (!medida) return;
     publicarColuna(medida);
-    if (!modal) return;
   }
 
   function centralizarModalHome(modal) {
@@ -325,7 +323,7 @@
     publicarColuna(medida);
     gravador.style.left = medida.left + "px";
     gravador.style.width = medida.width + "px";
-    gravador.style.maxWidth = medida.width + "px";
+    gravador.style.maxWidth = "416px";
     gravador.style.right = "auto";
     gravador.style.transform = "none";
   }

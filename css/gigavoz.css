@@ -23,8 +23,9 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  width: var(--gv-escolha-largura, min(416px, calc(100vw - 32px)));
-  max-width: var(--gv-escolha-largura, min(416px, calc(100vw - 32px)));
+  /* Largura travada em 416px no desktop; abaixo disso acompanha a coluna. */
+  width: min(416px, var(--gv-escolha-largura, calc(100vw - 32px)));
+  max-width: 416px;
   height: var(--gv-escolha-altura, auto);
   min-height: var(--gv-escolha-altura, 0);
   max-height: var(--gv-escolha-altura, calc(100dvh - 16px));
@@ -189,6 +190,12 @@
 }
 
 @media (min-width: 981px) {
+  .gv-welcome-modal,
+  .gv-recorder-container {
+    width: 416px;
+    max-width: 416px;
+  }
+
   .gv-card-titulo {
     font-size: 0.84rem;
   }
@@ -231,8 +238,8 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  width: var(--gv-escolha-largura, min(416px, calc(100vw - 32px)));
-  max-width: min(416px, var(--gv-escolha-largura, calc(100vw - 32px)));
+  width: min(416px, var(--gv-escolha-largura, calc(100vw - 32px)));
+  max-width: 416px;
   /* Altura da faixa do formulário, do respiro sob Tipo de Pessoa até o catálogo. */
   height: var(--gv-escolha-altura, auto);
   min-height: var(--gv-escolha-altura, 0);
