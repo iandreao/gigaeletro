@@ -515,29 +515,66 @@
     atualizarAvanco();
   }
 
+  function textoDoResultado(resultado) {
+    return resultado && resultado[0] && resultado[0].transcript ? resultado[0].transcript : "";
+  }
+
+  function linhasConfirmadas() {
+    if (!prefixoFala) return [];
+    return prefixoFala.split("\n").filter(function (linha) {
+      return linha.replace(/\s+/g, " ").trim();
+    });
+  }
+
+  function mostrarRascunho(provisorio) {
+    if (!area) return;
+    var base = prefixoFala.replace(/\s+$/, "");
+    var visivel = provisorio ? (base ? base + "\n" + provisorio : provisorio) : base;
+    escrevendo = true;
+    area.value = visivel;
+    escrevendo = false;
+    area.scrollTop = area.scrollHeight;
+    atualizarAvanco();
+  }
+
+  function mesmaFalaEmCurso(anterior, atual) {
+    if (!anterior || !atual) return false;
+    return atual.indexOf(anterior) === 0 || anterior.indexOf(atual) === 0;
+  }
+
+  function confirmarTrecho(texto) {
+    var agora = Date.now();
+    var anterior = ultimaTransicaoVoz;
+    var recente = (agora - ultimoTimestampVoz) <= 1500;
+    var linhas = linhasConfirmadas();
+    if (texto === anterior && recente) return;
+    if (recente && mesmaFalaEmCurso(anterior, texto) && linhas.length) linhas[linhas.length - 1] = texto;
+    else linhas.push(texto);
+    prefixoFala = linhas.join("\n");
+    ultimaTransicaoVoz = texto;
+    ultimoTimestampVoz = agora;
+    if (campoNovo) campoNovo.value = "";
+    mostrarRascunho("");
+    if (painelLista && !painelLista.hidden) {
+      intencoes = separarIntencoes(prefixoFala);
+      desenharLista();
+    }
+  }
+
   function acrescentarFala(evento) {
-    if (!area || !evento || !evento.results) return;
+    if (!evento || !evento.results) return;
     var falado = "";
     var i;
-    var inicio = typeof evento.resultIndex === "number" ? evento.resultIndex : corteResultado;
-    if (inicio < corteResultado) inicio = corteResultado;
+    var inicio = typeof evento.resultIndex === "number" ? evento.resultIndex : 0;
     for (i = inicio; i < evento.results.length; i++) {
-      /* No celular os trechos provisórios se repetem. Só o consolidado entra no texto. */
       if (!evento.results[i].isFinal) continue;
-      var trecho = evento.results[i][0] && evento.results[i][0].transcript;
-      if (trecho) falado += trecho;
+      falado += textoDoResultado(evento.results[i]);
     }
     falado = falado.replace(/\s+/g, " ").trim();
     if (!falado) return;
     resultadosVistos = evento.results.length;
     corteResultado = evento.results.length;
-    var base = prefixoFala.replace(/\s+$/, "");
-    escrevendo = true;
-    area.value = base ? base + " " + falado : falado;
-    prefixoFala = area.value;
-    escrevendo = false;
-    area.scrollTop = area.scrollHeight;
-    atualizarAvanco();
+    confirmarTrecho(falado);
   }
 
   function iniciarEscuta() {
@@ -561,25 +598,28 @@
     sessao.interimResults = true;
     sessao.onresult = function (evento) {
       if (reconhecimento !== sessao || !evento || !evento.results) return;
-      var transcricaoVoz = "";
+      var textoProvisorio = "";
+      var textoDefinitivo = "";
       var i;
       var inicio = typeof evento.resultIndex === "number" ? evento.resultIndex : 0;
-      for (i = inicio; i < evento.results.length; i++) {
-        if (!evento.results[i].isFinal) continue;
-        var trecho = evento.results[i][0] && evento.results[i][0].transcript;
-        if (trecho) transcricaoVoz += trecho;
+      for (i = inicio; i < evento.results.length; ++i) {
+        var trecho = textoDoResultado(evento.results[i]);
+        if (!trecho) continue;
+        if (evento.results[i].isFinal) textoDefinitivo += trecho;
+        else textoProvisorio += trecho;
       }
-      var textoLimpo = transcricaoVoz.replace(/\s+/g, " ").trim();
-      var agora = Date.now();
-      /* O Chrome no Android repete o mesmo final em menos de 1,5s. Esse eco não entra de novo. */
-      if (textoLimpo !== "" && (textoLimpo !== ultimaTransicaoVoz || (agora - ultimoTimestampVoz) > 1500)) {
-        ultimaTransicaoVoz = textoLimpo;
-        ultimoTimestampVoz = agora;
-        acrescentarFala(evento);
-      } else if (textoLimpo !== "") {
-        corteResultado = evento.results.length;
-        resultadosVistos = evento.results.length;
+      textoProvisorio = textoProvisorio.replace(/\s+/g, " ").trim();
+      textoDefinitivo = textoDefinitivo.replace(/\s+/g, " ").trim();
+      /* Enquanto a frase cresce, só o campo atual muda. A lista não recebe linha nova. */
+      if (campoNovo && textoProvisorio) campoNovo.value = textoProvisorio;
+      if (!textoDefinitivo) {
+        mostrarRascunho(textoProvisorio);
+        return;
       }
+      if (campoNovo) campoNovo.value = textoDefinitivo;
+      resultadosVistos = evento.results.length;
+      corteResultado = evento.results.length;
+      confirmarTrecho(textoDefinitivo);
     };
     sessao.onstart = function () {
       if (reconhecimento !== sessao) return;
@@ -596,7 +636,6 @@
     sessao.onend = function () {
       if (reconhecimento !== sessao) return;
       if (ouvindo && !erroAtivo) {
-        prefixoFala = area ? area.value.replace(/\s+$/, "") : "";
         corteResultado = 0;
         resultadosVistos = 0;
         try {
