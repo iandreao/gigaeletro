@@ -118,9 +118,17 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.gv-card:hover,
-.gv-card:focus,
-.gv-card:focus-visible {
+/* Realce alternado: a barra sob o ponteiro fica nítida e a outra suaviza. */
+.gv-cards:hover .gv-card,
+.gv-cards:focus-within .gv-card {
+  border-color: rgba(26, 26, 26, 0.22);
+  border-left-color: #fcd800;
+  box-shadow: none;
+}
+
+.gv-cards:hover .gv-card:hover,
+.gv-cards:focus-within .gv-card:focus,
+.gv-cards:focus-within .gv-card:focus-visible {
   border-color: #333;
   border-left-color: #fcd800;
   box-shadow: 0 0 0 1px #333;
@@ -216,7 +224,7 @@
   /* Mesma coluna do formulário: não invade o showroom nem o orçamento. */
   position: fixed;
   z-index: 32;
-  top: 16px;
+  top: var(--gv-escolha-topo, 16px);
   left: var(--gv-escolha-esq, 16px);
   transform: none;
   box-sizing: border-box;
@@ -225,7 +233,10 @@
   align-items: stretch;
   width: var(--gv-escolha-largura, min(416px, calc(100vw - 32px)));
   max-width: min(416px, var(--gv-escolha-largura, calc(100vw - 32px)));
-  max-height: calc(100dvh - 24px);
+  /* Altura da faixa do formulário, do respiro sob Tipo de Pessoa até o catálogo. */
+  height: var(--gv-escolha-altura, auto);
+  min-height: var(--gv-escolha-altura, 0);
+  max-height: var(--gv-escolha-altura, calc(100dvh - 24px));
   margin: 0;
   padding: 16px 14px 14px;
   overflow-x: hidden;
@@ -237,8 +248,6 @@
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   font-family: "Manrope", "Segoe UI", sans-serif;
   text-align: center;
-  /* Desce um pouco para criar respiro sob o texto "Faça seu orçamento". */
-  margin-top: 2rem;
 }
 
 .gv-captura,
@@ -635,8 +644,8 @@ input.gv-intencoes-input {
     transform: none;
     width: var(--gv-escolha-largura, calc(100vw - 24px));
     max-width: var(--gv-escolha-largura, calc(100vw - 24px));
-    height: auto;
-    max-height: calc(100dvh - 24px);
+    height: var(--gv-escolha-altura, auto);
+    max-height: var(--gv-escolha-altura, calc(100dvh - 24px));
   }
 }
 

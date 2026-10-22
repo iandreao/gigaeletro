@@ -256,8 +256,9 @@
     var catalogo = document.getElementById("btnVerCatalogo");
     var tipoRect = tipo ? tipo.getBoundingClientRect() : null;
     var catRect = catalogo ? catalogo.getBoundingClientRect() : null;
+    /* Começa sob Tipo de Pessoa, com o respiro de 12px, e desce até a borda do catálogo. */
     var topo = tipoRect ? tipoRect.bottom + 12 : formRect.top;
-    var base = catRect && catRect.top > topo + 120 ? catRect.top - 8 : formRect.bottom;
+    var base = catRect && catRect.top > topo + 120 ? catRect.top : formRect.bottom;
     return {
       left: formRect.left,
       width: formRect.width,
@@ -332,29 +333,13 @@
   function alinharComEnvio() {
     if (!gravador) return;
     posicionarGravador();
-    var listaAberta = painelLista && !painelLista.hidden && !gravador.hidden;
-    var enviar = document.querySelector(".quote-side [data-enviar]");
-    var estreito = window.matchMedia("(max-width: 767px)").matches;
-    if (!listaAberta || estreito || !enviar || !confirmarLista) {
-      gravador.style.height = "";
-      gravador.style.maxHeight = "";
-      gravador.style.marginTop = "";
-      var alturaCaixa = gravador.offsetHeight || 280;
-      var topoCaixa = Math.max(12, Math.round((window.innerHeight - alturaCaixa) / 2));
-      gravador.style.top = topoCaixa + "px";
-      return;
-    }
+    var medida = medirColunaCentral();
+    if (!medida) return;
+    /* Mesma faixa da escolha: sob Tipo de Pessoa e rente a Ver Catálogo. */
     gravador.style.marginTop = "0";
-    var topo = 16;
-    var maximo = Math.max(240, Math.round(window.innerHeight - topo - 12));
-    gravador.style.top = topo + "px";
-    gravador.style.maxHeight = maximo + "px";
-    gravador.style.height = maximo + "px";
-    var delta = enviar.getBoundingClientRect().bottom - confirmarLista.getBoundingClientRect().bottom;
-    var altura = Math.round(gravador.getBoundingClientRect().height + delta);
-    if (altura > maximo) altura = maximo;
-    if (altura < 240) altura = Math.min(maximo, 240);
-    gravador.style.height = altura + "px";
+    gravador.style.top = medida.top + "px";
+    gravador.style.height = medida.height + "px";
+    gravador.style.maxHeight = medida.height + "px";
   }
 
   function mostrarLista() {
