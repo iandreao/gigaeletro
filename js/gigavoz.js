@@ -513,17 +513,24 @@
 
   function acrescentarFala(evento) {
     if (!area || !evento || !evento.results) return;
-    resultadosVistos = evento.results.length;
     var falado = "";
     var i;
-    for (i = corteResultado; i < evento.results.length; i++) {
+    var inicio = typeof evento.resultIndex === "number" ? evento.resultIndex : corteResultado;
+    if (inicio < corteResultado) inicio = corteResultado;
+    for (i = inicio; i < evento.results.length; i++) {
+      /* No celular os trechos provisórios se repetem. Só o consolidado entra no texto. */
+      if (!evento.results[i].isFinal) continue;
       var trecho = evento.results[i][0] && evento.results[i][0].transcript;
       if (trecho) falado += trecho;
     }
     falado = falado.replace(/\s+/g, " ").trim();
+    if (!falado) return;
+    resultadosVistos = evento.results.length;
+    corteResultado = evento.results.length;
     var base = prefixoFala.replace(/\s+$/, "");
     escrevendo = true;
-    area.value = base && falado ? base + " " + falado : (falado || base);
+    area.value = base ? base + " " + falado : falado;
+    prefixoFala = area.value;
     escrevendo = false;
     area.scrollTop = area.scrollHeight;
     atualizarAvanco();
