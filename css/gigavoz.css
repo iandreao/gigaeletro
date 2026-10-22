@@ -771,3 +771,11 @@ body.home .catalogo-modal .catalog-nome {
     max-width: 416px !important;
   }
 }
+
+@media (max-width: 980px) {
+  /* A lista do catálogo deixa de ficar presa em 3 itens e ocupa o vão do quadro. */
+  body.home .catalogo-modal .catalog-list {
+    height: auto !important;
+    max-height: 400px !important;
+  }
+}

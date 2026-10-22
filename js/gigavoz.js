@@ -371,6 +371,11 @@
     modal.style.height = faixa.height + "px";
     modal.style.maxHeight = faixa.height + "px";
     modal.style.transform = "none";
+    var lista = modal.querySelector(".catalog-list");
+    if (lista && window.matchMedia("(max-width: 980px)").matches) {
+      lista.style.height = "";
+      lista.style.maxHeight = "";
+    }
   }
 
   function centralizarModaisAbertos() {
