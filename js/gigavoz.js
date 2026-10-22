@@ -98,8 +98,6 @@
     document.body.appendChild(raiz);
     alinharEscolha();
     refletirTipoOrcamento();
-    var primeiro = raiz.querySelector('[data-gv-acao="catalogo"]');
-    if (primeiro) primeiro.focus();
   }
 
   function modoGigaVozAberto() {
@@ -1013,8 +1011,6 @@
     }
     refletirTipoOrcamento();
     observarModaisHome();
-    var primeiro = raiz.querySelector('[data-gv-acao="catalogo"]');
-    if (primeiro) primeiro.focus();
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", iniciar);
