@@ -29,6 +29,8 @@
   var erroAtivo = false;
   var modoIntencoes = false;
   var catalogoTravado = false;
+  var ultimaTransicaoVoz = "";
+  var ultimoTimestampVoz = 0;
 
   function criarTela() {
     var fundo = document.createElement("div");
@@ -508,6 +510,8 @@
     prefixoFala = "";
     corteResultado = 0;
     resultadosVistos = 0;
+    ultimaTransicaoVoz = "";
+    ultimoTimestampVoz = 0;
     atualizarAvanco();
   }
 
@@ -548,14 +552,34 @@
     prefixoFala = area ? area.value.replace(/\s+$/, "") : "";
     corteResultado = 0;
     resultadosVistos = 0;
+    ultimaTransicaoVoz = "";
+    ultimoTimestampVoz = 0;
     var sessao = new API();
     reconhecimento = sessao;
     sessao.lang = "pt-BR";
     sessao.continuous = true;
     sessao.interimResults = true;
     sessao.onresult = function (evento) {
-      if (reconhecimento !== sessao) return;
-      acrescentarFala(evento);
+      if (reconhecimento !== sessao || !evento || !evento.results) return;
+      var transcricaoVoz = "";
+      var i;
+      var inicio = typeof evento.resultIndex === "number" ? evento.resultIndex : 0;
+      for (i = inicio; i < evento.results.length; i++) {
+        if (!evento.results[i].isFinal) continue;
+        var trecho = evento.results[i][0] && evento.results[i][0].transcript;
+        if (trecho) transcricaoVoz += trecho;
+      }
+      var textoLimpo = transcricaoVoz.replace(/\s+/g, " ").trim();
+      var agora = Date.now();
+      /* O Chrome no Android repete o mesmo final em menos de 1,5s. Esse eco não entra de novo. */
+      if (textoLimpo !== "" && (textoLimpo !== ultimaTransicaoVoz || (agora - ultimoTimestampVoz) > 1500)) {
+        ultimaTransicaoVoz = textoLimpo;
+        ultimoTimestampVoz = agora;
+        acrescentarFala(evento);
+      } else if (textoLimpo !== "") {
+        corteResultado = evento.results.length;
+        resultadosVistos = evento.results.length;
+      }
     };
     sessao.onstart = function () {
       if (reconhecimento !== sessao) return;
