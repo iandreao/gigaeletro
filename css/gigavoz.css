@@ -257,7 +257,6 @@
   text-align: center;
 }
 
-.gv-captura,
 .gv-bloco-mic,
 .gv-status-text,
 .gv-transcript-area,
@@ -267,12 +266,19 @@
   flex: none;
 }
 
+.gv-recorder-container .gv-captura {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .gv-recorder-container[hidden] {
   display: none !important;
 }
 
 .gv-recorder-titulo {
-  margin: 0 0 14px;
+  margin: 0 0 6px;
   color: #1a1a1a;
   font-size: 1rem;
   font-weight: 800;
@@ -285,8 +291,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 8px;
+  gap: 4px;
+  margin: 0 0 4px;
 }
 
 .gv-waves {
@@ -294,8 +300,8 @@
   align-items: flex-end;
   justify-content: center;
   gap: 5px;
-  height: 28px;
-  margin: 0 0 14px;
+  height: 16px;
+  margin: 0;
 }
 
 .gv-waves[hidden] {
@@ -316,8 +322,8 @@
 .gv-waves span:nth-child(4) { animation-delay: 0.45s; }
 
 @keyframes gv-onda {
-  0%, 100% { height: 8px; }
-  50% { height: 26px; }
+  0%, 100% { height: 6px; }
+  50% { height: 14px; }
 }
 
 .gv-mic {
@@ -325,8 +331,8 @@
   align-self: center;
   align-items: center;
   justify-content: center;
-  width: 76px;
-  height: 76px;
+  width: 56px;
+  height: 56px;
   margin: 0;
   padding: 0;
   border: 2px solid #1a1a1a;
@@ -348,11 +354,12 @@
 }
 
 .gv-status-text {
-  margin: 14px 0 0;
+  margin: 6px 0 0;
   color: #1a1a1a;
-  font-size: 0.95rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .gv-transcript-area {
@@ -384,9 +391,9 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 44px;
-  margin: 12px 0 0;
-  padding: 0.55rem 1rem;
+  min-height: 40px;
+  margin: auto 0 0;
+  padding: 0.3rem 1rem;
   border: 1px solid #000;
   border-radius: 0.55rem;
   background: #000;

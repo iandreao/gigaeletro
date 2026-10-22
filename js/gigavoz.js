@@ -2,7 +2,7 @@
   "use strict";
 
   var TEXTO_INICIAL = "Clique no microfone e fale os materiais que você precisa.";
-  var TEXTO_OUVINDO = "Ouvindo... Pode ditar seus produtos. Clique novamente para parar.";
+  var TEXTO_OUVINDO = "Ouvindo... Dite os produtos. Clique para parar.";
   var TEXTO_ERRO = "Acesso ao microfone negado ou não suportado. Por favor, utilize o formulário tradicional ou revise as permissões do seu navegador.";
   var NUMEROS = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, cem: 100 };
 
@@ -164,7 +164,7 @@
         '<div class="gv-bloco-mic">' +
           '<div class="gv-waves" data-gv-ondas hidden aria-hidden="true"><span></span><span></span><span></span><span></span></div>' +
           '<button class="gv-mic" type="button" data-gv-mic aria-pressed="false" aria-label="Iniciar escuta">' +
-            '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
               '<path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"></path>' +
               '<path d="M19 11a7 7 0 0 1-14 0"></path>' +
               '<path d="M12 18v3"></path>' +
