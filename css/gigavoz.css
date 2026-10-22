@@ -237,6 +237,8 @@
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   font-family: "Manrope", "Segoe UI", sans-serif;
   text-align: center;
+  /* Desce um pouco para criar respiro sob o texto "Faça seu orçamento". */
+  margin-top: 2rem;
 }
 
 .gv-captura,
@@ -652,6 +654,33 @@ input.gv-intencoes-input {
 .quote-side [data-envio-aviso].gv-aviso-sucesso {
   font-size: 0.9rem;
   text-align: center;
+}
+
+/* Catálogo e histórico: mais estreitos, no centro, sem cobrir a fachada. */
+body.home .catalogo-modal,
+body.home .historico-modal {
+  width: min(360px, calc(100% - 1.5rem));
+  max-width: 360px;
+  left: 50%;
+  right: auto;
+  transform: translate(-50%, -50%);
+}
+
+body.home .catalogo-modal #titulo-produtos {
+  font-size: 1.12rem;
+  line-height: 1.2;
+}
+
+body.home .catalogo-modal .catalogo-fechar {
+  min-height: 32px;
+  padding: 0 0.6rem;
+  border-radius: 12px;
+  font-size: 0.72rem;
+}
+
+body.home .catalogo-modal .catalog-nome {
+  font-size: 10.5px;
+  line-height: 1.15;
 }
 
 @media (min-width: 761px) {
