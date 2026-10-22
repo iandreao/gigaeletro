@@ -231,7 +231,8 @@
   /* Mesma coluna do formulário: não invade o showroom nem o orçamento. */
   position: fixed;
   z-index: 32;
-  top: var(--gv-escolha-topo, 16px);
+  /* Sobe até o topo de Tipo de Pessoa e para 20px antes de Ver Catálogo. */
+  top: var(--gv-voz-topo, var(--gv-escolha-topo, 16px));
   left: var(--gv-escolha-esq, 16px);
   transform: none;
   box-sizing: border-box;
@@ -240,10 +241,9 @@
   align-items: stretch;
   width: min(416px, var(--gv-escolha-largura, calc(100vw - 32px)));
   max-width: 416px;
-  /* Altura da faixa do formulário, do respiro sob Tipo de Pessoa até o catálogo. */
-  height: var(--gv-escolha-altura, auto);
-  min-height: var(--gv-escolha-altura, 0);
-  max-height: var(--gv-escolha-altura, calc(100dvh - 24px));
+  height: var(--gv-voz-altura, auto);
+  min-height: var(--gv-voz-altura, 0);
+  max-height: var(--gv-voz-altura, calc(100dvh - 24px));
   margin: 0;
   padding: 16px 14px 14px;
   overflow-x: hidden;
@@ -278,6 +278,7 @@
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .gv-bloco-mic {
@@ -321,6 +322,7 @@
 
 .gv-mic {
   display: inline-flex;
+  align-self: center;
   align-items: center;
   justify-content: center;
   width: 76px;
@@ -646,13 +648,13 @@ input.gv-intencoes-input {
 
 @media (max-width: 767px) {
   .gv-recorder-container {
-    top: var(--gv-escolha-topo, 12px);
+    top: var(--gv-voz-topo, var(--gv-escolha-topo, 12px));
     left: var(--gv-escolha-esq, 12px);
     transform: none;
     width: var(--gv-escolha-largura, calc(100vw - 24px));
-    max-width: var(--gv-escolha-largura, calc(100vw - 24px));
-    height: var(--gv-escolha-altura, auto);
-    max-height: var(--gv-escolha-altura, calc(100dvh - 24px));
+    max-width: min(416px, var(--gv-escolha-largura, calc(100vw - 24px)));
+    height: var(--gv-voz-altura, auto);
+    max-height: var(--gv-voz-altura, calc(100dvh - 24px));
   }
 }
 
@@ -705,14 +707,21 @@ body.home .catalogo-modal .catalog-nome {
   }
 }
 
-/* Trava final: a altura vem da faixa medida (Tipo de Pessoa + 12px até o catálogo). */
-.gv-welcome-modal,
-.gv-recorder-container {
+/* Escolha permanece sob Tipo de Pessoa. O microfone cobre esse bloco e respira 20px acima do catálogo. */
+.gv-welcome-modal {
   top: var(--gv-escolha-topo, 16px) !important;
   margin-top: 0 !important;
   height: var(--gv-escolha-altura, auto) !important;
   min-height: var(--gv-escolha-altura, 0px) !important;
   max-height: var(--gv-escolha-altura, calc(100dvh - 16px)) !important;
+}
+
+.gv-recorder-container {
+  top: var(--gv-voz-topo, var(--gv-escolha-topo, 16px)) !important;
+  margin-top: 0 !important;
+  height: var(--gv-voz-altura, var(--gv-escolha-altura, auto)) !important;
+  min-height: var(--gv-voz-altura, 0px) !important;
+  max-height: var(--gv-voz-altura, calc(100dvh - 16px)) !important;
 }
 
 @media (min-width: 981px) {
