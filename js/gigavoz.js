@@ -1080,6 +1080,9 @@
     document.body.appendChild(raiz);
     alinharEscolha();
     var tipo = document.getElementById("btnTipoOrcamento");
+    if (tipo && tipo.textContent.replace(/\s+/g, " ").trim() !== "Tipo de Orçamento") {
+      tipo.textContent = "Tipo de Orçamento";
+    }
     if (tipo && !tipo.dataset.gvTipo) {
       tipo.dataset.gvTipo = "1";
       tipo.addEventListener("click", alternarTipoOrcamento);
