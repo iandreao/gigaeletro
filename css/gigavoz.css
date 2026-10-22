@@ -681,14 +681,34 @@ input.gv-intencoes-input {
   text-align: center;
 }
 
-/* Catálogo e histórico: mais estreitos, no centro, sem cobrir a fachada. */
-body.home .catalogo-modal,
+/* Histórico permanece centrado e estreito, sem cobrir a fachada. */
 body.home .historico-modal {
   width: min(360px, calc(100% - 1.5rem));
   max-width: 360px;
   left: 50%;
   right: auto;
   transform: translate(-50%, -50%);
+}
+
+/* Catálogo ocupa a coluna do formulário, abaixo do texto institucional e sobre o botão. */
+body.home .catalogo-modal {
+  top: var(--gv-catalogo-topo, 16px) !important;
+  left: var(--gv-catalogo-esq, 16px) !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  width: min(416px, var(--gv-catalogo-largura, 416px)) !important;
+  max-width: 416px !important;
+  height: var(--gv-catalogo-altura, auto) !important;
+  min-height: var(--gv-catalogo-altura, 0px) !important;
+  max-height: var(--gv-catalogo-altura, calc(100dvh - 16px)) !important;
+  margin: 0 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+body.home [data-catalogo-overlay] {
+  display: none !important;
+  background: transparent !important;
 }
 
 body.home .catalogo-modal #titulo-produtos {

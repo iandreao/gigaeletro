@@ -265,7 +265,25 @@
       top: topo,
       height: Math.max(160, base - topo),
       vozTop: topoVoz,
-      vozHeight: Math.max(160, baseVoz - topoVoz)
+      vozHeight: Math.max(160, baseVoz - topoVoz),
+      catalogo: medirFaixaCatalogo(formRect)
+    };
+  }
+
+  function medirFaixaCatalogo(formRect) {
+    var texto = document.querySelector(".hero-copy h1") || document.querySelector(".hero-copy");
+    var botao = document.getElementById("btnVerCatalogo");
+    var textoRect = texto ? texto.getBoundingClientRect() : null;
+    var botaoRect = botao ? botao.getBoundingClientRect() : null;
+    /* Logo abaixo do texto institucional e até cobrir Ver Catálogo. Largura da coluna: 416px. */
+    var topo = textoRect && textoRect.height > 1 ? textoRect.bottom + 12 : formRect.top;
+    var base = botaoRect && botaoRect.height > 1 ? botaoRect.bottom : formRect.bottom;
+    if (base < topo + 120) base = Math.max(formRect.bottom, topo + 160);
+    return {
+      left: formRect.left,
+      width: Math.min(416, formRect.width),
+      top: topo,
+      height: Math.max(160, base - topo)
     };
   }
 
@@ -279,6 +297,11 @@
     raizCss.style.setProperty("--gv-escolha-altura", medida.height + "px");
     raizCss.style.setProperty("--gv-voz-topo", medida.vozTop + "px");
     raizCss.style.setProperty("--gv-voz-altura", medida.vozHeight + "px");
+    if (!medida.catalogo) return;
+    raizCss.style.setProperty("--gv-catalogo-esq", medida.catalogo.left + "px");
+    raizCss.style.setProperty("--gv-catalogo-largura", medida.catalogo.width + "px");
+    raizCss.style.setProperty("--gv-catalogo-topo", medida.catalogo.top + "px");
+    raizCss.style.setProperty("--gv-catalogo-altura", medida.catalogo.height + "px");
   }
 
   function alinharEscolha() {
@@ -309,20 +332,47 @@
     modal.style.maxWidth = largura + "px";
   }
 
+  function posicionarCatalogoColuna(modal) {
+    if (!modal || modal.hidden || modal.dataset.arrastado === "1" || modal.classList.contains("is-arrastando")) return;
+    var medida = medirColunaCentral();
+    if (!medida || !medida.catalogo) return;
+    publicarColuna(medida);
+    var faixa = medida.catalogo;
+    modal.style.setProperty("--gv-catalogo-esq", faixa.left + "px", "important");
+    modal.style.setProperty("--gv-catalogo-largura", faixa.width + "px", "important");
+    modal.style.setProperty("--gv-catalogo-topo", faixa.top + "px", "important");
+    modal.style.setProperty("--gv-catalogo-altura", faixa.height + "px", "important");
+    modal.style.marginTop = "0";
+    modal.style.left = faixa.left + "px";
+    modal.style.right = "auto";
+    modal.style.top = faixa.top + "px";
+    modal.style.width = faixa.width + "px";
+    modal.style.maxWidth = "416px";
+    modal.style.height = faixa.height + "px";
+    modal.style.maxHeight = faixa.height + "px";
+    modal.style.transform = "none";
+  }
+
   function centralizarModaisAbertos() {
-    centralizarModalHome(document.querySelector("[data-catalogo-modal]"));
+    posicionarCatalogoColuna(document.querySelector("[data-catalogo-modal]"));
     centralizarModalHome(document.querySelector("[data-historico]"));
   }
 
   function observarModaisHome() {
-    ["[data-catalogo-modal]", "[data-historico]"].forEach(function (seletor) {
-      var modal = document.querySelector(seletor);
-      if (!modal || modal.dataset.gvCentro) return;
-      modal.dataset.gvCentro = "1";
+    var catalogo = document.querySelector("[data-catalogo-modal]");
+    if (catalogo && !catalogo.dataset.gvCentro) {
+      catalogo.dataset.gvCentro = "1";
       new MutationObserver(function () {
-        window.requestAnimationFrame(function () { centralizarModalHome(modal); });
-      }).observe(modal, { attributes: true, attributeFilter: ["hidden"] });
-    });
+        window.requestAnimationFrame(function () { posicionarCatalogoColuna(catalogo); });
+      }).observe(catalogo, { attributes: true, attributeFilter: ["hidden"] });
+    }
+    var historico = document.querySelector("[data-historico]");
+    if (historico && !historico.dataset.gvCentro) {
+      historico.dataset.gvCentro = "1";
+      new MutationObserver(function () {
+        window.requestAnimationFrame(function () { centralizarModalHome(historico); });
+      }).observe(historico, { attributes: true, attributeFilter: ["hidden"] });
+    }
   }
   function posicionarGravador() {
     if (!gravador || gravador.hidden) return;
