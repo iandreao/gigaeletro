@@ -256,11 +256,11 @@
     var catalogo = document.getElementById("btnVerCatalogo");
     var tipoRect = tipo ? tipo.getBoundingClientRect() : null;
     var catRect = catalogo ? catalogo.getBoundingClientRect() : null;
-    /* Escolha: 12px sob Tipo de Pessoa, rente ao catálogo. Voz: cobre Tipo de Pessoa e para 20px antes do botão. */
-    var topo = tipoRect ? tipoRect.bottom + 12 : formRect.top;
-    var base = catRect && catRect.top > topo + 120 ? catRect.top : formRect.bottom;
-    var topoVoz = tipoRect ? tipoRect.top : formRect.top;
-    var baseVoz = catRect && catRect.top > topoVoz + 120 ? catRect.top - 20 : formRect.bottom;
+    /* Escolha e voz cobrem Tipo de Pessoa e param 20px antes de Ver Catálogo. */
+    var topo = tipoRect ? tipoRect.top : formRect.top;
+    var base = catRect && catRect.top > topo + 120 ? catRect.top - 20 : formRect.bottom;
+    var topoVoz = topo;
+    var baseVoz = base;
     return {
       left: formRect.left,
       width: Math.min(416, formRect.width),
@@ -284,9 +284,13 @@
   }
 
   function alinharEscolha() {
+    var modal = document.querySelector(".gv-welcome-modal");
     var medida = medirColunaCentral();
     if (!medida) return;
     publicarColuna(medida);
+    if (!modal) return;
+    modal.style.setProperty("--gv-escolha-topo", medida.top + "px", "important");
+    modal.style.setProperty("--gv-escolha-altura", medida.height + "px", "important");
   }
 
   function centralizarModalHome(modal) {
