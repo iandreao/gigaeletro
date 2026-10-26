@@ -1132,8 +1132,66 @@
     refletirTipoOrcamento();
   }
 
+  var telaPresa = window.matchMedia("(max-width: 767px)");
+  var rolavelDoToque = null;
+
+  function quadroRolavel(alvo) {
+    var el = alvo && alvo.nodeType === 1 ? alvo : alvo && alvo.parentElement;
+    while (el && el !== document.body && el !== document.documentElement) {
+      var estilo = window.getComputedStyle(el);
+      if (/(auto|scroll)/.test(estilo.overflowY) && el.scrollHeight > el.clientHeight + 1) return el;
+      if (/(auto|scroll)/.test(estilo.overflowX) && el.scrollWidth > el.clientWidth + 1) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function aoTocarTela(evento) {
+    if (!telaPresa.matches) return;
+    rolavelDoToque = quadroRolavel(evento.target);
+    if (!rolavelDoToque) return;
+    /* iOS antigo ignora overscroll-behavior: 1px de folga evita que o arrasto vaze para o fundo. */
+    var limite = rolavelDoToque.scrollHeight - rolavelDoToque.clientHeight;
+    if (limite <= 0) return;
+    if (rolavelDoToque.scrollTop <= 0) rolavelDoToque.scrollTop = 1;
+    else if (rolavelDoToque.scrollTop >= limite) rolavelDoToque.scrollTop = limite - 1;
+  }
+
+  function aoArrastarTela(evento) {
+    if (!telaPresa.matches) return;
+    if (evento.touches && evento.touches.length > 1) {
+      evento.preventDefault();
+      return;
+    }
+    if (evento.target && evento.target.closest && evento.target.closest("input, select")) return;
+    if (rolavelDoToque && rolavelDoToque.contains(evento.target)) return;
+    if (evento.cancelable) evento.preventDefault();
+  }
+
+  function devolverTopo() {
+    if (!telaPresa.matches) return;
+    window.setTimeout(function () {
+      if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+    }, 60);
+  }
+
+  function travarTelaMobile() {
+    if (document.documentElement.dataset.gvTelaPresa) return;
+    document.documentElement.dataset.gvTelaPresa = "1";
+    document.addEventListener("touchstart", aoTocarTela, { passive: true });
+    document.addEventListener("touchmove", aoArrastarTela, { passive: false });
+    /* Pinça no Safari, que ignora user-scalable=no. */
+    document.addEventListener("gesturestart", function (evento) {
+      if (telaPresa.matches) evento.preventDefault();
+    }, { passive: false });
+    /* Ao fechar o teclado, o iPhone às vezes deixa a página deslocada. */
+    document.addEventListener("focusout", devolverTopo);
+    window.addEventListener("orientationchange", devolverTopo);
+  }
+
   function iniciar() {
     if (!document.body || !document.body.classList.contains("home")) return;
+    travarTelaMobile();
     if (document.querySelector(".gv-backdrop")) return;
     window.addEventListener("resize", function () {
       alinharComEnvio();
