@@ -1,6 +1,8 @@
 (function () {
   var WHATSAPP = "5527998235652";
   var CHAVE_PEDIDO = "gigaeletro-orcamento";
+  var CHAVE_RASCUNHO = "gigaeletro_rascunho";
+  var VALIDADE_RASCUNHO = 15 * 24 * 60 * 60 * 1000;
   var SITE_PDF = "https://gigaeletro.vercel.app";
   var logoPdf = new Image();
   logoPdf.src = "assets/logo-gigaeletro.jpg";
@@ -336,6 +338,11 @@
   renderResumo();
   renderRecentes();
   carregarPublicado();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", restaurarRascunho);
+  } else {
+    restaurarRascunho();
+  }
 
   window.addEventListener("resize", function () {
     var modal = document.querySelector("[data-catalogo-modal]");
@@ -1958,9 +1965,28 @@
     });
   }
 
+  function lerRascunho() {
+    var salvo = JSON.parse(localStorage.getItem(CHAVE_RASCUNHO) || "null");
+    if (salvo && !Array.isArray(salvo)) {
+      if (Date.now() - (Number(salvo.salvoEm) || 0) > VALIDADE_RASCUNHO) {
+        localStorage.removeItem(CHAVE_RASCUNHO);
+        return [];
+      }
+      return salvo.itens;
+    }
+    if (salvo) return salvo;
+    /* Rascunho da versão anterior, guardado só na aba. */
+    var antigo = JSON.parse(sessionStorage.getItem(CHAVE_PEDIDO) || "[]");
+    sessionStorage.removeItem(CHAVE_PEDIDO);
+    if (Array.isArray(antigo) && antigo.length) {
+      localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify({ itens: antigo, salvoEm: Date.now() }));
+    }
+    return antigo;
+  }
+
   function carregarPedido() {
     try {
-      var dados = JSON.parse(sessionStorage.getItem(CHAVE_PEDIDO) || "[]");
+      var dados = lerRascunho();
       if (!Array.isArray(dados)) return [];
       return dados.filter(function (item) {
         return item && item.codigo && item.produto && isFinite(item.preco) && item.qtd > 0;
@@ -1971,7 +1997,20 @@
   }
 
   function salvarPedido() {
-    sessionStorage.setItem(CHAVE_PEDIDO, JSON.stringify(selecionados));
+    try {
+      if (selecionados.length) {
+        localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify({ itens: selecionados, salvoEm: Date.now() }));
+      } else {
+        localStorage.removeItem(CHAVE_RASCUNHO);
+      }
+    } catch (erro) { /* modo privado ou cota cheia: o orçamento segue só na memória */ }
+  }
+
+  function restaurarRascunho() {
+    selecionados = carregarPedido();
+    salvarPedido();
+    renderResumo();
+    liberarEnvio();
   }
 
   function numero(valor) {

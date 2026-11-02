@@ -5,6 +5,8 @@ data/*.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
+data/orcamentos-*.json
+data/orcamentos-*.json.tmp
 uploads/*.pdf
 uploads/*.part
 .env*

@@ -18,6 +18,7 @@ import re
 import secrets
 import socket
 import sqlite3
+import sys
 import threading
 import time
 import unicodedata
@@ -25,7 +26,7 @@ import urllib.error
 import urllib.request
 import zipfile
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -44,6 +45,9 @@ PDF_LOCK = threading.Lock()
 PAINEL_LOCK = threading.Lock()
 PAINEL_BLOB = "orcamentos/painel.json"
 PAINEL_LIMITE = 2000
+METRICAS_LOCK = threading.Lock()
+METRICAS_BLOB = "orcamentos/metricas.json"
+METRICAS_LIMITE = 5000
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 IMPORTACAO = threading.Lock()
 
@@ -78,6 +82,10 @@ def caminho_auditoria():
 
 def caminho_painel():
     return diretorio_gravavel() / "orcamentos-painel.json"
+
+
+def caminho_metricas():
+    return diretorio_gravavel() / "orcamentos-metricas.json"
 
 
 def diretorio_pdf():
@@ -1347,6 +1355,196 @@ def incluir_orcamento_painel(corpo):
     return registro
 
 
+def interpretar_metricas(conteudo):
+    if not conteudo:
+        return []
+    try:
+        dados = json.loads(conteudo.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+        return []
+    if not isinstance(dados, list):
+        return []
+    return [item for item in dados if isinstance(item, dict) and item.get("dia")]
+
+
+def ler_metricas():
+    if token_blob():
+        conteudo = baixar_blob(METRICAS_BLOB, consistente=True)
+        if conteudo is None:
+            raise OSError("blob")
+        return interpretar_metricas(conteudo)
+    if em_vercel():
+        raise OSError("blob")
+    arquivo = caminho_metricas()
+    if not arquivo.is_file():
+        return []
+    return interpretar_metricas(arquivo.read_bytes())
+
+
+def gravar_metricas(lista):
+    conteudo = json.dumps(lista, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    if token_blob():
+        if not enviar_json_blob(METRICAS_BLOB, conteudo):
+            raise OSError("blob")
+        return
+    if em_vercel():
+        raise OSError("blob")
+    destino = caminho_metricas()
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    temporario = destino.with_suffix(".json.tmp")
+    temporario.write_bytes(conteudo)
+    os.replace(temporario, destino)
+
+
+def item_de_voz(item):
+    codigo = str(item.get("codigo") or "").strip().lower()
+    return codigo.startswith("voz-") or (not codigo and not item.get("preco"))
+
+
+def metrica_do_orcamento(registro):
+    """Só o que é anônimo: quando, como foi montado, PF/PJ e quais produtos."""
+    itens = registro.get("itens") or []
+    voz = sum(1 for item in itens if item_de_voz(item))
+    produtos = {}
+    for item in itens:
+        if item_de_voz(item):
+            nome = limpar_nome_intencao(item.get("produto"))
+            chave = "voz:" + " ".join(nome.lower().split())
+            codigo = ""
+        else:
+            nome = str(item.get("produto") or "").strip()[:160]
+            codigo = str(item.get("codigo") or "").strip()[:40]
+            chave = "sku:" + codigo if codigo else "nome:" + " ".join(nome.lower().split())
+        if not nome:
+            continue
+        qtd = int(item.get("qtd") or 1)
+        atual = produtos.get(chave)
+        if atual:
+            atual["qtd"] = max(atual["qtd"], qtd)
+            continue
+        produtos[chave] = {"codigo": codigo, "produto": nome, "qtd": qtd}
+    cliente = registro.get("cliente") or {}
+    data = str(registro.get("data") or agora_painel().isoformat(timespec="seconds"))
+    return {
+        "data": data,
+        "dia": normalizar_data_painel(data) or hoje_painel(),
+        "metodo": "gigavoz" if itens and voz * 2 > len(itens) else "tradicional",
+        "pessoa": "pj" if cliente.get("tipo") == "pj" else "pf",
+        "produtos": list(produtos.values()),
+    }
+
+
+def registrar_metrica(registro):
+    # A métrica nunca pode derrubar o envio do orçamento ao cliente.
+    try:
+        metrica = metrica_do_orcamento(registro)
+        with METRICAS_LOCK:
+            lista = ler_metricas()
+            lista.insert(0, metrica)
+            gravar_metricas(lista[:METRICAS_LIMITE])
+    except Exception as erro:
+        print("metricas: falha ao gravar (%s)" % erro, file=sys.stderr, flush=True)
+
+
+def porcentagens(contagem, total):
+    return {
+        chave: {"qtd": valor, "pct": round(valor * 100.0 / total, 1) if total else 0.0}
+        for chave, valor in contagem.items()
+    }
+
+
+def serie_do_periodo(metricas, inicio, fim):
+    if not inicio or not fim:
+        return "dia", []
+    primeiro = datetime.strptime(inicio, "%Y-%m-%d").date()
+    ultimo = datetime.strptime(fim, "%Y-%m-%d").date()
+    mensal = (ultimo - primeiro).days > 62
+    chaves = []
+    dia = primeiro
+    while dia <= ultimo:
+        chave = dia.strftime("%Y-%m") if mensal else dia.isoformat()
+        if not chaves or chaves[-1] != chave:
+            chaves.append(chave)
+        dia += timedelta(days=1)
+    contagem = {chave: {"periodo": chave, "total": 0, "tradicional": 0, "gigavoz": 0} for chave in chaves}
+    for metrica in metricas:
+        chave = metrica["dia"][:7] if mensal else metrica["dia"]
+        if chave in contagem:
+            contagem[chave]["total"] += 1
+            contagem[chave]["gigavoz" if metrica.get("metodo") == "gigavoz" else "tradicional"] += 1
+    return ("mes" if mensal else "dia"), [contagem[chave] for chave in chaves]
+
+
+def estatisticas_dashboard(lista, inicio="", fim=""):
+    bruto_inicio = str(inicio or "").strip()
+    bruto_fim = str(fim or "").strip()
+    inicio = normalizar_data_painel(bruto_inicio) if bruto_inicio else ""
+    fim = normalizar_data_painel(bruto_fim) if bruto_fim else ""
+    if (bruto_inicio and not inicio) or (bruto_fim and not fim) or (inicio and fim and inicio > fim):
+        return None
+    metricas = [
+        item for item in lista
+        if (not inicio or item.get("dia", "") >= inicio) and (not fim or item.get("dia", "") <= fim)
+    ]
+    dias = sorted(item["dia"] for item in metricas)
+    serie_inicio = inicio or (dias[0] if dias else "")
+    serie_fim = fim or (dias[-1] if dias else "")
+    total = len(metricas)
+    metodo = {"tradicional": 0, "gigavoz": 0}
+    pessoa = {"pf": 0, "pj": 0}
+    ranking = {}
+    for item in metricas:
+        metodo["gigavoz" if item.get("metodo") == "gigavoz" else "tradicional"] += 1
+        pessoa["pj" if item.get("pessoa") == "pj" else "pf"] += 1
+        for produto in item.get("produtos") or []:
+            if not isinstance(produto, dict):
+                continue
+            codigo = str(produto.get("codigo") or "")
+            nome = str(produto.get("produto") or "").strip()
+            if not nome:
+                continue
+            chave = "sku:" + codigo if codigo else "nome:" + " ".join(nome.lower().split())
+            atual = ranking.setdefault(chave, {"codigo": codigo, "produto": nome, "orcamentos": 0, "quantidade": 0})
+            atual["orcamentos"] += 1
+            try:
+                atual["quantidade"] += max(1, int(produto.get("qtd") or 1))
+            except (TypeError, ValueError):
+                atual["quantidade"] += 1
+    top = sorted(ranking.values(), key=lambda atual: (-atual["orcamentos"], -atual["quantidade"], atual["produto"].lower()))[:5]
+    agrupamento, serie = serie_do_periodo(metricas, serie_inicio, serie_fim)
+    return {
+        "inicio": serie_inicio,
+        "fim": serie_fim,
+        "total": total,
+        "agrupamento": agrupamento,
+        "serie": serie,
+        "metodo": porcentagens(metodo, total),
+        "pessoa": porcentagens(pessoa, total),
+        "topProdutos": top,
+    }
+
+
+def responder_dashboard(saida):
+    if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+        escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
+        return
+    try:
+        lista = ler_metricas()
+    except OSError:
+        escrever_json(saida, {"ok": False, "erro": "Não foi possível ler as estatísticas."}, 500)
+        return
+    dados = estatisticas_dashboard(
+        lista,
+        parametro_consulta(saida.path, "dataInicio"),
+        parametro_consulta(saida.path, "dataFim"),
+    )
+    if dados is None:
+        escrever_json(saida, {"ok": False, "erro": "Período inválido."}, 400)
+        return
+    dados["ok"] = True
+    escrever_json(saida, dados)
+
+
 def responder_orcamentos(saida):
     if saida.command == "GET":
         admin = token_valido(cookie_de(saida.headers.get("Cookie")))
@@ -1441,6 +1639,7 @@ def responder_orcamentos(saida):
     if not registro:
         escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
         return
+    registrar_metrica(registro)
     escrever_json(saida, {"ok": True, "id": registro["id"]})
 
 
@@ -1582,6 +1781,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if caminho == "/api/orcamentos":
             responder_orcamentos(self)
+            return
+        if caminho == "/api/dashboard-estatisticas":
+            responder_dashboard(self)
             return
         if caminho == "/api/ver-pdf":
             responder_ver_pdf(self)

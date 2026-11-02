@@ -121,6 +121,7 @@
     limparAuditoria();
     preencherDataHoje();
     carregarOrcamentos();
+    carregarDashboard();
   }
 
   function mostrarAba(nome) {
@@ -143,6 +144,7 @@
     botao.addEventListener("click", function () {
       mostrarAba(botao.getAttribute("data-aba"));
       fecharMenuGestor();
+      if (botao.getAttribute("data-aba") === "dashboard") carregarDashboard();
     });
   });
 
@@ -623,6 +625,145 @@
       window.alert("Não foi possível excluir o orçamento.");
     });
   }
+  var dashDias = 30;
+  var dashPedido = 0;
+  var MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+  function diasAtras(dias) {
+    var data = new Date(dataHojeIso() + "T12:00:00Z");
+    data.setUTCDate(data.getUTCDate() - (dias - 1));
+    return data.toISOString().slice(0, 10);
+  }
+
+  function rotuloPeriodo(chave, agrupamento) {
+    var partes = String(chave).split("-");
+    if (agrupamento === "mes") return MESES[Number(partes[1]) - 1] + "/" + partes[0].slice(2);
+    return partes[2] + "/" + partes[1];
+  }
+
+  function pct(valor) {
+    return String(Number(valor || 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })) + "%";
+  }
+
+  function htmlDivisao(partes) {
+    var barra = partes.map(function (parte) {
+      return '<span class="' + parte.classe + '" style="width:' + Number(parte.dado.pct || 0) + '%"></span>';
+    }).join("");
+    var linhas = partes.map(function (parte) {
+      return '<li><i class="' + parte.classe + '"></i><span>' + escapar(parte.nome) + '</span>' +
+        '<strong>' + pct(parte.dado.pct) + '</strong><small>' + Number(parte.dado.qtd || 0) + '</small></li>';
+    }).join("");
+    return '<div class="dash-divisao" role="img" aria-label="' + escapar(partes.map(function (parte) {
+      return parte.nome + " " + pct(parte.dado.pct);
+    }).join(", ")) + '">' + barra + '</div><ul class="dash-itens">' + linhas + '</ul>';
+  }
+
+  function htmlSerie(serie, agrupamento) {
+    if (!serie.length) return '<p class="dash-vazio">Sem orçamentos no período.</p>';
+    var maior = Math.max.apply(null, serie.map(function (ponto) { return ponto.total; }).concat([1]));
+    var passo = Math.max(1, Math.ceil(serie.length / 8));
+    return serie.map(function (ponto, indice) {
+      var rotulo = rotuloPeriodo(ponto.periodo, agrupamento);
+      var mostrar = indice % passo === 0 || indice === serie.length - 1;
+      return '<div class="dash-coluna" title="' + escapar(rotulo + ": " + ponto.total + " orçamento(s)") + '">' +
+        '<div class="dash-pilha" style="height:' + (ponto.total * 100 / maior) + '%">' +
+        '<span class="dash-cor-gigavoz" style="flex-grow:' + ponto.gigavoz + '"></span>' +
+        '<span class="dash-cor-tradicional" style="flex-grow:' + ponto.tradicional + '"></span>' +
+        '</div><small>' + (mostrar ? escapar(rotulo) : "") + '</small></div>';
+    }).join("");
+  }
+
+  function htmlRanking(lista) {
+    if (!lista.length) return '<li class="dash-vazio">Nenhum produto no período.</li>';
+    var maior = Math.max.apply(null, lista.map(function (item) { return item.orcamentos; }).concat([1]));
+    return lista.map(function (item) {
+      return '<li><div class="dash-produto"><span>' + escapar(item.produto) + '</span>' +
+        (item.codigo ? '<small>Cód. ' + escapar(item.codigo) + '</small>' : '<small>GigaVoz</small>') + '</div>' +
+        '<div class="dash-trilho"><span style="width:' + (item.orcamentos * 100 / maior) + '%"></span></div>' +
+        '<p>' + item.orcamentos + ' orçamento(s) · ' + item.quantidade + ' un.</p></li>';
+    }).join("");
+  }
+
+  function renderDashboard(dados) {
+    var total = document.querySelector("[data-dash-total]");
+    var periodo = document.querySelector("[data-dash-periodo-texto]");
+    var serie = document.querySelector("[data-dash-serie]");
+    var metodo = document.querySelector("[data-dash-metodo]");
+    var pessoa = document.querySelector("[data-dash-pessoa]");
+    var top = document.querySelector("[data-dash-top]");
+    if (total) total.textContent = String(dados.total || 0);
+    if (periodo) {
+      periodo.textContent = dados.inicio
+        ? (dados.inicio === dados.fim ? "em " + dataVisivel(dados.inicio) : "de " + dataVisivel(dados.inicio) + " a " + dataVisivel(dados.fim))
+        : "orçamentos";
+    }
+    if (serie) {
+      serie.classList.toggle("is-mensal", dados.agrupamento === "mes");
+      serie.innerHTML = htmlSerie(dados.serie || [], dados.agrupamento);
+    }
+    if (metodo) {
+      metodo.innerHTML = htmlDivisao([
+        { classe: "dash-cor-tradicional", nome: "Catálogo Tradicional", dado: dados.metodo.tradicional },
+        { classe: "dash-cor-gigavoz", nome: "GigaVoz", dado: dados.metodo.gigavoz }
+      ]);
+    }
+    if (pessoa) {
+      pessoa.innerHTML = htmlDivisao([
+        { classe: "dash-cor-pf", nome: "Pessoa Física (CPF)", dado: dados.pessoa.pf },
+        { classe: "dash-cor-pj", nome: "Pessoa Jurídica (CNPJ)", dado: dados.pessoa.pj }
+      ]);
+    }
+    if (top) top.innerHTML = htmlRanking(dados.topProdutos || []);
+  }
+
+  function avisoDashboard(texto) {
+    var aviso = document.querySelector("[data-dash-aviso]");
+    if (!aviso) return;
+    aviso.hidden = !texto;
+    aviso.textContent = texto || "";
+  }
+
+  function carregarDashboard() {
+    var grade = document.querySelector("[data-dash-grid]");
+    if (!grade) return;
+    var pedido = ++dashPedido;
+    var url = "/api/dashboard-estatisticas";
+    if (dashDias > 0) {
+      url += "?dataInicio=" + encodeURIComponent(diasAtras(dashDias)) + "&dataFim=" + encodeURIComponent(dataHojeIso());
+    }
+    grade.setAttribute("aria-busy", "true");
+    fetch(url, { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
+      if (resposta.status === 401) {
+        window.location.replace("/");
+        return null;
+      }
+      return resposta.json().catch(function () { return null; });
+    }).then(function (corpo) {
+      if (pedido !== dashPedido) return;
+      grade.setAttribute("aria-busy", "false");
+      if (!corpo || !corpo.ok) {
+        avisoDashboard(corpo && corpo.erro ? corpo.erro : "Erro ao carregar o painel comercial.");
+        return;
+      }
+      avisoDashboard("");
+      renderDashboard(corpo);
+    }).catch(function () {
+      if (pedido !== dashPedido) return;
+      grade.setAttribute("aria-busy", "false");
+      avisoDashboard("Erro ao carregar o painel comercial.");
+    });
+  }
+
+  document.querySelectorAll("[data-dash-dias]").forEach(function (botao) {
+    botao.addEventListener("click", function () {
+      dashDias = Number(botao.getAttribute("data-dash-dias")) || 0;
+      document.querySelectorAll("[data-dash-dias]").forEach(function (outro) {
+        outro.setAttribute("aria-pressed", outro === botao ? "true" : "false");
+      });
+      carregarDashboard();
+    });
+  });
+
   document.querySelectorAll("[data-fechar-detalhe]").forEach(function (botao) {
     botao.addEventListener("click", fecharDetalhe);
   });
