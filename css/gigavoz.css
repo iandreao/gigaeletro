@@ -808,6 +808,12 @@ body.home .site-header .nav button {
   }
 }
 
+/* Com boas-vindas ou voz abertas, o formulário coberto some: nada vaza pelas curvas do quadro. */
+body.home:has(> .gv-backdrop) .hero-acao .cliente-form,
+body.home:has(> .gv-recorder-container:not([hidden])) .hero-acao .cliente-form {
+  visibility: hidden;
+}
+
 @media (max-width: 980px) {
   /* A lista do catálogo deixa de ficar presa em 3 itens e ocupa o vão do quadro. */
   body.home .catalogo-modal .catalog-list {
