@@ -312,7 +312,7 @@
     var baseVoz = base;
     return {
       left: formRect.left,
-      width: Math.min(416, formRect.width),
+      width: larguraColuna(formRect),
       top: topo,
       height: Math.max(160, base - topo),
       vozTop: topoVoz,
@@ -326,16 +326,22 @@
     var botao = document.getElementById("btnVerCatalogo");
     var textoRect = texto ? texto.getBoundingClientRect() : null;
     var botaoRect = botao ? botao.getBoundingClientRect() : null;
-    /* Logo abaixo do texto institucional e até cobrir Ver Catálogo. Largura da coluna: 416px. */
+    /* Logo abaixo do texto institucional e até cobrir Ver Catálogo, na largura da coluna. */
     var topo = textoRect && textoRect.height > 1 ? textoRect.bottom + 12 : formRect.top;
     var base = botaoRect && botaoRect.height > 1 ? botaoRect.bottom : formRect.bottom;
     if (base < topo + 120) base = Math.max(formRect.bottom, topo + 160);
     return {
       left: formRect.left,
-      width: Math.min(416, formRect.width),
+      width: larguraColuna(formRect),
       top: topo,
       height: Math.max(160, base - topo)
     };
+  }
+
+  function larguraColuna(formRect) {
+    /* No desktop a coluna central é fluida; abaixo de 981px os quadros seguem limitados a 416px. */
+    if (window.matchMedia("(min-width: 981px)").matches) return formRect.width;
+    return Math.min(416, formRect.width);
   }
 
   function publicarColuna(medida) {
@@ -398,7 +404,7 @@
     modal.style.right = "auto";
     modal.style.top = faixa.top + "px";
     modal.style.width = faixa.width + "px";
-    modal.style.maxWidth = "416px";
+    modal.style.maxWidth = faixa.width + "px";
     modal.style.height = faixa.height + "px";
     modal.style.maxHeight = faixa.height + "px";
     modal.style.transform = "none";
@@ -437,7 +443,7 @@
     publicarColuna(medida);
     gravador.style.left = medida.left + "px";
     gravador.style.width = medida.width + "px";
-    gravador.style.maxWidth = "416px";
+    gravador.style.maxWidth = medida.width + "px";
     gravador.style.right = "auto";
     gravador.style.transform = "none";
   }
