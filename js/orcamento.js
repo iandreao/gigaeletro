@@ -529,6 +529,7 @@
   }
 
   function renderResumo() {
+    atualizarValidadeTela();
     if (resumoVazio) resumoVazio.hidden = carrinhoValido();
     var abrirCatalogo = document.querySelector(".hero-acao [data-abrir-catalogo]");
     if (abrirCatalogo) {
@@ -1429,6 +1430,7 @@
 
   function gerarPdf(cliente, subtotal) {
     if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("jspdf");
+    var dataCriacao = new Date();
     var doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
     var margem = 12;
     var largura = doc.internal.pageSize.getWidth();
@@ -1567,7 +1569,7 @@
     function desenharRodape() {
       var larguraTotal = 58;
       var xTotal = margem + util - larguraTotal;
-      var nota = "Nota: Os preços têm validade de 15 dias a contar do envio do orçamento. O estoque e o frete serão confirmados no Whatsapp.";
+      var nota = "Nota: " + textoValidade(dataCriacao);
       traco();
       doc.rect(margem, yRodape, util - larguraTotal, alturaRodape);
       doc.rect(xTotal, yRodape, larguraTotal, alturaRodape);
@@ -1966,6 +1968,25 @@
 
   function moeda(valor) {
     return "R$ " + numero(valor);
+  }
+
+  function dataValidade(base) {
+    var criacao = base instanceof Date ? base : new Date();
+    /* Meio-dia evita que mudança de fuso mova a data. Date resolve meses, bissextos e virada de ano. */
+    var validade = new Date(criacao.getFullYear(), criacao.getMonth(), criacao.getDate(), 12);
+    validade.setDate(validade.getDate() + 15);
+    var dia = String(validade.getDate()).padStart(2, "0");
+    var mes = String(validade.getMonth() + 1).padStart(2, "0");
+    return dia + "/" + mes + "/" + validade.getFullYear();
+  }
+
+  function textoValidade(base) {
+    return "Os preços constantes deste orçamento têm validade para até o dia " + dataValidade(base) + ". O estoque e o frete serão confirmados no Whatsapp.";
+  }
+
+  function atualizarValidadeTela() {
+    var aviso = document.querySelector("[data-validade]");
+    if (aviso) aviso.textContent = textoValidade();
   }
 
   function normalizar(valor) {
