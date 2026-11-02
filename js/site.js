@@ -68,7 +68,7 @@
     painel.addEventListener("pointercancel", soltar);
   }
 
-  var numero = "5527998021221";
+  var numero = "5527998235652";
 
   document.querySelectorAll("[data-wa]").forEach(function (el) {
     var texto = el.getAttribute("data-wa") || "";

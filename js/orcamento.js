@@ -1,5 +1,5 @@
 (function () {
-  var WHATSAPP = "5527998021221";
+  var WHATSAPP = "5527998235652";
   var CHAVE_PEDIDO = "gigaeletro-orcamento";
   var SITE_PDF = "https://gigaeletro.vercel.app";
   var logoPdf = new Image();
@@ -141,7 +141,7 @@
   var esqueciSenha = document.querySelector("[data-esqueci-senha]");
   if (esqueciSenha) {
     var textoSenha = "Olá, sou o gestor do SiteGigaeletro e esqueci minha senha de acesso. Solicito a chave de redefinição para o painel.";
-    esqueciSenha.href = "https://wa.me/5527998021221?text=" + encodeURIComponent(textoSenha);
+    esqueciSenha.href = "https://wa.me/" + WHATSAPP + "?text=" + encodeURIComponent(textoSenha);
     esqueciSenha.target = "_blank";
     esqueciSenha.rel = "noopener noreferrer";
   }

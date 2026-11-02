@@ -1089,7 +1089,7 @@
   }
 
   function abrirWhatsApp(texto) {
-    var digitos = "5527998021221";
+    var digitos = "5527998235652";
     var url = "https://wa.me/" + digitos + "?text=" + encodeURIComponent(texto);
     var aba = null;
     try { aba = window.open(url, "whatsapp-gigaeletro"); } catch (erro) { aba = null; }
