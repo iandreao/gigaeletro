@@ -861,6 +861,12 @@ body.home:has(> .gv-recorder-container:not([hidden])) .hero-acao .cliente-form {
   visibility: hidden;
 }
 
+/* Catálogo na coluna: o formulário e o botão preto que ele cobre somem, e as quinas ficam limpas. */
+body.home:has([data-catalogo-modal]:not([hidden]):not([data-arrastado])) .hero-acao .cliente-form,
+body.home:has([data-catalogo-modal]:not([hidden]):not([data-arrastado])) #btnVerCatalogo {
+  visibility: hidden;
+}
+
 @media (max-width: 980px) {
   /* A lista do catálogo deixa de ficar presa em 3 itens e ocupa o vão do quadro. */
   body.home .catalogo-modal .catalog-list {
