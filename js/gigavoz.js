@@ -1161,6 +1161,16 @@
     refletirTipoOrcamento();
   }
 
+  function aoLimparOrcamento() {
+    /* Lista de voz já saiu do quadro: o catálogo volta, salvo se o cliente ainda está ditando ou escolhendo. */
+    if (gravador && !gravador.hidden) return;
+    if (raiz && document.body.contains(raiz)) return;
+    modoIntencoes = false;
+    limparIntencoes();
+    liberarCatalogo();
+    refletirTipoOrcamento();
+  }
+
   var telaPresa = window.matchMedia("(max-width: 767px)");
   var rolavelDoToque = null;
 
@@ -1228,6 +1238,7 @@
       centralizarModaisAbertos();
     });
     document.addEventListener("gv-orcamento-enviado", concluirFluxoOrcamento);
+    document.addEventListener("gv-orcamento-limpo", aoLimparOrcamento);
     var formulario = document.querySelector("form");
     if (formulario && !formulario.dataset.gvForcaEnvio) {
       formulario.dataset.gvForcaEnvio = "1";

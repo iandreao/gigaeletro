@@ -808,6 +808,53 @@ body.home .site-header .nav button {
   }
 }
 
+/* Limpar Lista: discreto no canto do cabeçalho, sem mudar a altura nem o título centrado. */
+body.home .quote-side .drawer-head {
+  position: relative;
+}
+
+body.home .quote-side .drawer-head .limpar-orcamento {
+  position: absolute;
+  top: 50%;
+  right: 0.55rem;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  padding: 0.18rem 0.35rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #555;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+body.home .quote-side .drawer-head .limpar-orcamento svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+}
+
+body.home .quote-side .drawer-head .limpar-orcamento:hover,
+body.home .quote-side .drawer-head .limpar-orcamento:focus-visible {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+  outline: none;
+}
+
+body.home .quote-side .drawer-head .limpar-orcamento[hidden] {
+  display: none !important;
+}
+
 /* Com boas-vindas ou voz abertas, o formulário coberto some: nada vaza pelas curvas do quadro. */
 body.home:has(> .gv-backdrop) .hero-acao .cliente-form,
 body.home:has(> .gv-recorder-container:not([hidden])) .hero-acao .cliente-form {

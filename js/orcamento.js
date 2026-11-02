@@ -22,6 +22,7 @@
   var restritaOverlay = document.querySelector(".overlay[data-fechar-restrita]");
   var restritaErro = document.querySelector("[data-restrita-erro]");
   var enviar = document.querySelector("[data-enviar]");
+  var limparOrcamento = document.querySelector("[data-limpar-orcamento]");
   var status = document.querySelector("[data-cart-status]");
   var formCliente = document.querySelector("[data-cliente]");
   var consultaCnpj = 0;
@@ -239,6 +240,18 @@
     enviar.addEventListener("click", enviarWhatsApp);
     document.addEventListener("gv-itens-orcamento", function (evento) {
       incluirItensVoz(evento && evento.detail);
+    });
+  }
+
+  if (limparOrcamento) {
+    limparOrcamento.innerHTML = icone("lixeira") + "<span>Limpar Lista</span>";
+    limparOrcamento.addEventListener("click", function () {
+      if (!carrinhoValido()) return;
+      if (!window.confirm("Deseja realmente limpar todos os itens do seu orçamento?")) return;
+      /* Só os itens saem. Os dados do cliente continuam preenchidos. */
+      zerarQuadroOrcamento();
+      if (status) status.textContent = "Orçamento limpo.";
+      document.dispatchEvent(new CustomEvent("gv-orcamento-limpo"));
     });
   }
 
@@ -1311,6 +1324,7 @@
   }
 
   function liberarEnvio() {
+    if (limparOrcamento) limparOrcamento.hidden = !carrinhoValido();
     if (!enviar || envioEmCurso) return;
     var quadro = document.querySelector(".quote-side") || document.querySelector("#carrinho");
     var listaVozNaTela = !!(quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1);
