@@ -753,11 +753,6 @@ body.home .historico-modal .drawer-head .catalogo-fechar:focus-visible {
   outline-offset: 2px;
 }
 
-body.home .catalogo-modal .catalog-nome {
-  font-size: 10.5px;
-  line-height: 1.15;
-}
-
 /* O menu superior fica acima de qualquer tela sobreposta, no desktop e no celular. */
 body.home .site-header {
   z-index: 5000;
@@ -919,3 +914,14 @@ body.home:has([data-catalogo-modal]:not([hidden]):not([data-arrastado])) #btnVer
     touch-action: pan-y;
   }
 }
+
+/* Tipografia da home nos tamanhos de leitura do início do projeto (catálogo e Seu orçamento). */
+body.home .catalogo-modal .catalog-nome { font-size: 0.95rem; }
+body.home .catalogo-modal .catalog-row .preco strong { font-size: 0.95rem; }
+body.home .catalogo-modal .add-mini { font-size: 0.78rem; }
+body.home .quote-side .cart-nome { font-size: 13px; }
+body.home .quote-side .cart-compacta { font-size: 12px; }
+body.home .quote-side .estimado,
+body.home .quote-side .estimado strong { font-size: 0.95rem; }
+body.home .quote-side .legal { font-size: 0.82rem; }
+body.home .quote-side .empty { font-size: 0.95rem; }
