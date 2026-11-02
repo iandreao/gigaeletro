@@ -56,9 +56,9 @@
   }
 
   function botoesCatalogo() {
+    /* Só o botão do formulário trava no modo voz. Produtos, no menu, troca para o tradicional. */
     var hero = document.getElementById("btnVerCatalogo") || document.querySelector(".hero-acao [data-abrir-catalogo]");
-    var menu = document.getElementById("btnProdutos");
-    return [hero, menu].filter(Boolean);
+    return [hero].filter(Boolean);
   }
 
   function definirCatalogo(ativo) {
@@ -119,6 +119,35 @@
     if (!catalogo || catalogo.hidden) return;
     var fechar = catalogo.querySelector("[data-fechar-catalogo]");
     if (fechar) fechar.dispatchEvent(new MouseEvent("click", { bubbles: false, cancelable: true }));
+  }
+
+  function fecharHistoricoAberto() {
+    var historico = document.querySelector("[data-historico]");
+    if (!historico || historico.hidden) return;
+    var fechar = historico.querySelector("[data-fechar-historico]");
+    if (fechar) fechar.dispatchEvent(new MouseEvent("click", { bubbles: false, cancelable: true }));
+  }
+
+  function aoClicarMenu(evento) {
+    var item = evento.target.closest && evento.target.closest("a, button");
+    if (!item || !evento.currentTarget.contains(item)) return;
+    fecharCatalogoAberto();
+    fecharHistoricoAberto();
+    /* Tipo de Orçamento alterna a própria tela. Os demais itens saem do modo voz antes de agir. */
+    if (item.id !== "btnTipoOrcamento" && modoGigaVozAberto()) desligarModoGigaVoz();
+  }
+
+  function ligarMenuSoberano() {
+    var menu = document.getElementById("menu");
+    var produtos = document.getElementById("btnProdutos");
+    if (produtos) {
+      produtos.disabled = false;
+      produtos.removeAttribute("disabled");
+      produtos.setAttribute("aria-disabled", "false");
+    }
+    if (!menu || menu.dataset.gvSoberano) return;
+    menu.dataset.gvSoberano = "1";
+    menu.addEventListener("click", aoClicarMenu, true);
   }
 
   function aoAbrirMenuMobile() {
@@ -1218,6 +1247,7 @@
     refletirTipoOrcamento();
     observarModaisHome();
     ligarMenuMobile();
+    ligarMenuSoberano();
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", iniciar);

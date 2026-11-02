@@ -204,7 +204,7 @@
       var campo = event.target;
       if (!campoMonitorado(campo) || !valorInvalido(campo)) return;
       var destino = event.relatedTarget;
-      if (destino && destino.closest && (destino.closest("[data-enviar]") || destino.closest(".tipo-pessoa") || destino.closest("[data-historico]") || destino.closest("[data-editar-orcamento]") || destino.closest("[data-abrir-historico]"))) return;
+      if (destino && destino.closest && (destino.closest(".site-header") || destino.closest("[data-enviar]") || destino.closest(".tipo-pessoa") || destino.closest("[data-historico]") || destino.closest("[data-editar-orcamento]") || destino.closest("[data-abrir-historico]"))) return;
       window.setTimeout(function () {
         if (valorInvalido(campo) && document.activeElement !== campo) campo.focus();
       }, 0);
@@ -216,7 +216,8 @@
     var ativo = document.activeElement;
     if (!campoMonitorado(ativo) || !formCliente || !formCliente.contains(ativo) || !valorInvalido(ativo)) return;
     if (ativo === event.target || ativo.contains(event.target)) return;
-    if (event.target.closest && (event.target.closest("[data-enviar]") || event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
+    /* O menu superior nunca fica preso a um campo inválido. */
+    if (event.target.closest && (event.target.closest(".site-header") || event.target.closest("[data-enviar]") || event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
     event.preventDefault();
     mostrarDadoInvalido(ativo);
     ativo.focus();
@@ -225,7 +226,7 @@
   document.addEventListener("click", function (event) {
     var ativo = document.activeElement;
     if (!campoMonitorado(ativo) || !valorInvalido(ativo)) return;
-    if (event.target.closest && (event.target.closest("[data-enviar]") || event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
+    if (event.target.closest && (event.target.closest(".site-header") || event.target.closest("[data-enviar]") || event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
     if (ativo.contains(event.target)) return;
     event.preventDefault();
     event.stopPropagation();

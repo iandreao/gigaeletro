@@ -14,6 +14,12 @@
   background: transparent;
   color: #1a1a1a;
   font-family: "Manrope", "Segoe UI", sans-serif;
+  /* Fundo transparente não captura clique: o menu e a página seguem livres. */
+  pointer-events: none;
+}
+
+.gv-backdrop .gv-welcome-modal {
+  pointer-events: auto;
 }
 
 .gv-welcome-modal {
@@ -669,8 +675,7 @@ input.gv-intencoes-input {
   display: none !important;
 }
 
-#btnVerCatalogo:disabled,
-#btnProdutos:disabled {
+#btnVerCatalogo:disabled {
   opacity: 0.45;
   pointer-events: none;
   cursor: not-allowed;
@@ -753,12 +758,18 @@ body.home .catalogo-modal .catalog-nome {
   line-height: 1.15;
 }
 
+/* O menu superior fica acima de qualquer tela sobreposta, no desktop e no celular. */
+body.home .site-header {
+  z-index: 5000;
+}
+
+body.home .site-header .nav a,
+body.home .site-header .nav button {
+  pointer-events: auto;
+}
+
 @media (max-width: 760px) {
   /* O hambúrguer fica acima da voz e do catálogo e continua recebendo o toque. */
-  body.home .site-header {
-    z-index: 5000;
-  }
-
   body.home .nav-toggle {
     position: relative;
     z-index: 1;
