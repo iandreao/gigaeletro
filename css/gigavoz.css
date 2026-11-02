@@ -927,8 +927,13 @@ body.home .quote-side .legal { font-size: 0.82rem; }
 body.home .quote-side .empty { font-size: 0.95rem; }
 
 @media (min-width: 981px) {
-  body.home .nav a,
-  body.home .nav button { font-size: 0.95rem; }
+  body.home .site-header .nav { gap: 1.35rem; }
+  body.home .site-header .nav a,
+  body.home .site-header .nav button {
+    font-size: 1.05rem;
+    letter-spacing: 0.01em;
+    padding: 0.2rem 0.1rem;
+  }
 
   /*
    * Seu orçamento com 65% da largura que tinha (largura - 908px).
