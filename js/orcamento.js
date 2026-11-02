@@ -63,7 +63,7 @@
     sugestoesEl.addEventListener("click", function (event) {
       var botao = event.target.closest("[data-sugestao]");
       if (!botao) return;
-      escolherSugestao();
+      escolherSugestao(botao);
     });
   }
 
@@ -506,8 +506,16 @@
     });
   }
 
-  function escolherSugestao() {
+  function escolherSugestao(botao) {
+    var opcoes = sugestoesEl ? sugestoesEl.querySelectorAll("[data-sugestao]") : [];
+    var escolhido = botao || opcoes[sugestaoAtiva];
+    var codigo = escolhido ? escolhido.getAttribute("data-sugestao") : "";
     fecharSugestoes();
+    busca = "";
+    if (buscaEl) buscaEl.value = "";
+    renderCatalogo();
+    if (codigo) adicionar(codigo);
+    if (buscaEl) buscaEl.focus({ preventScroll: true });
   }
 
   function fecharSugestoes() {
