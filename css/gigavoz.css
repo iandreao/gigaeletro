@@ -919,19 +919,3 @@ body.home:has([data-catalogo-modal]:not([hidden]):not([data-arrastado])) #btnVer
     touch-action: pan-y;
   }
 }
-
-/* Desktop largo: "Seu orçamento" para em 420px e a sobra vai igual para as duas laterais. */
-@media (min-width: 981px) {
-  body.home .quote-side { max-width: 420px; }
-}
-/* 1328px = 20 + 416 + 18 + 416 + 18 + (420 + 20 da margem direita do orçamento). */
-@media (min-width: 1329px) {
-  body.home .hero-grid {
-    grid-template-columns: 416px 416px 440px;
-    justify-content: center;
-  }
-}
-/* A foto é horizontal (1408×768) numa coluna vertical: o foco em 35% mantém a WAGO (38–45% da largura) e a parafusadeira à vista. */
-@media (min-width: 981px) {
-  body.home .hero-grid .hero-photo { object-position: 35% center; }
-}
