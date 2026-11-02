@@ -1524,6 +1524,47 @@ def estatisticas_dashboard(lista, inicio="", fim=""):
     }
 
 
+def pre_registro_intencoes(registro):
+    """O PDF de intenções do GigaVoz (só itens sem código) antecede o envio final, que já é contado."""
+    itens = registro.get("itens") or []
+    return bool(itens) and all(
+        not str(item.get("codigo") or "").strip() and not item.get("preco") for item in itens
+    )
+
+
+def instante_painel(valor):
+    try:
+        return datetime.fromisoformat(str(valor or "")).timestamp()
+    except ValueError:
+        return None
+
+
+def metricas_retroativas(metricas, inicio="", fim=""):
+    """Converte o histórico do painel (anterior a metricas.json) no mesmo formato anônimo."""
+    instantes = [instante_painel(item.get("data")) for item in metricas]
+    instantes = [valor for valor in instantes if valor is not None]
+    corte = min(instantes) if instantes else None
+    dia_corte = min((item["dia"] for item in metricas), default="")
+    inicio = normalizar_data_painel(inicio)
+    fim = normalizar_data_painel(fim)
+    if dia_corte and inicio and inicio > dia_corte:
+        return []
+    historico = []
+    for registro in ler_painel():
+        dia = normalizar_data_painel(registro.get("data"))
+        if not dia or (inicio and dia < inicio) or (fim and dia > fim):
+            continue
+        if dia_corte and dia > dia_corte:
+            continue
+        instante = instante_painel(registro.get("data"))
+        if corte is not None and (instante is None or instante >= corte):
+            continue
+        if pre_registro_intencoes(registro):
+            continue
+        historico.append(metrica_do_orcamento(registro))
+    return historico
+
+
 def responder_dashboard(saida):
     if not token_valido(cookie_de(saida.headers.get("Cookie"))):
         escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
@@ -1533,15 +1574,18 @@ def responder_dashboard(saida):
     except OSError:
         escrever_json(saida, {"ok": False, "erro": "Não foi possível ler as estatísticas."}, 500)
         return
-    dados = estatisticas_dashboard(
-        lista,
-        parametro_consulta(saida.path, "dataInicio"),
-        parametro_consulta(saida.path, "dataFim"),
-    )
+    inicio = parametro_consulta(saida.path, "dataInicio")
+    fim = parametro_consulta(saida.path, "dataFim")
+    try:
+        historico = metricas_retroativas(lista, inicio, fim)
+    except OSError:
+        historico = []
+    dados = estatisticas_dashboard(lista + historico, inicio, fim)
     if dados is None:
         escrever_json(saida, {"ok": False, "erro": "Período inválido."}, 400)
         return
     dados["ok"] = True
+    dados["retroativos"] = len(historico)
     escrever_json(saida, dados)
 
 
