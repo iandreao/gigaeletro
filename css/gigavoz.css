@@ -916,10 +916,10 @@ body.home:has([data-catalogo-modal]:not([hidden]):not([data-arrastado])) #btnVer
 }
 
 /* Tipografia da home nos tamanhos de leitura do início do projeto (catálogo e Seu orçamento). */
-body.home .catalogo-modal .catalog-nome { font-size: 0.95rem; }
-body.home .catalogo-modal .catalog-row .preco strong { font-size: 0.95rem; }
+body.home .catalogo-modal .catalog-nome { font-size: 0.875rem; }
+body.home .catalogo-modal .catalog-row .preco strong { font-size: 0.875rem; }
 body.home .catalogo-modal .add-mini { font-size: 0.78rem; }
-body.home .quote-side .cart-nome { font-size: 13px; }
+body.home .quote-side .cart-nome { font-size: 12px; }
 body.home .quote-side .cart-compacta { font-size: 12px; }
 body.home .quote-side .estimado,
 body.home .quote-side .estimado strong { font-size: 0.95rem; }

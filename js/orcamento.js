@@ -8,6 +8,10 @@
   logoPdf.src = "assets/logo-gigaeletro.jpg";
 
   var catalogo = [];
+  var indiceBusca = [];
+  var loteCatalogo = 0;
+  var LINHAS_IMEDIATAS = 120;
+  var LINHAS_POR_QUADRO = 600;
   var selecionados = carregarPedido();
   var busca = "";
 
@@ -40,8 +44,10 @@
     buscaEl.addEventListener("input", function () {
       busca = buscaEl.value;
       sugestaoAtiva = -1;
-      renderSugestoes();
-      renderCatalogo();
+      var encontrados = resultadoBusca();
+      renderSugestoes(encontrados);
+      renderCatalogo(encontrados);
+      voltarListaAoTopo();
     });
     buscaEl.addEventListener("keydown", function (event) {
       var opcoes = sugestoesEl ? sugestoesEl.querySelectorAll("[data-sugestao]") : [];
@@ -454,49 +460,94 @@
     }
   }
 
-  function produtosVisiveis() {
-    var termo = normalizar(busca);
-    if (!termo) return catalogo;
-    return catalogo.filter(function (item) {
-      return normalizar(item.produto).indexOf(termo) >= 0 || normalizar(item.codigo).indexOf(termo) >= 0;
+  function linhaCatalogo(item) {
+    var codigo = escapar(item.codigo);
+    var nome = escapar(item.produto);
+    return (
+      '<article class="catalog-row">' +
+        '<div class="catalog-info">' +
+          '<h3 class="catalog-nome">' + nome + "</h3>" +
+        "</div>" +
+        '<div class="catalog-buy">' +
+          '<p class="preco"><strong>' + numero(item.preco) + "</strong></p>" +
+          '<button class="add-mini" type="button" data-add="' + codigo + '" aria-label="Adicionar ' + nome + ' ao orçamento">Adicionar</button>' +
+        "</div>" +
+      "</article>"
+    );
+  }
+
+  function indexarCatalogo() {
+    /* Nome e código normalizados e o HTML da linha ficam prontos uma vez só; cada tecla apenas compara e junta. */
+    indiceBusca = catalogo.map(function (item) {
+      var nome = normalizar(item.produto);
+      return {
+        item: item,
+        nome: nome,
+        palavras: " " + nome.replace(/[^a-z0-9]+/g, " "),
+        codigo: normalizar(item.codigo),
+        html: linhaCatalogo(item)
+      };
     });
   }
 
-  function renderCatalogo() {
+  function resultadoBusca() {
+    var termo = normalizar(busca);
+    if (!termo) return indiceBusca;
+    /* Começa com o termo, depois alguma palavra começa com ele, depois contém; a ordem do catálogo vale dentro de cada grupo. */
+    var comeca = [];
+    var palavra = [];
+    var contem = [];
+    var inicioPalavra = " " + termo;
+    for (var i = 0; i < indiceBusca.length; i += 1) {
+      var entrada = indiceBusca[i];
+      if (entrada.nome.indexOf(termo) === 0 || entrada.codigo.indexOf(termo) === 0) comeca.push(entrada);
+      else if (entrada.palavras.indexOf(inicioPalavra) >= 0) palavra.push(entrada);
+      else if (entrada.nome.indexOf(termo) >= 0 || entrada.codigo.indexOf(termo) >= 0) contem.push(entrada);
+    }
+    return comeca.concat(palavra, contem);
+  }
+
+  function voltarListaAoTopo() {
     if (!listaEl) return;
-    var visiveis = produtosVisiveis();
+    listaEl.scrollTop = 0;
+    var modal = listaEl.closest("[data-catalogo-modal]");
+    if (modal) modal.scrollTop = 0;
+  }
+
+  function htmlDasLinhas(visiveis, inicio, fim) {
+    var html = [];
+    for (var i = inicio; i < fim && i < visiveis.length; i += 1) html.push(visiveis[i].html);
+    return html.join("");
+  }
+
+  function renderCatalogo(encontrados) {
+    if (!listaEl) return;
+    var lote = ++loteCatalogo;
+    var visiveis = encontrados || resultadoBusca();
     if (!visiveis.length) {
       listaEl.innerHTML = '<p class="resumo-vazio">' + (catalogo.length ? "Nenhum produto encontrado." : "Catálogo vazio.") + "</p>";
       return;
     }
-    listaEl.innerHTML = visiveis.map(function (item) {
-      var codigo = escapar(item.codigo);
-      var nome = escapar(item.produto);
-      return (
-        '<article class="catalog-row">' +
-          '<div class="catalog-info">' +
-            '<h3 class="catalog-nome">' + nome + "</h3>" +
-          "</div>" +
-          '<div class="catalog-buy">' +
-            '<p class="preco"><strong>' + numero(item.preco) + "</strong></p>" +
-            '<button class="add-mini" type="button" data-add="' + codigo + '" aria-label="Adicionar ' + nome + ' ao orçamento">Adicionar</button>' +
-          "</div>" +
-        "</article>"
-      );
-    }).join("");
+    /* O topo aparece na mesma tecla; o restante entra nos quadros seguintes e é descartado se outra tecla chegar antes. */
+    listaEl.innerHTML = htmlDasLinhas(visiveis, 0, LINHAS_IMEDIATAS);
+    var proxima = LINHAS_IMEDIATAS;
+    function continuar() {
+      if (lote !== loteCatalogo || proxima >= visiveis.length) return;
+      listaEl.insertAdjacentHTML("beforeend", htmlDasLinhas(visiveis, proxima, proxima + LINHAS_POR_QUADRO));
+      proxima += LINHAS_POR_QUADRO;
+      window.requestAnimationFrame(continuar);
+    }
+    window.requestAnimationFrame(continuar);
   }
 
-  function renderSugestoes() {
+  function renderSugestoes(encontrados) {
     if (!sugestoesEl || !buscaEl) return;
-    var termo = normalizar(busca);
-    if (!termo) {
+    if (!normalizar(busca)) {
       fecharSugestoes();
       return;
     }
-    var visiveis = catalogo.filter(function (item) {
-      return normalizar(item.produto).indexOf(termo) >= 0 || normalizar(item.codigo).indexOf(termo) >= 0;
-    });
-    var limite = visiveis.slice(0, 8);
+    var visiveis = encontrados || resultadoBusca();
+    var limite = visiveis.slice(0, 8).map(function (entrada) { return entrada.item; });
     if (!limite.length) {
       sugestoesEl.hidden = false;
       buscaEl.setAttribute("aria-expanded", "true");
@@ -1668,9 +1719,11 @@
       catalogo = Array.isArray(dados) ? dados.filter(function (item) {
         return item && item.produto && isFinite(item.preco);
       }) : [];
+      indexarCatalogo();
       renderCatalogo();
     }).catch(function () {
       catalogo = [];
+      indexarCatalogo();
       renderCatalogo();
     });
   }
