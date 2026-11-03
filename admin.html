@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=4">
+  <link rel="stylesheet" href="css/admin.css?v=5">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -74,11 +74,10 @@
       <h1>Área restrita</h1>
       <p class="muted">Informe a senha de administrador para continuar.</p>
       <label>Senha de Administrador
-        <input type="password" name="senha" autocomplete="current-password" required>
+        <input type="password" name="senha" value="" autocomplete="off" required>
       </label>
       <p class="aviso aviso-sutil" data-login-erro hidden>Senha incorreta</p>
       <button class="btn btn-preto" type="submit">Entrar</button>
-      <p class="senha-esqueci"><a href="https://wa.me/5527998235652?text=Ol%C3%A1%2C%20sou%20o%20gestor%20do%20SiteGigaeletro%20e%20esqueci%20minha%20senha%20de%20acesso.%20Solicito%20a%20chave%20de%20redefini%C3%A7%C3%A3o%20para%20o%20painel." target="_blank" rel="noopener noreferrer">Esqueceu a Senha?</a></p>
     </form>
     <div data-area-restrita hidden>
     <div class="wrap gestor-pagina" data-visao="orcamentos">
@@ -180,6 +179,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=21"></script>
+  <script src="js/admin.js?v=22"></script>
 </body>
 </html>

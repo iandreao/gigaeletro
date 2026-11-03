@@ -52,6 +52,9 @@ body.gestor .brand img {
   font-size: 1.15rem;
   font-weight: 600;
 }
+/* Sem botão de revelar senha, nem o nativo do Edge. */
+.gestor-login input[type="password"]::-ms-reveal,
+.gestor-login input[type="password"]::-ms-clear { display: none; }
 body.gestor .gestor-topo-orc h1 {
   max-width: min(14em, 100%);
   margin-bottom: 0.4rem;

@@ -1,5 +1,4 @@
 (function () {
-  var SENHA_ADMIN = "GigaAdmin2026";
   var SESSAO = "gigaeletro-admin";
 
   var formSenha = document.querySelector("[data-admin-senha]");
@@ -14,8 +13,19 @@
   var loginAdmin = document.querySelector("[data-login-admin]");
   var erroLogin = document.querySelector("[data-login-erro]");
 
+  function limparCampoSenha() {
+    if (loginAdmin && loginAdmin.elements.senha) loginAdmin.elements.senha.value = "";
+  }
+
+  function avisoLogin(texto) {
+    if (!erroLogin) return;
+    erroLogin.textContent = texto || "Senha incorreta";
+    erroLogin.hidden = false;
+  }
+
   function mostrarLogin() {
     document.querySelectorAll("[data-area-restrita]").forEach(function (area) { area.hidden = true; });
+    limparCampoSenha();
     if (loginAdmin) loginAdmin.hidden = false;
   }
 
@@ -36,6 +46,7 @@
     loginAdmin.addEventListener("submit", function (event) {
       event.preventDefault();
       var senha = String(new FormData(loginAdmin).get("senha") || "").trim();
+      limparCampoSenha();
       if (erroLogin) erroLogin.hidden = true;
       fetch("/api/login", {
         method: "POST",
@@ -46,13 +57,13 @@
         return resposta.json().catch(function () { return null; });
       }).then(function (corpo) {
         if (!corpo || !corpo.ok) {
-          if (erroLogin) erroLogin.hidden = false;
+          avisoLogin(corpo && corpo.erro);
           return;
         }
         loginAdmin.hidden = true;
         mostrarPainel();
       }).catch(function () {
-        if (erroLogin) erroLogin.hidden = false;
+        avisoLogin("Sem conexão com o servidor. Tente novamente.");
       });
     });
   }
@@ -88,9 +99,12 @@
         status.textContent = "Limpando o catálogo e lendo a planilha…";
       }
       var dados = new FormData();
-      dados.append("senha", SENHA_ADMIN);
       dados.append("arquivo", planilhaEscolhida, planilhaEscolhida.name);
-      fetch("/api/catalogo", { method: "POST", body: dados }).then(function (resposta) {
+      fetch("/api/catalogo", { method: "POST", credentials: "same-origin", body: dados }).then(function (resposta) {
+        if (resposta.status === 401) {
+          mostrarLogin();
+          throw new Error("Sessão do painel expirada. Entre novamente na Área Restrita.");
+        }
         return resposta.json().then(function (corpo) {
           if (!resposta.ok || !corpo.ok) {
             throw new Error(corpo.erro || "A leitura falhou e o catálogo anterior foi mantido.");

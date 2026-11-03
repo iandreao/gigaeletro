@@ -33,9 +33,10 @@ from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent
 FONTE_CATALOGO = ROOT / "data" / "catalogo.json"
-SENHA = "GigaAdmin2026"
+# Valores de teste usados só fora da Vercel; em produção valem ADMIN_PASSWORD e SEGREDO_SESSAO.
+SENHA_TESTE_LOCAL = "GigaAdmin2026"
+SEGREDO_TESTE_LOCAL = "gigaeletro-sessao-local"
 COOKIE_ADMIN = "gigaeletro_admin"
-SEGREDO_SESSAO = b"gigaeletro-sessao-local"
 SESSAO_SEGUNDOS = 12 * 60 * 60
 LIMITE_ENVIO = 30 * 1024 * 1024
 LIMITE_PDF = 2 * 1024 * 1024
@@ -182,19 +183,49 @@ def gravar_auditoria(resumo, destino=None):
     os.replace(temporario, destino)
 
 
+def senha_admin():
+    """ADMIN_PASSWORD do ambiente; na Vercel sem a variável fica vazia e o login permanece fechado."""
+    valor = (os.environ.get("ADMIN_PASSWORD") or "").strip()
+    if valor:
+        return valor
+    return "" if em_vercel() else SENHA_TESTE_LOCAL
+
+
+def segredo_sessao():
+    """SEGREDO_SESSAO do ambiente; na Vercel sem a variável nenhuma sessão é emitida nem aceita."""
+    valor = (os.environ.get("SEGREDO_SESSAO") or "").strip()
+    if valor:
+        return valor.encode("utf-8")
+    return b"" if em_vercel() else SEGREDO_TESTE_LOCAL.encode("utf-8")
+
+
+def acesso_configurado():
+    return bool(senha_admin() and segredo_sessao())
+
+
+def senha_confere(senha):
+    """Senha administrativa padrão, comparada em tempo constante."""
+    esperada = senha_admin()
+    if not esperada:
+        return False
+    tentativa = str(senha or "").strip().encode("utf-8")
+    return hmac.compare_digest(tentativa, esperada.encode("utf-8"))
+
+
 def emitir_token():
     expira = int(time.time()) + SESSAO_SEGUNDOS
     carga = f"{expira}.{secrets.token_hex(8)}"
-    assinatura = hmac.new(SEGREDO_SESSAO, carga.encode("utf-8"), hashlib.sha256).hexdigest()
+    assinatura = hmac.new(segredo_sessao(), carga.encode("utf-8"), hashlib.sha256).hexdigest()
     return f"{carga}.{assinatura}"
 
 
 def token_valido(valor):
+    segredo = segredo_sessao()
     partes = str(valor or "").split(".")
-    if len(partes) != 3:
+    if not segredo or len(partes) != 3:
         return False
     carga = partes[0] + "." + partes[1]
-    esperado = hmac.new(SEGREDO_SESSAO, carga.encode("utf-8"), hashlib.sha256).hexdigest()
+    esperado = hmac.new(segredo, carga.encode("utf-8"), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(partes[2], esperado):
         return False
     try:
@@ -592,6 +623,9 @@ def responder_auditoria(saida):
 
 def responder_login(saida):
     corpo = ler_corpo(saida)
+    if not acesso_configurado():
+        escrever_json(saida, {"ok": False, "erro": "Área Restrita indisponível: ADMIN_PASSWORD e SEGREDO_SESSAO não configurados no servidor."}, 503)
+        return
     if corpo is None:
         escrever_json(saida, {"ok": False, "erro": "Senha incorreta"}, 400)
         return
@@ -600,8 +634,7 @@ def responder_login(saida):
     except (json.JSONDecodeError, UnicodeDecodeError):
         escrever_json(saida, {"ok": False, "erro": "Senha incorreta"}, 400)
         return
-    senha = str(dados.get("senha") or "").strip()
-    if senha != SENHA:
+    if not isinstance(dados, dict) or not senha_confere(dados.get("senha")):
         escrever_json(saida, {"ok": False, "erro": "Senha incorreta"}, 403)
         return
     escrever_json(saida, {"ok": True}, extra=[("Set-Cookie", cabecalho_cookie(emitir_token()))])
@@ -1780,16 +1813,19 @@ def responder_ver_pdf(saida):
 
 def responder_upload(saida):
     corpo = ler_corpo(saida)
+    if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+        escrever_json(saida, {"ok": False, "erro": "Sessão do painel expirada. Entre novamente na Área Restrita."}, 401)
+        return
     if corpo is None:
         escrever_json(saida, {"ok": False, "erro": "A planilha passou do tamanho aceito."}, 400)
         return
     try:
-        senha, nome, arquivo = ler_formulario(saida.headers.get("Content-Type", ""), corpo or b"")
+        _senha, nome, arquivo = ler_formulario(saida.headers.get("Content-Type", ""), corpo or b"")
     except PlanilhaInvalida as erro:
         escrever_json(saida, {"ok": False, "erro": str(erro)}, 400)
         return
-    if not arquivo or (senha != SENHA and not token_valido(cookie_de(saida.headers.get("Cookie")))):
-        escrever_json(saida, {"ok": False, "erro": "Senha incorreta ou arquivo ausente."}, 403)
+    if not arquivo:
+        escrever_json(saida, {"ok": False, "erro": "Selecione a planilha antes de processar."}, 400)
         return
     try:
         _produtos, resumo = substituir_catalogo(nome, arquivo)
