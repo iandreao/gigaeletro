@@ -477,34 +477,27 @@
   }
 
   function indexarCatalogo() {
-    /* Nome e código normalizados e o HTML da linha ficam prontos uma vez só; cada tecla apenas compara e junta. */
+    /* Nome sem acentos e o HTML da linha ficam prontos uma vez só; cada tecla apenas compara e junta. */
     indiceBusca = catalogo.map(function (item) {
-      var nome = normalizar(item.produto);
       return {
         item: item,
-        nome: nome,
-        palavras: " " + nome.replace(/[^a-z0-9]+/g, " "),
-        codigo: normalizar(item.codigo),
+        nome: termoDeBusca(item.produto),
         html: linhaCatalogo(item)
       };
     });
   }
 
+  function termoDeBusca(valor) {
+    /* Sem acentos, minúsculo e com espaços repetidos reduzidos, para "CABO  DE" bater com "cabo de". */
+    return normalizar(valor).replace(/\s+/g, " ");
+  }
+
   function resultadoBusca() {
-    var termo = normalizar(busca);
+    var termo = termoDeBusca(busca);
     if (!termo) return indiceBusca;
-    /* Começa com o termo, depois alguma palavra começa com ele, depois contém; a ordem do catálogo vale dentro de cada grupo. */
-    var comeca = [];
-    var palavra = [];
-    var contem = [];
-    var inicioPalavra = " " + termo;
-    for (var i = 0; i < indiceBusca.length; i += 1) {
-      var entrada = indiceBusca[i];
-      if (entrada.nome.indexOf(termo) === 0 || entrada.codigo.indexOf(termo) === 0) comeca.push(entrada);
-      else if (entrada.palavras.indexOf(inicioPalavra) >= 0) palavra.push(entrada);
-      else if (entrada.nome.indexOf(termo) >= 0 || entrada.codigo.indexOf(termo) >= 0) contem.push(entrada);
-    }
-    return comeca.concat(palavra, contem);
+    return indiceBusca.filter(function (entrada) {
+      return entrada.nome.startsWith(termo);
+    });
   }
 
   function voltarListaAoTopo() {
@@ -525,7 +518,9 @@
     var lote = ++loteCatalogo;
     var visiveis = encontrados || resultadoBusca();
     if (!visiveis.length) {
-      listaEl.innerHTML = '<p class="resumo-vazio">' + (catalogo.length ? "Nenhum produto encontrado." : "Catálogo vazio.") + "</p>";
+      listaEl.innerHTML = catalogo.length
+        ? '<p class="resumo-vazio catalogo-sem-resultado">Produtos inexistentes</p>'
+        : '<p class="resumo-vazio">Catálogo vazio.</p>';
       return;
     }
     /* O topo aparece na mesma tecla; o restante entra nos quadros seguintes e é descartado se outra tecla chegar antes. */
@@ -549,9 +544,8 @@
     var visiveis = encontrados || resultadoBusca();
     var limite = visiveis.slice(0, 8).map(function (entrada) { return entrada.item; });
     if (!limite.length) {
-      sugestoesEl.hidden = false;
-      buscaEl.setAttribute("aria-expanded", "true");
-      sugestoesEl.innerHTML = '<li class="suggest-empty">Nenhum produto encontrado.</li>';
+      /* Sem coincidências o aviso "Produtos inexistentes" fica só na lista do catálogo. */
+      fecharSugestoes();
       return;
     }
     sugestoesEl.hidden = false;
@@ -586,6 +580,7 @@
     busca = "";
     if (buscaEl) buscaEl.value = "";
     renderCatalogo();
+    voltarListaAoTopo();
     if (codigo) adicionar(codigo);
     if (buscaEl) buscaEl.focus({ preventScroll: true });
   }
