@@ -936,18 +936,19 @@ body.home .quote-side .empty { font-size: 0.95rem; }
   }
 
   /*
-   * Seu orçamento com 65% da largura que tinha (largura - 908px).
-   * Trilha = 0,65 × (largura - 908px) + 20px de margem = 65% da área útil - 557,2px; mínimo de 260px.
-   * Imagem e coluna central dividem o resto.
+   * Base: orçamento T = max(260px, 65% - 557,2px) e imagem = centro = C = (100% - 36px - T) / 2.
+   * Centro passa a 0,75·C e o orçamento recebe os 0,25·C: T' = T + C/4 = 7T/8 + 12,5% - 4,5px,
+   * ou seja max(12,5% + 223px, 69,375% - 492,05px). A imagem continua com C (proporção 4:3 com o centro).
    */
   body.home .hero-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) max(260px, calc(65% - 557.2px));
+    grid-template-columns: minmax(0, 4fr) minmax(0, 3fr) max(calc(12.5% + 223px), calc(69.375% - 492.05px));
   }
   body.home .hero-foto,
   body.home .hero-centro {
-    flex: 1 1 0;
     max-width: none;
   }
+  body.home .hero-foto { flex: 4 1 0; }
+  body.home .hero-centro { flex: 3 1 0; }
   .gv-welcome-modal,
   .gv-recorder-container {
     width: var(--gv-escolha-largura, 416px) !important;
