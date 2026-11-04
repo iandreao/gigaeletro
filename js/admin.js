@@ -114,18 +114,25 @@
       }).then(function (corpo) {
         if (status) status.hidden = true;
         mostrarAuditoria(corpo);
-        planilhaEscolhida = null;
-        if (nomeArquivo) nomeArquivo.hidden = true;
-        if (input) input.value = "";
-        processar.disabled = true;
+        limparPlanilhaEscolhida();
       }).catch(function (falha) {
         if (status) {
           status.hidden = false;
           status.textContent = falha && falha.message ? falha.message : "A leitura falhou e o catálogo anterior foi mantido.";
         }
-        processar.disabled = !planilhaEscolhida;
+        limparPlanilhaEscolhida();
       });
     });
+  }
+
+  function limparPlanilhaEscolhida() {
+    planilhaEscolhida = null;
+    if (nomeArquivo) {
+      nomeArquivo.hidden = true;
+      nomeArquivo.textContent = "";
+    }
+    if (input) input.value = "";
+    if (processar) processar.disabled = true;
   }
 
   function mostrarPainel() {
