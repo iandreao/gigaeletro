@@ -708,20 +708,26 @@
     var barra = partes.map(function (parte) {
       return '<span class="' + parte.classe + '" style="width:' + Number(parte.dado.pct || 0) + '%"></span>';
     }).join("");
-    var cabecalho = '<li class="dash-itens-cabeca" aria-hidden="true"><span></span><span></span>' +
-      '<span>%</span><span>Qtd.</span><span>Valor</span></li>';
+    var totalQtd = 0;
+    var totalValor = 0;
     var linhas = partes.map(function (parte) {
       var qtd = Number(parte.dado.qtd || 0);
-      var valor = parte.dado.valorTexto || "R$ " + moedaPainel(parte.dado.valor);
-      return '<li aria-label="' + escapar(parte.nome + ": " + pct(parte.dado.pct) + ", " + qtd + " orçamento(s), " + valor) + '">' +
-        '<i class="' + parte.classe + '"></i><span>' + escapar(parte.nome) + '</span>' +
-        '<strong class="dash-pct">' + pct(parte.dado.pct) + '</strong>' +
-        '<span class="dash-qtd">' + qtd + '</span>' +
-        '<span class="dash-valor">' + escapar(valor) + '</span></li>';
+      var valor = Number(parte.dado.valor || 0);
+      totalQtd += qtd;
+      totalValor += valor;
+      return '<tr><th scope="row"><i class="' + parte.classe + '"></i>' +
+        '<span class="dash-nome-longo">' + escapar(parte.nome) + '</span>' +
+        '<span class="dash-nome-curto">' + escapar(parte.curto) + '</span></th>' +
+        '<td>' + qtd + '</td><td>' + moedaPainel(valor) + '</td><td>' + pct(parte.dado.pct) + '</td></tr>';
     }).join("");
     return '<div class="dash-divisao" role="img" aria-label="' + escapar(partes.map(function (parte) {
       return parte.nome + " " + pct(parte.dado.pct);
-    }).join(", ")) + '">' + barra + '</div><ul class="dash-itens">' + cabecalho + linhas + '</ul>';
+    }).join(", ")) + '">' + barra + '</div>' +
+      '<div class="dash-tabela-caixa"><table class="dash-tabela">' +
+      '<thead><tr><th scope="col">Categoria</th><th scope="col">Qtd.</th><th scope="col">Valor (R$)</th><th scope="col">%</th></tr></thead>' +
+      '<tbody>' + linhas + '</tbody>' +
+      '<tfoot><tr><th scope="row">Total:</th><td>' + totalQtd + '</td><td>' + moedaPainel(totalValor) + '</td>' +
+      '<td>' + (totalQtd ? "100%" : "0%") + '</td></tr></tfoot></table></div>';
   }
 
   function htmlSerie(serie, agrupamento) {
@@ -758,14 +764,14 @@
     }
     if (metodo) {
       metodo.innerHTML = htmlDivisao([
-        { classe: "dash-cor-tradicional", nome: "Catálogo Tradicional", dado: dados.metodo.tradicional },
-        { classe: "dash-cor-gigavoz", nome: "GigaVoz", dado: dados.metodo.gigavoz }
+        { classe: "dash-cor-tradicional", nome: "Catálogo Tradicional", curto: "Tradicional", dado: dados.metodo.tradicional },
+        { classe: "dash-cor-gigavoz", nome: "GigaVoz", curto: "GigaVoz", dado: dados.metodo.gigavoz }
       ]);
     }
     if (pessoa) {
       pessoa.innerHTML = htmlDivisao([
-        { classe: "dash-cor-pf", nome: "Pessoa Física (CPF)", dado: dados.pessoa.pf },
-        { classe: "dash-cor-pj", nome: "Pessoa Jurídica (CNPJ)", dado: dados.pessoa.pj }
+        { classe: "dash-cor-pf", nome: "Pessoa Física (CPF)", curto: "Física (CPF)", dado: dados.pessoa.pf },
+        { classe: "dash-cor-pj", nome: "Pessoa Jurídica (CNPJ)", curto: "Jurídica (CNPJ)", dado: dados.pessoa.pj }
       ]);
     }
     if (nota) {

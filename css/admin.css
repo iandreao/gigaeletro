@@ -277,12 +277,10 @@ body.gestor .dash-topo h1 { margin: 0; }
   font-weight: 700;
   white-space: nowrap;
 }
-.dash-legenda,
-.dash-itens { margin: 0; padding: 0; list-style: none; }
-.dash-legenda { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin-top: 0.6rem; font-size: 0.78rem; font-weight: 700; }
+.dash-legenda { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin: 0.6rem 0 0; padding: 0; list-style: none; font-size: 0.78rem; font-weight: 700; }
 .dash-legenda li { display: flex; align-items: center; gap: 0.35rem; }
 .dash-legenda i,
-.dash-itens i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.dash-tabela i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
 .dash-divisao {
   display: flex;
   height: 16px;
@@ -291,49 +289,46 @@ body.gestor .dash-topo h1 { margin: 0; }
   background: var(--gray-200);
 }
 .dash-divisao span { height: 100%; transition: width 0.4s ease; }
-/* Porcentagem | Quantidade | Valor: as linhas dividem as colunas da lista, que crescem com o maior valor. */
-.dash-itens {
-  display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) auto auto auto;
-  gap: 0.45rem 0.6rem;
-  margin-top: 0.75rem;
-}
-.dash-itens li {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
-  align-items: center;
+.dash-tabela-caixa { margin-top: 0.75rem; overflow-x: auto; }
+.dash-tabela {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 0.85rem;
-  font-weight: 700;
-}
-@supports not (grid-template-columns: subgrid) {
-  .dash-itens li {
-    grid-template-columns: 10px minmax(0, 1fr) 3.4rem 2.4rem minmax(6.6rem, auto);
-    gap: 0.5rem;
-  }
-}
-.dash-itens .dash-pct,
-.dash-itens .dash-qtd,
-.dash-itens .dash-valor,
-.dash-itens-cabeca span {
-  text-align: right;
   font-variant-numeric: tabular-nums;
+}
+.dash-tabela th,
+.dash-tabela td {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #e5e7eb;
+  text-align: right;
   white-space: nowrap;
 }
-.dash-itens .dash-pct { font-size: 1.05rem; font-weight: 800; }
-.dash-itens .dash-qtd { color: var(--muted); font-size: 0.8rem; }
-.dash-itens .dash-valor { font-weight: 800; }
-.dash-itens li.dash-itens-cabeca {
-  margin-bottom: -0.2rem;
+.dash-tabela th:first-child { width: 100%; text-align: left; }
+.dash-tabela thead th {
+  background: var(--gray-50);
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+.dash-tabela tbody th { font-weight: 700; }
+.dash-tabela tbody th i { display: inline-block; margin-right: 0.45rem; vertical-align: -1px; }
+.dash-tabela td { font-weight: 700; }
+.dash-tabela tfoot th,
+.dash-tabela tfoot td { background: var(--gray-50); font-weight: 800; }
+.dash-nome-curto { display: none; }
 .dash-vazio { margin: auto; color: var(--muted); font-size: 0.85rem; font-weight: 700; align-self: center; }
 .dash-nota { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.75rem; font-weight: 700; }
 @media (max-width: 760px) {
   .dash-grid { grid-template-columns: minmax(0, 1fr); }
   .dash-serie { height: 140px; }
+}
+@media (max-width: 480px) {
+  .dash-card { padding: 0.9rem 0.75rem; }
+  .dash-tabela { font-size: 0.8rem; }
+  .dash-tabela th,
+  .dash-tabela td { padding: 0.4rem 0.45rem; }
+  .dash-nome-longo { display: none; }
+  .dash-nome-curto { display: inline; }
 }
