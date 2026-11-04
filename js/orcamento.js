@@ -480,27 +480,39 @@
   }
 
   function indexarCatalogo() {
-    /* Nome sem acentos e o HTML da linha ficam prontos uma vez só; cada tecla apenas compara e junta. */
+    /* Nome e SKU normalizados e o HTML da linha ficam prontos uma vez só; cada tecla apenas compara e junta. */
     indiceBusca = catalogo.map(function (item) {
       return {
         item: item,
         nome: termoDeBusca(item.produto),
+        sku: codigoDeBusca(item.codigo),
         html: linhaCatalogo(item)
       };
     });
   }
 
   function termoDeBusca(valor) {
-    /* Sem acentos, minúsculo e com espaços repetidos reduzidos, para "CABO  DE" bater com "cabo de". */
-    return normalizar(valor).replace(/\s+/g, " ");
+    return normalizar(valor);
+  }
+
+  function codigoDeBusca(valor) {
+    /* Os SKUs vêm com ponto de milhar ("7.503"): só letras e dígitos contam, para "7503" achar o produto. */
+    return normalizar(valor).replace(/[^a-z0-9]/g, "");
   }
 
   function resultadoBusca() {
     var termo = termoDeBusca(busca);
     if (!termo) return indiceBusca;
-    return indiceBusca.filter(function (entrada) {
-      return entrada.nome.startsWith(termo);
-    });
+    var codigo = codigoDeBusca(busca);
+    var exatos = [];
+    var demais = [];
+    for (var i = 0; i < indiceBusca.length; i += 1) {
+      var entrada = indiceBusca[i];
+      if (codigo && entrada.sku === codigo) exatos.push(entrada);
+      else if (entrada.nome.startsWith(termo) || (codigo && entrada.sku.startsWith(codigo))) demais.push(entrada);
+    }
+    /* O SKU digitado por inteiro vem primeiro; o resto mantém a ordem do catálogo. */
+    return exatos.length ? exatos.concat(demais) : demais;
   }
 
   function voltarListaAoTopo() {
@@ -2117,7 +2129,17 @@
   }
 
   function normalizar(valor) {
-    return String(valor || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+    return String(valor || "")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      /* Medidas: "2,5" e "2.5" dão a mesma string; vírgula fora de número é só separador. */
+      .replace(/(\d),(?=\d)/g, "$1.")
+      .replace(/,/g, " ")
+      /* "100 x 2.5" = "100x2.5" e "10 mm" = "10mm". */
+      .replace(/(\d)\s*x\s*(?=\d)/g, "$1x")
+      .replace(/(\d)\s+(?=[a-z])/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   function escapar(valor) {
