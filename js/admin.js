@@ -708,13 +708,20 @@
     var barra = partes.map(function (parte) {
       return '<span class="' + parte.classe + '" style="width:' + Number(parte.dado.pct || 0) + '%"></span>';
     }).join("");
+    var cabecalho = '<li class="dash-itens-cabeca" aria-hidden="true"><span></span><span></span>' +
+      '<span>%</span><span>Qtd.</span><span>Valor</span></li>';
     var linhas = partes.map(function (parte) {
-      return '<li><i class="' + parte.classe + '"></i><span>' + escapar(parte.nome) + '</span>' +
-        '<strong>' + pct(parte.dado.pct) + '</strong><small>' + Number(parte.dado.qtd || 0) + '</small></li>';
+      var qtd = Number(parte.dado.qtd || 0);
+      var valor = parte.dado.valorTexto || "R$ " + moedaPainel(parte.dado.valor);
+      return '<li aria-label="' + escapar(parte.nome + ": " + pct(parte.dado.pct) + ", " + qtd + " orçamento(s), " + valor) + '">' +
+        '<i class="' + parte.classe + '"></i><span>' + escapar(parte.nome) + '</span>' +
+        '<strong class="dash-pct">' + pct(parte.dado.pct) + '</strong>' +
+        '<span class="dash-qtd">' + qtd + '</span>' +
+        '<span class="dash-valor">' + escapar(valor) + '</span></li>';
     }).join("");
     return '<div class="dash-divisao" role="img" aria-label="' + escapar(partes.map(function (parte) {
       return parte.nome + " " + pct(parte.dado.pct);
-    }).join(", ")) + '">' + barra + '</div><ul class="dash-itens">' + linhas + '</ul>';
+    }).join(", ")) + '">' + barra + '</div><ul class="dash-itens">' + cabecalho + linhas + '</ul>';
   }
 
   function htmlSerie(serie, agrupamento) {
@@ -732,24 +739,13 @@
     }).join("");
   }
 
-  function htmlRanking(lista) {
-    if (!lista.length) return '<li class="dash-vazio">Nenhum produto no período.</li>';
-    var maior = Math.max.apply(null, lista.map(function (item) { return item.orcamentos; }).concat([1]));
-    return lista.map(function (item) {
-      return '<li><div class="dash-produto"><span>' + escapar(item.produto) + '</span>' +
-        (item.codigo ? '<small>Cód. ' + escapar(item.codigo) + '</small>' : '<small>GigaVoz</small>') + '</div>' +
-        '<div class="dash-trilho"><span style="width:' + (item.orcamentos * 100 / maior) + '%"></span></div>' +
-        '<p>' + item.orcamentos + ' orçamento(s) · ' + item.quantidade + ' un.</p></li>';
-    }).join("");
-  }
-
   function renderDashboard(dados) {
     var total = document.querySelector("[data-dash-total]");
     var periodo = document.querySelector("[data-dash-periodo-texto]");
     var serie = document.querySelector("[data-dash-serie]");
     var metodo = document.querySelector("[data-dash-metodo]");
     var pessoa = document.querySelector("[data-dash-pessoa]");
-    var top = document.querySelector("[data-dash-top]");
+    var nota = document.querySelector("[data-dash-nota]");
     if (total) total.textContent = String(dados.total || 0);
     if (periodo) {
       periodo.textContent = dados.inicio
@@ -772,7 +768,13 @@
         { classe: "dash-cor-pj", nome: "Pessoa Jurídica (CNPJ)", dado: dados.pessoa.pj }
       ]);
     }
-    if (top) top.innerHTML = htmlRanking(dados.topProdutos || []);
+    if (nota) {
+      var semValor = Number(dados.semValor || 0);
+      nota.hidden = !semValor;
+      nota.textContent = semValor
+        ? semValor + " orçamento(s) antigo(s) do período já saíram do painel e não têm valor registrado: entram na quantidade, mas não no Valor."
+        : "";
+    }
   }
 
   function avisoDashboard(texto) {

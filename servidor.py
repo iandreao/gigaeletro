@@ -1434,8 +1434,23 @@ def item_de_voz(item):
     return codigo.startswith("voz-") or (not codigo and not item.get("preco"))
 
 
+def valor_do_registro(registro):
+    try:
+        return round(float(registro.get("total")), 2)
+    except (TypeError, ValueError):
+        pass
+    soma = 0.0
+    for item in registro.get("itens") or []:
+        try:
+            valor = item.get("valor")
+            soma += float(valor) if valor is not None else float(item.get("preco") or 0) * int(item.get("qtd") or 1)
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return round(soma, 2)
+
+
 def metrica_do_orcamento(registro):
-    """Só o que é anônimo: quando, como foi montado, PF/PJ e quais produtos."""
+    """Só o que é anônimo: quando, como foi montado, PF/PJ, valor total e quais produtos."""
     itens = registro.get("itens") or []
     voz = sum(1 for item in itens if item_de_voz(item))
     produtos = {}
@@ -1463,6 +1478,7 @@ def metrica_do_orcamento(registro):
         "dia": normalizar_data_painel(data) or hoje_painel(),
         "metodo": "gigavoz" if itens and voz * 2 > len(itens) else "tradicional",
         "pessoa": "pj" if cliente.get("tipo") == "pj" else "pf",
+        "total": valor_do_registro(registro),
         "produtos": list(produtos.values()),
     }
 
@@ -1479,10 +1495,38 @@ def registrar_metrica(registro):
         print("metricas: falha ao gravar (%s)" % erro, file=sys.stderr, flush=True)
 
 
-def porcentagens(contagem, total):
+def moeda_brl(valor):
+    inteiro, centavos = ("%.2f" % float(valor or 0)).split(".")
+    return "R$ %s,%s" % ("{:,}".format(int(inteiro)).replace(",", "."), centavos)
+
+
+def valor_da_metrica(metrica):
+    """None quando a métrica é anterior ao registro de valores e o orçamento já não está no painel."""
+    try:
+        return float(metrica["total"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def completar_valores(metricas, painel):
+    """Métricas gravadas antes do campo total recuperam o valor no registro do painel pela mesma data."""
+    if not painel:
+        return
+    valores = {str(registro.get("data") or ""): valor_do_registro(registro) for registro in painel}
+    for metrica in metricas:
+        if "total" not in metrica and metrica.get("data") in valores:
+            metrica["total"] = valores[metrica["data"]]
+
+
+def porcentagens(contagem, total, valores):
     return {
-        chave: {"qtd": valor, "pct": round(valor * 100.0 / total, 1) if total else 0.0}
-        for chave, valor in contagem.items()
+        chave: {
+            "qtd": quantidade,
+            "pct": round(quantidade * 100.0 / total, 1) if total else 0.0,
+            "valor": round(valores[chave], 2),
+            "valorTexto": moeda_brl(valores[chave]),
+        }
+        for chave, quantidade in contagem.items()
     }
 
 
@@ -1525,25 +1569,20 @@ def estatisticas_dashboard(lista, inicio="", fim=""):
     total = len(metricas)
     metodo = {"tradicional": 0, "gigavoz": 0}
     pessoa = {"pf": 0, "pj": 0}
-    ranking = {}
+    valor_metodo = {"tradicional": 0.0, "gigavoz": 0.0}
+    valor_pessoa = {"pf": 0.0, "pj": 0.0}
+    sem_valor = 0
     for item in metricas:
-        metodo["gigavoz" if item.get("metodo") == "gigavoz" else "tradicional"] += 1
-        pessoa["pj" if item.get("pessoa") == "pj" else "pf"] += 1
-        for produto in item.get("produtos") or []:
-            if not isinstance(produto, dict):
-                continue
-            codigo = str(produto.get("codigo") or "")
-            nome = str(produto.get("produto") or "").strip()
-            if not nome:
-                continue
-            chave = "sku:" + codigo if codigo else "nome:" + " ".join(nome.lower().split())
-            atual = ranking.setdefault(chave, {"codigo": codigo, "produto": nome, "orcamentos": 0, "quantidade": 0})
-            atual["orcamentos"] += 1
-            try:
-                atual["quantidade"] += max(1, int(produto.get("qtd") or 1))
-            except (TypeError, ValueError):
-                atual["quantidade"] += 1
-    top = sorted(ranking.values(), key=lambda atual: (-atual["orcamentos"], -atual["quantidade"], atual["produto"].lower()))[:5]
+        chave_metodo = "gigavoz" if item.get("metodo") == "gigavoz" else "tradicional"
+        chave_pessoa = "pj" if item.get("pessoa") == "pj" else "pf"
+        metodo[chave_metodo] += 1
+        pessoa[chave_pessoa] += 1
+        valor = valor_da_metrica(item)
+        if valor is None:
+            sem_valor += 1
+            continue
+        valor_metodo[chave_metodo] += valor
+        valor_pessoa[chave_pessoa] += valor
     agrupamento, serie = serie_do_periodo(metricas, serie_inicio, serie_fim)
     return {
         "inicio": serie_inicio,
@@ -1551,9 +1590,9 @@ def estatisticas_dashboard(lista, inicio="", fim=""):
         "total": total,
         "agrupamento": agrupamento,
         "serie": serie,
-        "metodo": porcentagens(metodo, total),
-        "pessoa": porcentagens(pessoa, total),
-        "topProdutos": top,
+        "metodo": porcentagens(metodo, total, valor_metodo),
+        "pessoa": porcentagens(pessoa, total, valor_pessoa),
+        "semValor": sem_valor,
     }
 
 
@@ -1572,7 +1611,7 @@ def instante_painel(valor):
         return None
 
 
-def metricas_retroativas(metricas, inicio="", fim=""):
+def metricas_retroativas(metricas, inicio="", fim="", painel=None):
     """Converte o histórico do painel (anterior a metricas.json) no mesmo formato anônimo."""
     instantes = [instante_painel(item.get("data")) for item in metricas]
     instantes = [valor for valor in instantes if valor is not None]
@@ -1583,7 +1622,7 @@ def metricas_retroativas(metricas, inicio="", fim=""):
     if dia_corte and inicio and inicio > dia_corte:
         return []
     historico = []
-    for registro in ler_painel():
+    for registro in painel if painel is not None else ler_painel():
         dia = normalizar_data_painel(registro.get("data"))
         if not dia or (inicio and dia < inicio) or (fim and dia > fim):
             continue
@@ -1610,9 +1649,11 @@ def responder_dashboard(saida):
     inicio = parametro_consulta(saida.path, "dataInicio")
     fim = parametro_consulta(saida.path, "dataFim")
     try:
-        historico = metricas_retroativas(lista, inicio, fim)
+        painel = ler_painel()
     except OSError:
-        historico = []
+        painel = []
+    historico = metricas_retroativas(lista, inicio, fim, painel)
+    completar_valores(lista, painel)
     dados = estatisticas_dashboard(lista + historico, inicio, fim)
     if dados is None:
         escrever_json(saida, {"ok": False, "erro": "Período inválido."}, 400)
