@@ -36,6 +36,8 @@
   var cepPedido = "";
   var envioEmCurso = false;
   var restaurandoCliente = false;
+  var clienteAvisado = false;
+  var timerClientePronto = 0;
   var sugestaoAtiva = -1;
   var orcamentoSendoEditadoId = "";
   var orcamentoSendoEditadoDocumento = "";
@@ -201,6 +203,7 @@
     formCliente.addEventListener("change", function (event) {
       if (restaurandoCliente) return;
       if (event.target && event.target.name === "tipo") limparCamposCliente();
+      acompanharCliente(true);
     });
     formCliente.addEventListener("keydown", function (event) {
       if (event.key !== "Tab" && event.key !== "Enter") return;
@@ -1376,7 +1379,30 @@
     return selecionados.length > 0 || itensVoz().length >= 1 || listaVozNaTela;
   }
 
+  function clienteCompleto() {
+    return formularioPreenchido() && !primeiroCampoIncompleto();
+  }
+
+  function avisarClientePronto() {
+    if (clienteAvisado || !clienteCompleto()) return;
+    clienteAvisado = true;
+    document.dispatchEvent(new CustomEvent("gv-cliente-pronto"));
+  }
+
+  function acompanharCliente(imediato) {
+    window.clearTimeout(timerClientePronto);
+    if (!clienteCompleto()) {
+      clienteAvisado = false;
+      return;
+    }
+    if (clienteAvisado) return;
+    /* E-mail e número já passam na validação no meio da digitação: espera a pausa ou a saída do campo.
+       Na saída, a folga curta deixa o navegador concluir a troca de foco antes de a escolha assumir. */
+    timerClientePronto = window.setTimeout(avisarClientePronto, imediato ? 150 : 1500);
+  }
+
   function liberarEnvio() {
+    acompanharCliente(false);
     if (limparOrcamento) limparOrcamento.hidden = !carrinhoValido();
     if (!enviar || envioEmCurso) return;
     var quadro = document.querySelector(".quote-side") || document.querySelector("#carrinho");

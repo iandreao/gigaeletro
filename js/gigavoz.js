@@ -195,8 +195,22 @@
     raiz.remove();
     raiz = null;
     refletirTipoOrcamento();
-    var campo = document.querySelector('.cliente-form input[name="documento"]');
-    if (campo) campo.focus();
+    /* Com os dados já completos, o próximo passo é o catálogo; senão, o preenchimento. */
+    var proximo = formularioAmareloPronto()
+      ? botoesCatalogo()[0]
+      : document.querySelector('.cliente-form input[name="documento"]');
+    if (proximo) proximo.focus();
+  }
+
+  function aoClientePronto() {
+    /* Dados completos sem modelo escolhido: a escolha do Tipo de Orçamento volta para o cliente seguir. */
+    if (escolhaTradicional || modoGigaVozAberto()) return;
+    var catalogo = document.querySelector("[data-catalogo-modal]");
+    var historico = document.querySelector("[data-historico]");
+    if ((catalogo && !catalogo.hidden) || (historico && !historico.hidden)) return;
+    reabrirBoasVindas();
+    var primeiraOpcao = raiz && raiz.querySelector("[data-gv-acao]");
+    if (primeiraOpcao) primeiraOpcao.focus();
   }
 
   function aoClicar(evento) {
@@ -1264,6 +1278,7 @@
     });
     document.addEventListener("gv-orcamento-enviado", concluirFluxoOrcamento);
     document.addEventListener("gv-orcamento-limpo", aoLimparOrcamento);
+    document.addEventListener("gv-cliente-pronto", aoClientePronto);
     var formulario = document.querySelector("form");
     if (formulario && !formulario.dataset.gvForcaEnvio) {
       formulario.dataset.gvForcaEnvio = "1";
