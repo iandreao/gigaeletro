@@ -12,10 +12,19 @@
   var planilhaEscolhida = null;
   var loginAdmin = document.querySelector("[data-login-admin]");
   var erroLogin = document.querySelector("[data-login-erro]");
+  var campoSenha = loginAdmin ? loginAdmin.elements.senha : null;
 
   function limparCampoSenha() {
-    if (loginAdmin && loginAdmin.elements.senha) loginAdmin.elements.senha.value = "";
+    if (campoSenha) campoSenha.value = "";
   }
+
+  /* O dispositivo é compartilhado: a senha nunca pode aparecer preenchida pelo navegador. */
+  limparCampoSenha();
+  document.addEventListener("DOMContentLoaded", limparCampoSenha);
+  window.addEventListener("load", limparCampoSenha);
+  /* Voltar/avançar no histórico restaura a página do cache com o campo preenchido. */
+  window.addEventListener("pageshow", limparCampoSenha);
+  if (campoSenha) campoSenha.addEventListener("focus", limparCampoSenha);
 
   function avisoLogin(texto) {
     if (!erroLogin) return;
