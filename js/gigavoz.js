@@ -20,8 +20,6 @@
   var confirmarLista = null;
   var intencoes = [];
   var prefixoFala = "";
-  var corteResultado = 0;
-  var resultadosVistos = 0;
   var escrevendo = false;
   var reconhecimento = null;
   var ouvindo = false;
@@ -558,7 +556,6 @@
   function aoEditarTranscricao() {
     if (escrevendo) return;
     prefixoFala = area ? area.value : "";
-    corteResultado = resultadosVistos;
     atualizarAvanco();
   }
 
@@ -576,8 +573,6 @@
   function limparTranscricao() {
     if (area) area.value = "";
     prefixoFala = "";
-    corteResultado = 0;
-    resultadosVistos = 0;
     ultimaTransicaoVoz = "";
     ultimoTimestampVoz = 0;
     atualizarAvanco();
@@ -629,22 +624,6 @@
     }
   }
 
-  function acrescentarFala(evento) {
-    if (!evento || !evento.results) return;
-    var falado = "";
-    var i;
-    var inicio = typeof evento.resultIndex === "number" ? evento.resultIndex : 0;
-    for (i = inicio; i < evento.results.length; i++) {
-      if (!evento.results[i].isFinal) continue;
-      falado += textoDoResultado(evento.results[i]);
-    }
-    falado = falado.replace(/\s+/g, " ").trim();
-    if (!falado) return;
-    resultadosVistos = evento.results.length;
-    corteResultado = evento.results.length;
-    confirmarTrecho(falado);
-  }
-
   function iniciarEscuta() {
     var API = apiReconhecimento();
     if (!API) {
@@ -655,8 +634,6 @@
     erroAtivo = false;
     iniciando = true;
     prefixoFala = area ? area.value.replace(/\s+$/, "") : "";
-    corteResultado = 0;
-    resultadosVistos = 0;
     ultimaTransicaoVoz = "";
     ultimoTimestampVoz = 0;
     var sessao = new API();
@@ -685,8 +662,6 @@
         return;
       }
       if (campoNovo) campoNovo.value = textoDefinitivo;
-      resultadosVistos = evento.results.length;
-      corteResultado = evento.results.length;
       confirmarTrecho(textoDefinitivo);
     };
     sessao.onstart = function () {
@@ -704,8 +679,6 @@
     sessao.onend = function () {
       if (reconhecimento !== sessao) return;
       if (ouvindo && !erroAtivo) {
-        corteResultado = 0;
-        resultadosVistos = 0;
         try {
           sessao.start();
           return;
