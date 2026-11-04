@@ -37,7 +37,7 @@
 .gestor-tabela select.gestor-status-analisado { background: #dbeafe; }
 .gestor-tabela select.gestor-status-respondido { background: #dcfce7; }
 .gestor-login {
-  width: min(420px, calc(100% - 2rem));
+  width: min(294px, calc(100% - 2rem));
   margin: 1.2rem auto;
 }
 body.gestor .brand img {
@@ -51,6 +51,34 @@ body.gestor .brand img {
 .gestor-login h1 {
   font-size: 1.15rem;
   font-weight: 600;
+  text-align: center;
+}
+.gestor-login-destaque {
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.5rem;
+  background: var(--yellow-100);
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: center;
+}
+.gestor-login input[type="password"] {
+  border: 1px solid #6b7280;
+  background: var(--gray-50);
+}
+.gestor-login input[type="password"]:focus {
+  border-color: var(--ink);
+  background: var(--white);
+}
+/* Entrar fica apagado até haver algo digitado na senha. */
+.gestor-login .btn:disabled,
+.gestor-login .btn:disabled:hover {
+  opacity: 0.45;
+  background: #000;
+  border-color: #000;
+  cursor: not-allowed;
 }
 /* Sem botão de revelar senha, nem o nativo do Edge. */
 .gestor-login input[type="password"]::-ms-reveal,

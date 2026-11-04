@@ -13,9 +13,15 @@
   var loginAdmin = document.querySelector("[data-login-admin]");
   var erroLogin = document.querySelector("[data-login-erro]");
   var campoSenha = loginAdmin ? loginAdmin.elements.senha : null;
+  var botaoEntrar = loginAdmin ? loginAdmin.querySelector("[data-entrar]") : null;
+
+  function atualizarEntrar() {
+    if (botaoEntrar) botaoEntrar.disabled = !campoSenha || campoSenha.value.length === 0;
+  }
 
   function limparCampoSenha() {
     if (campoSenha) campoSenha.value = "";
+    atualizarEntrar();
   }
 
   /* O dispositivo é compartilhado: a senha nunca pode aparecer preenchida pelo navegador. */
@@ -24,7 +30,10 @@
   window.addEventListener("load", limparCampoSenha);
   /* Voltar/avançar no histórico restaura a página do cache com o campo preenchido. */
   window.addEventListener("pageshow", limparCampoSenha);
-  if (campoSenha) campoSenha.addEventListener("focus", limparCampoSenha);
+  if (campoSenha) {
+    campoSenha.addEventListener("focus", limparCampoSenha);
+    campoSenha.addEventListener("input", atualizarEntrar);
+  }
 
   function avisoLogin(texto) {
     if (!erroLogin) return;
