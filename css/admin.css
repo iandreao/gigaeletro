@@ -99,6 +99,10 @@ body.gestor .brand img {
   border-color: var(--ink);
   background: var(--white);
 }
+.gestor-login [data-login-erro] {
+  margin: 0;
+  text-align: center;
+}
 /* Entrar fica apagado até haver algo digitado na senha. */
 .gestor-login .btn:disabled,
 .gestor-login .btn:disabled:hover {

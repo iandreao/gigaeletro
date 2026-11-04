@@ -33,6 +33,9 @@
   if (campoSenha) {
     campoSenha.addEventListener("focus", limparCampoSenha);
     campoSenha.addEventListener("input", atualizarEntrar);
+    campoSenha.addEventListener("input", function () {
+      if (erroLogin && campoSenha.value.length > 0) erroLogin.hidden = true;
+    });
   }
 
   function avisoLogin(texto) {
@@ -90,6 +93,7 @@
           limparCampoSenha();
           /* 503 é falta de configuração no servidor, não senha errada. */
           avisoLogin(resultado.status === 503 && corpo && corpo.erro ? corpo.erro : "Senha Inválida");
+          if (campoSenha) campoSenha.focus();
           return;
         }
         loginAdmin.hidden = true;
@@ -97,6 +101,7 @@
       }).catch(function () {
         limparCampoSenha();
         avisoLogin("Sem conexão com o servidor. Tente novamente.");
+        if (campoSenha) campoSenha.focus();
       });
     });
   }
