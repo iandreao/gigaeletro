@@ -29,6 +29,7 @@
   var erroAtivo = false;
   var modoIntencoes = false;
   var catalogoTravado = false;
+  var escolhaTradicional = false;
   var ultimaTransicaoVoz = "";
   var ultimoTimestampVoz = 0;
 
@@ -62,8 +63,8 @@
   }
 
   function definirCatalogo(ativo) {
-    /* Produtos fica travado somente enquanto o Comando de Voz é o modelo ativo. */
-    if (catalogoTravado) ativo = false;
+    /* Ver Catálogo só abre depois do clique em Tradicional e nunca enquanto o Comando de Voz está ativo. */
+    if (catalogoTravado || !escolhaTradicional) ativo = false;
     botoesCatalogo().forEach(function (botao) {
       botao.disabled = !ativo;
       if (ativo) botao.removeAttribute("disabled");
@@ -86,7 +87,8 @@
 
   function reabrirBoasVindas() {
     pararEscuta();
-    /* A escolha ainda não é voz: o catálogo tradicional volta. */
+    /* De volta à escolha: Ver Catálogo espera um novo clique em Tradicional. */
+    escolhaTradicional = false;
     liberarCatalogo();
     limparTranscricao();
     limparIntencoes();
@@ -188,6 +190,7 @@
   function fecharBoasVindas() {
     if (!raiz) return;
     modoIntencoes = false;
+    escolhaTradicional = true;
     liberarCatalogo();
     raiz.remove();
     raiz = null;
@@ -210,6 +213,9 @@
     gravador.setAttribute("role", "dialog");
     gravador.setAttribute("aria-labelledby", "gv-recorder-titulo");
     gravador.innerHTML =
+      '<button class="gv-fechar-voz" type="button" data-gv-fechar aria-label="Fechar Comando de voz e voltar à escolha do Tipo de Orçamento" title="Fechar e voltar">' +
+        '<span aria-hidden="true">×</span>' +
+      "</button>" +
       '<p class="gv-recorder-titulo" id="gv-recorder-titulo">Comando de voz</p>' +
       '<div class="gv-captura" data-gv-passo="captura">' +
         '<div class="gv-bloco-mic">' +
@@ -262,7 +268,19 @@
     });
     gravador.querySelector("[data-gv-adicionar]").addEventListener("click", adicionarManual);
     confirmarLista.addEventListener("click", confirmarEnvio);
+    gravador.querySelector("[data-gv-fechar]").addEventListener("click", fecharGravador);
     document.body.appendChild(gravador);
+  }
+
+  function fecharGravador() {
+    if (reconhecimento) {
+      try { reconhecimento.stop(); } catch (erro) { /* a sessão já pode ter terminado */ }
+    }
+    /* Descarta o que estava sendo ditado e volta para Tradicional / Comando de voz. */
+    if (statusEl) statusEl.textContent = TEXTO_INICIAL;
+    reabrirBoasVindas();
+    var primeiraOpcao = raiz && raiz.querySelector("[data-gv-acao]");
+    if (primeiraOpcao) primeiraOpcao.focus();
   }
 
   function abrirGravador() {
@@ -270,6 +288,7 @@
       raiz.remove();
       raiz = null;
     }
+    escolhaTradicional = false;
     pararEscuta();
     if (gravador) gravador.remove();
     criarGravador();
@@ -1253,6 +1272,7 @@
     raiz = criarTela();
     document.body.appendChild(raiz);
     alinharEscolha();
+    definirCatalogo(false);
     var tipo = document.getElementById("btnTipoOrcamento");
     if (tipo && tipo.textContent.replace(/\s+/g, " ").trim() !== "Tipo de Orçamento") {
       tipo.textContent = "Tipo de Orçamento";

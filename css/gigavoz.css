@@ -283,6 +283,39 @@
   display: none !important;
 }
 
+.gv-fechar-voz {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.28);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1a1a1a;
+  font: 700 1.2rem/1 "Manrope", "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.gv-fechar-voz:hover,
+.gv-fechar-voz:focus-visible {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #ffffff;
+}
+
+/* Os títulos centrados guardam o espaço do botão de fechar dos dois lados. */
+.gv-recorder-container .gv-recorder-titulo,
+.gv-recorder-container .gv-intencoes-titulo {
+  padding: 0 34px;
+}
+
 .gv-recorder-titulo {
   margin: 0 0 6px;
   color: #1a1a1a;
@@ -675,10 +708,15 @@ input.gv-intencoes-input {
   display: none !important;
 }
 
-#btnVerCatalogo:disabled {
+/* Inativo até o clique em Tradicional: aparência apagada, cursor de bloqueio e sem efeito de hover. */
+#btnVerCatalogo:disabled,
+#btnVerCatalogo:disabled:hover {
   opacity: 0.45;
-  pointer-events: none;
+  background: #000;
+  border-color: #000;
+  color: var(--white);
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .quote-side [data-envio-aviso].gv-aviso-sucesso {
