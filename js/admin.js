@@ -37,7 +37,7 @@
 
   function avisoLogin(texto) {
     if (!erroLogin) return;
-    erroLogin.textContent = texto || "Senha incorreta";
+    erroLogin.textContent = texto || "Senha Inválida";
     erroLogin.hidden = false;
   }
 
@@ -45,6 +45,15 @@
     document.querySelectorAll("[data-area-restrita]").forEach(function (area) { area.hidden = true; });
     limparCampoSenha();
     if (loginAdmin) loginAdmin.hidden = false;
+    if (campoSenha) campoSenha.focus();
+  }
+
+  var fecharLogin = document.querySelector("[data-fechar-login]");
+  if (fecharLogin) {
+    fecharLogin.addEventListener("click", function () {
+      limparCampoSenha();
+      window.location.replace("/");
+    });
   }
 
   fetch("/api/sessao", { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
@@ -72,15 +81,21 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ senha: senha })
       }).then(function (resposta) {
-        return resposta.json().catch(function () { return null; });
-      }).then(function (corpo) {
+        return resposta.json().catch(function () { return null; }).then(function (corpo) {
+          return { status: resposta.status, corpo: corpo };
+        });
+      }).then(function (resultado) {
+        var corpo = resultado.corpo;
         if (!corpo || !corpo.ok) {
-          avisoLogin(corpo && corpo.erro);
+          limparCampoSenha();
+          /* 503 é falta de configuração no servidor, não senha errada. */
+          avisoLogin(resultado.status === 503 && corpo && corpo.erro ? corpo.erro : "Senha Inválida");
           return;
         }
         loginAdmin.hidden = true;
         mostrarPainel();
       }).catch(function () {
+        limparCampoSenha();
         avisoLogin("Sem conexão com o servidor. Tente novamente.");
       });
     });

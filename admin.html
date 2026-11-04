@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=6">
+  <link rel="stylesheet" href="css/admin.css?v=7">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -71,12 +71,13 @@
   </div>
   <main class="section">
     <form class="admin-body panel gestor-login" data-login-admin autocomplete="off" hidden>
+      <button class="gestor-login-fechar" type="button" data-fechar-login aria-label="Fechar a Área Restrita e voltar ao início" title="Fechar">&times;</button>
       <h1>Acesso a Área Restrita</h1>
       <p class="gestor-login-destaque">Acesso exclusivo para o Gestor da Gigaeletro</p>
       <label>Informe a Senha do Administrador
         <input type="password" name="senha" value="" autocomplete="new-password" required>
       </label>
-      <p class="aviso aviso-sutil" data-login-erro hidden>Senha incorreta</p>
+      <p class="aviso aviso-sutil" data-login-erro hidden>Senha Inválida</p>
       <button class="btn btn-preto" type="submit" data-entrar disabled>Entrar</button>
     </form>
     <div data-area-restrita hidden>
@@ -179,6 +180,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=25"></script>
+  <script src="js/admin.js?v=26"></script>
 </body>
 </html>
