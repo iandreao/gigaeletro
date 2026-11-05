@@ -3,7 +3,7 @@
   var CHAVE_PEDIDO = "gigaeletro-orcamento";
   var CHAVE_RASCUNHO = "gigaeletro_rascunho";
   var VALIDADE_RASCUNHO = 15 * 24 * 60 * 60 * 1000;
-  var SITE_PDF = "https://gigaeletro.vercel.app";
+  var SITE_PDF = "https://gigaeletro.com.br";
   var logoPdf = new Image();
   logoPdf.src = "assets/logo-gigaeletro.jpg";
 
@@ -686,7 +686,7 @@
       : String((cliente && cliente.nome) || "").trim();
     const celularCliente = String((cliente && cliente.celular) || "").trim();
     const contatoCliente = `${nomeCliente} – Contato ${celularCliente}`;
-    const link = "https://gigaeletro.vercel.app/api/ver-pdf?id=" + idOrcamento;
+    const link = SITE_PDF + "/api/ver-pdf?id=" + idOrcamento;
     /* O texto segue o modelo ativo, e não o tipo de item que ainda esteja no quadro. */
     if (modeloComandoDeVoz()) {
       return "Olá, segue lista de produtos para orçamento. Clicar no link para visualizar.\n\n" + link + "\n\n" + contatoCliente;
