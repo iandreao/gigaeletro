@@ -1022,16 +1022,30 @@ body.home .catalogo-modal .catalogo-sem-resultado {
   }
 }
 
-/* Monitores largos: o site para em 1440px, centralizado, e as laterais ficam com fundo neutro. */
 @media (min-width: 1441px) {
-  html:has(> body.home) { background: #e5e7eb; }
-  body.home {
-    max-width: 1440px;
-    margin: 0 auto;
-    box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.06), 0 0 40px rgba(17, 24, 39, 0.12);
+  html { 
+    background: #e5e7eb !important; 
   }
-  /* 1,45vw em 1440px: o título não cresce mais que a coluna travada. */
-  body.home .hero h1 { font-size: 20.88px; }
+  
+  body.home {
+    max-width: 1440px !important;
+    margin: 0 auto !important;
+    position: relative !important;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Garante que imagens de fundo ou seções laterais fiquem contidas estritamente nos 1440px */
+  body.home .main-container,
+  body.home .conteudo-principal,
+  body.home .banner-lateral,
+  body.home .coluna-imagem {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  body.home .hero h1 { 
+    font-size: 20.88px !important; 
+  }
 }
 
 /* Formulário do cliente mais leve: fonte menor, peso médio e campos mais finos. */
