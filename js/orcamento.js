@@ -591,11 +591,8 @@
     var opcoes = sugestoesEl ? sugestoesEl.querySelectorAll("[data-sugestao]") : [];
     var escolhido = botao || opcoes[sugestaoAtiva];
     var codigo = escolhido ? escolhido.getAttribute("data-sugestao") : "";
+    /* O termo digitado continua no campo e na lista filtrada: só o cliente apaga a busca. */
     fecharSugestoes();
-    busca = "";
-    if (buscaEl) buscaEl.value = "";
-    renderCatalogo();
-    voltarListaAoTopo();
     if (codigo) adicionar(codigo);
     if (buscaEl) buscaEl.focus({ preventScroll: true });
   }
@@ -703,55 +700,18 @@
     return urlFinal;
   }
 
-  function urlProtocoloWhatsApp(texto) {
-    return "whatsapp://send?phone=" + destinoWhatsApp() + "&text=" + encodeURIComponent(texto);
-  }
-
-  function quadroWhatsApp() {
-    var quadro = document.querySelector("[data-whatsapp-disparo]");
-    if (quadro) return quadro;
-    quadro = document.createElement("iframe");
-    quadro.setAttribute("data-whatsapp-disparo", "");
-    quadro.hidden = true;
-    quadro.setAttribute("aria-hidden", "true");
-    quadro.tabIndex = -1;
-    quadro.style.cssText = "position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none";
-    document.body.appendChild(quadro);
-    return quadro;
-  }
-
-  function abrirLinkWhatsApp(url) {
-    var aba = null;
-    try {
-      aba = window.open(url, "whatsapp-gigaeletro");
-    } catch (erro) {
-      aba = null;
-    }
-    if (aba) return;
-    var link = document.createElement("a");
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  }
-
   function dispararWhatsApp(texto) {
-    var web = urlWhatsApp(texto);
-    var quadro = quadroWhatsApp();
-    var abriuAplicativo = false;
-    function marcarAplicativo() { abriuAplicativo = true; }
-    window.addEventListener("blur", marcarAplicativo);
-    document.addEventListener("visibilitychange", marcarAplicativo);
-    quadro.src = urlProtocoloWhatsApp(texto);
-    window.setTimeout(function () {
-      window.removeEventListener("blur", marcarAplicativo);
-      document.removeEventListener("visibilitychange", marcarAplicativo);
-      quadro.removeAttribute("src");
-      if (abriuAplicativo || document.hidden) return;
-      abrirLinkWhatsApp(web);
-    }, 700);
+    const url = urlWhatsApp(texto);
+    /* Roda depois do upload do PDF, fora do toque do cliente: o Safari do iPhone bloqueia
+       window.open e target="_blank" nesse momento, mas não a navegação da própria aba. */
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.location.href = url;
+      return;
+    }
+    /* iPad com iPadOS se apresenta como Mac e bloqueadores de pop-up devolvem null. */
+    const aba = window.open(url, "_blank");
+    if (!aba) window.location.href = url;
   }
 
   function honeypotPreenchido() {
