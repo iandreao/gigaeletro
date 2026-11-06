@@ -1788,6 +1788,14 @@ def responder_orcamento_pdf(saida):
     })
 
 
+def robo_de_preview(saida):
+    agente = (saida.headers.get("User-Agent") or "").lower()
+    if "facebookexternalhit" in agente or "facebot" in agente:
+        return True
+    # O navegador interno do WhatsApp também cita "WhatsApp", mas se apresenta como Mozilla; o robô, não.
+    return "whatsapp" in agente and "mozilla" not in agente
+
+
 def enviar_pdf_cliente(saida, conteudo):
     saida.send_response(200)
     saida.send_header("Content-Type", "application/pdf")
@@ -1795,8 +1803,31 @@ def enviar_pdf_cliente(saida, conteudo):
     saida.send_header("Content-Disposition", 'inline; filename="Pedido-de-Orcamento-Gigaeletro.pdf"')
     saida.send_header("X-Content-Type-Options", "nosniff")
     saida.send_header("Cache-Control", "private, no-store")
+    saida.send_header("Vary", "User-Agent")
     saida.end_headers()
     saida.wfile.write(conteudo)
+
+
+def html_preview_orcamento(ident):
+    destino = "/api/ver-pdf?id=" + ident + "&arquivo=pdf"
+    return (
+        "<!DOCTYPE html>\n"
+        '<html lang="pt-BR">\n'
+        "<head>\n"
+        '<meta charset="utf-8">\n'
+        "<title>GigaEletro – Orçamento On-Line</title>\n"
+        '<meta property="og:title" content="GigaEletro – Orçamento On-Line">\n'
+        '<meta property="og:description" content="Por favor, aguardando contato de um especialista. Grato!">\n'
+        '<meta name="description" content="Por favor, aguardando contato de um especialista. Grato!">\n'
+        '<meta property="og:type" content="website">\n'
+        '<meta property="og:site_name" content="GigaEletro">\n'
+        "<script>location.replace(" + json.dumps(destino) + ")</script>\n"
+        "</head>\n"
+        "<body>\n"
+        '<p><a href="' + destino + '">Abrir o orçamento em PDF</a></p>\n'
+        "</body>\n"
+        "</html>\n"
+    ).encode("utf-8")
 
 
 def responder_ver_pdf(saida):
@@ -1808,8 +1839,18 @@ def responder_ver_pdf(saida):
     if not conteudo:
         saida.send_error(404)
         return
-    # Também o robô do WhatsApp recebe o PDF: sem página de metadados o link não ganha card de preview.
-    enviar_pdf_cliente(saida, conteudo)
+    # arquivo=pdf força o PDF: é o destino da página do robô caso um humano caia nela.
+    if parametro_consulta(saida.path, "arquivo") == "pdf" or not robo_de_preview(saida):
+        enviar_pdf_cliente(saida, conteudo)
+        return
+    pagina = html_preview_orcamento(ident)
+    saida.send_response(200)
+    saida.send_header("Content-Type", "text/html; charset=utf-8")
+    saida.send_header("Content-Length", str(len(pagina)))
+    saida.send_header("Cache-Control", "private, no-store")
+    saida.send_header("Vary", "User-Agent")
+    saida.end_headers()
+    saida.wfile.write(pagina)
 
 
 def responder_upload(saida):
