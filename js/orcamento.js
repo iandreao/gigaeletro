@@ -680,14 +680,25 @@
       ? String((cliente && cliente.razaoSocial) || (cliente && cliente.nome) || "").trim()
       : String((cliente && cliente.nome) || "").trim();
     const celularCliente = String((cliente && cliente.celular) || "").trim();
-    const corpo = idOrcamento
-      ? ["Olá, clicar no link abaixo para ver a lista dos materiais a serem orçados.", SITE_PDF + "/api/ver-pdf?id=" + idOrcamento]
-      : ["Olá, estamos processando sua lista de materiais para orçamento e um especialista irá atendê-lo em breve."];
+    if (!idOrcamento) {
+      return [
+        "Um instante, por favor. Um especialista já vai falar com você.",
+        "",
+        "Olá, estamos processando sua lista de materiais para orçamento e um especialista irá atendê-lo em breve.",
+        "",
+        `${nomeCliente} – Contato ${celularCliente}`
+      ].join("\n");
+    }
+    const link = SITE_PDF + "/api/ver-pdf?id=" + idOrcamento;
     return [
-      "GigaEletro – Orçamento On-Line",
       "Um instante, por favor. Um especialista já vai falar com você.",
-      ""
-    ].concat(corpo, ["", `${nomeCliente} – Contato ${celularCliente}`]).join("\n");
+      "",
+      "Olá, clicar no link abaixo para ver a lista dos materiais a serem orçados.",
+      "",
+      link,
+      "",
+      `${nomeCliente} – Contato ${celularCliente}`
+    ].join("\n");
   }
 
   function urlWhatsApp(texto) {
