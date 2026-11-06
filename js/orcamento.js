@@ -674,24 +674,20 @@
     return digitos;
   }
 
-  function modeloComandoDeVoz() {
-    return document.body.dataset.gvCatalogoTravado === "1";
-  }
-
-  function textoOrcamento(cliente, subtotal, id) {
-    const valorTotal = numero(subtotal);
+  function textoOrcamento(cliente, id) {
     const idOrcamento = String(id || "").trim();
     const nomeCliente = String(cliente && cliente.tipo || "").toUpperCase() === "PJ"
       ? String((cliente && cliente.razaoSocial) || (cliente && cliente.nome) || "").trim()
       : String((cliente && cliente.nome) || "").trim();
     const celularCliente = String((cliente && cliente.celular) || "").trim();
-    const contatoCliente = `${nomeCliente} – Contato ${celularCliente}`;
-    const link = SITE_PDF + "/api/ver-pdf?id=" + idOrcamento;
-    /* O texto segue o modelo ativo, e não o tipo de item que ainda esteja no quadro. */
-    if (modeloComandoDeVoz()) {
-      return "Olá, segue lista de produtos para orçamento. Clicar no link para visualizar.\n\n" + link + "\n\n" + contatoCliente;
-    }
-    return "Olá, segue orçamento no valor de R$ " + valorTotal + ". Clicar no link para visualizar.\n\n" + link + "\n\n" + contatoCliente;
+    const corpo = idOrcamento
+      ? ["Olá, clicar no link abaixo para ver a lista dos materiais a serem orçados.", SITE_PDF + "/api/ver-pdf?id=" + idOrcamento]
+      : ["Olá, estamos processando sua lista de materiais para orçamento e um especialista irá atendê-lo em breve."];
+    return [
+      "GigaEletro – Orçamento On-Line",
+      "Um instante, por favor. Um especialista já vai falar com você.",
+      ""
+    ].concat(corpo, ["", `${nomeCliente} – Contato ${celularCliente}`]).join("\n");
   }
 
   function urlWhatsApp(texto) {
@@ -849,7 +845,7 @@
     envioEmCurso = true;
     if (enviar) enviar.disabled = true;
     if (avisoEnvio) avisoEnvio.hidden = true;
-    var textoSemPdf = textoOrcamento(cliente, subtotal, "");
+    var textoSemPdf = textoOrcamento(cliente, "");
     fetch("/api/orcamento-pdf", { method: "POST", body: dados }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
         if (!resposta.ok || !publicado || !publicado.url) {
@@ -865,7 +861,7 @@
         if (trecho) idSalvo = decodeURIComponent(trecho[1]);
       }
       cliente.tipo = tipoPessoa();
-      var texto = textoOrcamento(cliente, subtotal, idSalvo);
+      var texto = textoOrcamento(cliente, idSalvo);
       return publicarPainel(cliente, idSalvo).then(function () {
         limparDepoisDoEnvio();
         mostrarSucessoEnvio();
