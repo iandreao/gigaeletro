@@ -1023,28 +1023,54 @@ body.home .catalogo-modal .catalogo-sem-resultado {
 }
 
 @media (min-width: 1441px) {
-  html { 
-    background: #e5e7eb !important; 
+  /* Altera a raiz para preencher a tela inteira sem gerar rolagens externas */
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    overflow: hidden !important; /* Remove qualquer rolagem da janela do navegador */
+    background: #e5e7eb !important;
   }
-  
+
+  /* Transforma a aplicação home em um container fixo centralizado e travado de 1440px */
   body.home {
+    width: 1440px !important;
     max-width: 1440px !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
     margin: 0 auto !important;
     position: relative !important;
-    box-shadow: 0 0 40px rgba(0, 0, 0, 0.1);
+    display: flex !important;
+    flex-direction: column !important; /* Organiza topo, conteúdo e rodapé verticalmente */
+    justify-content: space-between !important;
+    box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.06), 0 0 40px rgba(17, 24, 39, 0.12) !important;
+    background: #ffffff !important;
+    overflow: hidden !important;
   }
 
-  /* Garante que imagens de fundo ou seções laterais fiquem contidas estritamente nos 1440px */
-  body.home .main-container,
-  body.home .conteudo-principal,
-  body.home .banner-lateral,
-  body.home .coluna-imagem {
-    max-width: 100% !important;
-    box-sizing: border-box !important;
+  /* Garante que o container interno de conteúdo ocupe o espaço restante perfeitamente */
+  body.home .main-content,
+  body.home .container-principal {
+    flex: 1 !important;
+    height: calc(100vh - 120px) !important; /* Desconta a altura do menu e do rodapé */
+    max-height: calc(100vh - 120px) !important;
+    display: flex !important;
+    overflow: hidden !important;
   }
 
-  body.home .hero h1 { 
-    font-size: 20.88px !important; 
+  /* Trava o tamanho das colunas internas para encaixarem lado a lado na proporção perfeita da foto enviada */
+  body.home .coluna-banner,
+  body.home .coluna-formulario,
+  body.home .coluna-orcamento {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important; /* Impede que estourem a altura vertical da tela */
+  }
+
+  /* Mantém o título no tamanho exato e ideal calculado para a largura travada */
+  body.home .hero h1 {
+    font-size: 20.88px !important;
   }
 }
 
