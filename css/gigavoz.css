@@ -1021,3 +1021,29 @@ body.home .catalogo-modal .catalogo-sem-resultado {
     flex: 0 1 auto;
   }
 }
+
+/* Monitores largos: o site para em 1440px, centralizado, e as laterais ficam com fundo neutro. */
+@media (min-width: 1441px) {
+  html:has(> body.home) { background: #e5e7eb; }
+  body.home {
+    max-width: 1440px;
+    margin: 0 auto;
+    box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.06), 0 0 40px rgba(17, 24, 39, 0.12);
+  }
+  /* 1,45vw em 1440px: o título não cresce mais que a coluna travada. */
+  body.home .hero h1 { font-size: 20.88px; }
+}
+
+/* Formulário do cliente mais leve: fonte menor, peso médio e campos mais finos. */
+body.home .cliente-form input:not([type="radio"]) {
+  padding: 5px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+body.home .cliente-form input::placeholder {
+  color: #9ca3af;
+  font-size: 13px;
+  font-weight: 400;
+  opacity: 1;
+}
