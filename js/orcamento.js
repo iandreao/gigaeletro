@@ -682,8 +682,6 @@
     const celularCliente = String((cliente && cliente.celular) || "").trim();
     if (!idOrcamento) {
       return [
-        "Um instante, por favor. Um especialista já vai falar com você.",
-        "",
         "Olá, estamos processando sua lista de materiais para orçamento e um especialista irá atendê-lo em breve.",
         "",
         `${nomeCliente} – Contato ${celularCliente}`
@@ -691,8 +689,6 @@
     }
     const link = SITE_PDF + "/api/ver-pdf?id=" + idOrcamento;
     return [
-      "Um instante, por favor. Um especialista já vai falar com você.",
-      "",
       "Olá, clicar no link abaixo para ver a lista dos materiais a serem orçados.",
       "",
       link,
