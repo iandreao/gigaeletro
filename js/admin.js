@@ -181,7 +181,6 @@
     preencherDataHoje();
     carregarOrcamentos();
     carregarDashboard();
-    carregarTrafego();
   }
 
   function mostrarAba(nome) {
@@ -204,10 +203,8 @@
     botao.addEventListener("click", function () {
       mostrarAba(botao.getAttribute("data-aba"));
       fecharMenuGestor();
-      if (botao.getAttribute("data-aba") === "dashboard") {
-        carregarDashboard();
-        carregarTrafego();
-      }
+      if (botao.getAttribute("data-aba") === "dashboard") carregarDashboard();
+      if (botao.getAttribute("data-aba") === "trafego") carregarTrafego();
     });
   });
 
@@ -690,6 +687,7 @@
   }
   var dashDias = 30;
   var dashPedido = 0;
+  var trafegoDias = 30;
   var trafegoPedido = 0;
   var MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -826,42 +824,46 @@
     });
   }
 
-  function htmlTabelaTrafego(titulo, linhas) {
-    var total = linhas.reduce(function (soma, linha) { return soma + linha.qtd; }, 0);
-    if (!total) return '<p class="dash-vazio">Sem acessos registrados.</p>';
-    return '<div class="dash-tabela-caixa"><table class="dash-tabela">' +
-      '<thead><tr><th scope="col">' + escapar(titulo) + '</th><th scope="col">Acessos</th><th scope="col">%</th></tr></thead>' +
-      '<tbody>' + linhas.map(function (linha) {
-        return '<tr><th scope="row">' + escapar(linha.nome) + '</th><td>' + linha.qtd + '</td><td>' + pct(linha.qtd * 100 / total) + '</td></tr>';
-      }).join("") + '</tbody></table></div>';
+  function horarioAcesso(valor) {
+    var partes = String(valor || "").split(" ");
+    var data = partes[0].split("-");
+    return data.length === 3 ? data[2] + "/" + data[1] + "/" + data[0] + " " + (partes[1] || "") : String(valor || "");
+  }
+
+  function localAcesso(linha) {
+    if (linha.cidade && linha.estado) return linha.cidade + "/" + linha.estado;
+    return linha.cidade || linha.estado || "—";
   }
 
   function renderTrafego(dados) {
-    var hoje = document.querySelector("[data-trafego-hoje]");
-    var periodo = document.querySelector("[data-trafego-periodo]");
-    var dispositivos = document.querySelector("[data-trafego-dispositivos]");
-    var origens = document.querySelector("[data-trafego-origens]");
-    var porDispositivo = dados.dispositivos || {};
+    var unicos = document.querySelector("[data-trafego-unicos]");
+    var resumo = document.querySelector("[data-trafego-resumo]");
+    var lista = document.querySelector("[data-trafego-lista]");
+    var vazio = document.querySelector("[data-trafego-vazio]");
+    var registros = dados.registros || [];
     var dias = Number(dados.periodoDias || 0);
-    if (hoje) hoje.textContent = String(dados.hoje || 0);
-    document.querySelectorAll("[data-trafego-rotulo]").forEach(function (rotulo) {
-      rotulo.textContent = dias === 1 ? "(hoje)" : (dias ? "(" + dias + " dias)" : "(todo o período)");
-    });
-    if (periodo) {
-      periodo.textContent = dados.armazenamento === "nenhum"
+    var total = Number(dados.totalAcessos || 0);
+    if (unicos) unicos.textContent = String(dados.sessoesUnicas || 0);
+    if (resumo) {
+      resumo.textContent = dados.armazenamento === "nenhum"
         ? "Contagem desativada: falta a variável REDIS_URL na Vercel."
-        : (dados.totalPeriodo || 0) + " acesso(s) " +
-          (dias === 1 ? "hoje." : (dias ? "nos últimos " + dias + " dias." : "em todo o período registrado."));
+        : "usuário(s) único(s) " +
+          (dias === 1 ? "hoje" : (dias ? "nos últimos " + dias + " dias" : "em todo o período")) +
+          " · " + total + " acesso(s) registrado(s)" +
+          (total > registros.length ? " · mostrando os " + registros.length + " mais recentes" : "");
     }
-    if (dispositivos) {
-      dispositivos.innerHTML = htmlTabelaTrafego("Dispositivo", Object.keys(porDispositivo).map(function (nome) {
-        return { nome: nome, qtd: Number(porDispositivo[nome] || 0) };
-      }));
-    }
-    if (origens) {
-      origens.innerHTML = htmlTabelaTrafego("Origem", (dados.origens || []).map(function (item) {
-        return { nome: item.origem, qtd: Number(item.acessos || 0) };
-      }));
+    if (vazio) vazio.hidden = registros.length > 0;
+    if (lista) {
+      lista.innerHTML = registros.map(function (linha) {
+        var sessao = String(linha.id_sessao || "");
+        return "<tr>" +
+          "<td>" + escapar(horarioAcesso(linha.data_hora)) + "</td>" +
+          "<td>" + escapar(localAcesso(linha)) + "</td>" +
+          "<td>" + escapar(linha.dispositivo || "—") + "</td>" +
+          "<td>" + escapar(linha.origem || "Direto") + "</td>" +
+          '<td class="sessao" title="' + escapar(sessao) + '">' + escapar(sessao ? sessao.slice(0, 8) : "—") + "</td>" +
+          "</tr>";
+      }).join("");
     }
   }
 
@@ -871,7 +873,11 @@
     if (!grade) return;
     var pedido = ++trafegoPedido;
     grade.setAttribute("aria-busy", "true");
-    fetch("/api/admin/metricas-acesso?dias=" + encodeURIComponent(dashDias), { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
+    fetch("/api/admin/metricas-acesso?dias=" + encodeURIComponent(trafegoDias), { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
+      if (resposta.status === 401) {
+        window.location.replace("/");
+        return null;
+      }
       return resposta.json().catch(function () { return null; });
     }).then(function (corpo) {
       if (pedido !== trafegoPedido) return;
@@ -892,6 +898,16 @@
     });
   }
 
+  document.querySelectorAll("[data-trafego-dias]").forEach(function (botao) {
+    botao.addEventListener("click", function () {
+      trafegoDias = Number(botao.getAttribute("data-trafego-dias")) || 0;
+      document.querySelectorAll("[data-trafego-dias]").forEach(function (outro) {
+        outro.setAttribute("aria-pressed", outro === botao ? "true" : "false");
+      });
+      carregarTrafego();
+    });
+  });
+
   document.querySelectorAll("[data-dash-dias]").forEach(function (botao) {
     botao.addEventListener("click", function () {
       dashDias = Number(botao.getAttribute("data-dash-dias")) || 0;
@@ -899,7 +915,6 @@
         outro.setAttribute("aria-pressed", outro === botao ? "true" : "false");
       });
       carregarDashboard();
-      carregarTrafego();
     });
   });
 

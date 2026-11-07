@@ -52,13 +52,17 @@ PAINEL_LIMITE = 2000
 METRICAS_LOCK = threading.Lock()
 METRICAS_BLOB = "orcamentos/metricas.json"
 METRICAS_LIMITE = 5000
-ACESSOS_LOG = "acessos:log"
-ACESSOS_LOG_LIMITE = 5000
+# A hash tag {giga} mantém todas as chaves no mesmo slot: SUNIONSTORE não aceita chaves em slots diferentes.
+ACESSOS_CHAVE = "acessos:{giga}:"
+ACESSOS_POR_DIA = 5000
+ACESSOS_LISTA = 500
 ACESSOS_DIAS = 30
 ACESSOS_EXPIRA = 400 * 24 * 60 * 60
 ACESSOS_CORPO_MAX = 4096
 RE_MOBILE = re.compile(r"Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobi", re.IGNORECASE)
 RE_ROBO = re.compile(r"bot|crawl|spider|slurp", re.IGNORECASE)
+RE_SESSAO = re.compile(r"[A-Za-z0-9-]{8,64}")
+CAMPOS_AUDITORIA = ("data_hora", "cidade", "estado", "dispositivo", "origem", "id_sessao")
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 IMPORTACAO = threading.Lock()
 
@@ -1779,14 +1783,32 @@ def origem_acesso(valor):
     return texto.lower()
 
 
+def sessao_acesso(valor):
+    texto = str(valor or "").strip()
+    return texto if RE_SESSAO.fullmatch(texto) else ""
+
+
+def local_acesso(saida):
+    if not em_vercel():
+        return "Localhost", ""
+    cidade = urllib.parse.unquote(saida.headers.get("x-vercel-ip-city") or "")
+    cidade = re.sub(r"[\x00-\x1f<>]", "", cidade).strip()[:80]
+    estado = re.sub(r"[^A-Za-z0-9]", "", saida.headers.get("x-vercel-ip-country-region") or "").upper()[:6]
+    return cidade, estado
+
+
 def conectar_acessos():
     conn = conectar()
     conn.execute(
         "CREATE TABLE IF NOT EXISTS acessos_log ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-        "ip_anonimizado TEXT, dispositivo TEXT, origem TEXT)"
+        "ip_anonimizado TEXT, id_sessao TEXT, dispositivo TEXT, origem TEXT, cidade TEXT, estado TEXT)"
     )
+    existentes = {linha[1] for linha in conn.execute("PRAGMA table_info(acessos_log)")}
+    for coluna in ("id_sessao", "cidade", "estado"):
+        if coluna not in existentes:
+            conn.execute("ALTER TABLE acessos_log ADD COLUMN %s TEXT" % coluna)
     return conn
 
 
@@ -1794,8 +1816,12 @@ def gravar_acesso_local(registro):
     conn = conectar_acessos()
     try:
         conn.execute(
-            "INSERT INTO acessos_log (data_hora, ip_anonimizado, dispositivo, origem) VALUES (?, ?, ?, ?)",
-            (registro["data_hora"], registro["ip_anonimizado"], registro["dispositivo"], registro["origem"]),
+            "INSERT INTO acessos_log (data_hora, ip_anonimizado, id_sessao, dispositivo, origem, cidade, estado) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                registro["data_hora"], registro["ip_anonimizado"], registro["id_sessao"],
+                registro["dispositivo"], registro["origem"], registro["cidade"], registro["estado"],
+            ),
         )
         conn.commit()
     finally:
@@ -1805,19 +1831,16 @@ def gravar_acesso_local(registro):
 def registrar_acesso(registro):
     if endereco_redis():
         dia = registro["data_hora"][:10]
-        chaves = ["acessos:total:" + dia, "acessos:dispositivo:" + dia, "acessos:origem:" + dia]
-        redis_pipeline(
-            [
-                ["INCR", chaves[0]],
-                ["HINCRBY", chaves[1], registro["dispositivo"], 1],
-                ["ZINCRBY", chaves[2], 1, registro["origem"]],
-            ]
-            + [["EXPIRE", chave, ACESSOS_EXPIRA] for chave in chaves]
-            + [
-                ["LPUSH", ACESSOS_LOG, json.dumps(registro, ensure_ascii=False)],
-                ["LTRIM", ACESSOS_LOG, 0, ACESSOS_LOG_LIMITE - 1],
-            ]
-        )
+        lista = ACESSOS_CHAVE + "log:" + dia
+        comandos = [
+            ["LPUSH", lista, json.dumps(registro, ensure_ascii=False)],
+            ["LTRIM", lista, 0, ACESSOS_POR_DIA - 1],
+            ["EXPIRE", lista, ACESSOS_EXPIRA],
+        ]
+        if registro["id_sessao"]:
+            sessoes = ACESSOS_CHAVE + "sessoes:" + dia
+            comandos += [["SADD", sessoes, registro["id_sessao"]], ["EXPIRE", sessoes, ACESSOS_EXPIRA]]
+        redis_pipeline(comandos)
         return
     # O SQLite da Vercel fica em /tmp e some a cada instância: lá só o Redis guarda acessos.
     if em_vercel():
@@ -1835,76 +1858,95 @@ def responder_registrar_acesso(saida):
             dados = json.loads(corpo.decode("utf-8")) if corpo else {}
             if not isinstance(dados, dict):
                 dados = {}
+            cidade, estado = local_acesso(saida)
             registrar_acesso({
                 "data_hora": agora_painel().strftime("%Y-%m-%d %H:%M:%S"),
                 "ip_anonimizado": anonimizar_ip(ip_do_cliente(saida)),
+                "id_sessao": sessao_acesso(dados.get("sessao")),
                 "dispositivo": dispositivo_acesso(agente),
                 "origem": origem_acesso(dados.get("origem")),
+                "cidade": cidade,
+                "estado": estado,
             })
     except Exception as erro:
         print("acessos: falha ao registrar (%s)" % erro, file=sys.stderr, flush=True)
     escrever_json(saida, {"status": "sucesso"})
 
 
-def pares_redis(resultado):
-    if isinstance(resultado, dict):
-        return list(resultado.items())
-    lista = resultado or []
-    return list(zip(lista[0::2], lista[1::2]))
+def linha_auditoria(dados):
+    return {campo: str(dados.get(campo) or "") for campo in CAMPOS_AUDITORIA}
 
 
-def resumo_acessos(dias=ACESSOS_DIAS):
+def auditoria_redis(datas):
+    temporaria = ACESSOS_CHAVE + "tmp:" + secrets.token_hex(8)
+    respostas = redis_pipeline(
+        [["LLEN", ACESSOS_CHAVE + "log:" + dia] for dia in datas]
+        + [
+            ["SUNIONSTORE", temporaria] + [ACESSOS_CHAVE + "sessoes:" + dia for dia in datas],
+            ["SCARD", temporaria],
+            ["DEL", temporaria],
+        ]
+    )
+    tamanhos = [int(valor or 0) for valor in respostas[:len(datas)]]
+    unicas = int(respostas[len(datas) + 1] or 0)
+    leituras = []
+    restante = ACESSOS_LISTA
+    for dia, tamanho in zip(datas, tamanhos):
+        if restante <= 0:
+            break
+        if tamanho:
+            quantos = min(tamanho, restante)
+            leituras.append(["LRANGE", ACESSOS_CHAVE + "log:" + dia, 0, quantos - 1])
+            restante -= quantos
+    registros = []
+    for bloco in redis_pipeline(leituras) if leituras else []:
+        for item in bloco or []:
+            try:
+                dados = json.loads(item)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(dados, dict):
+                registros.append(linha_auditoria(dados))
+    return registros, sum(tamanhos), unicas
+
+
+def auditoria_sqlite(datas):
+    conn = conectar_acessos()
+    try:
+        linhas = conn.execute(
+            "SELECT data_hora, cidade, estado, dispositivo, origem, id_sessao FROM acessos_log "
+            "WHERE data_hora >= ? ORDER BY data_hora DESC, id DESC LIMIT ?",
+            (datas[-1], ACESSOS_LISTA),
+        ).fetchall()
+        total, unicas = conn.execute(
+            "SELECT COUNT(*), COUNT(DISTINCT NULLIF(id_sessao, '')) FROM acessos_log WHERE data_hora >= ?",
+            (datas[-1],),
+        ).fetchone()
+    finally:
+        conn.close()
+    return [linha_auditoria(dict(linha)) for linha in linhas], int(total or 0), int(unicas or 0)
+
+
+def auditoria_acessos(dias=ACESSOS_DIAS):
     hoje = agora_painel().date()
     datas = [(hoje - timedelta(days=atras)).isoformat() for atras in range(dias)]
-    resumo = {"hoje": 0, "periodoDias": dias, "totalPeriodo": 0, "dispositivos": {"Mobile": 0, "Desktop": 0}}
-    origens = {}
     if endereco_redis():
-        comandos = []
-        for dia in datas:
-            comandos += [
-                ["GET", "acessos:total:" + dia],
-                ["HGETALL", "acessos:dispositivo:" + dia],
-                ["ZRANGE", "acessos:origem:" + dia, 0, -1, "WITHSCORES"],
-            ]
-        respostas = redis_pipeline(comandos) or []
-        for indice, dia in enumerate(datas):
-            total, dispositivos, por_origem = (respostas[indice * 3:indice * 3 + 3] + [None, None, None])[:3]
-            quantidade = int(total or 0)
-            resumo["totalPeriodo"] += quantidade
-            if dia == datas[0]:
-                resumo["hoje"] = quantidade
-            for nome, valor in pares_redis(dispositivos):
-                resumo["dispositivos"][nome] = resumo["dispositivos"].get(nome, 0) + int(float(valor or 0))
-            for nome, valor in pares_redis(por_origem):
-                origens[nome] = origens.get(nome, 0) + int(float(valor or 0))
-        resumo["armazenamento"] = "redis"
+        registros, total, unicas = auditoria_redis(datas)
+        armazenamento = "redis"
     elif em_vercel():
-        resumo["armazenamento"] = "nenhum"
+        registros, total, unicas = [], 0, 0
+        armazenamento = "nenhum"
     else:
-        conn = conectar_acessos()
-        try:
-            linhas = conn.execute(
-                "SELECT substr(data_hora, 1, 10) AS dia, dispositivo, origem, COUNT(*) AS qtd "
-                "FROM acessos_log WHERE data_hora >= ? GROUP BY dia, dispositivo, origem",
-                (datas[-1],),
-            ).fetchall()
-        finally:
-            conn.close()
-        for linha in linhas:
-            quantidade = int(linha["qtd"])
-            resumo["totalPeriodo"] += quantidade
-            if linha["dia"] == datas[0]:
-                resumo["hoje"] += quantidade
-            nome = linha["dispositivo"] or "Desktop"
-            resumo["dispositivos"][nome] = resumo["dispositivos"].get(nome, 0) + quantidade
-            origem = linha["origem"] or "Direto"
-            origens[origem] = origens.get(origem, 0) + quantidade
-        resumo["armazenamento"] = "sqlite"
-    resumo["origens"] = [
-        {"origem": nome, "acessos": qtd}
-        for nome, qtd in sorted(origens.items(), key=lambda par: (-par[1], par[0]))[:10]
-    ]
-    return resumo
+        registros, total, unicas = auditoria_sqlite(datas)
+        armazenamento = "sqlite"
+    registros.sort(key=lambda linha: linha["data_hora"], reverse=True)
+    return {
+        "sessoesUnicas": unicas,
+        "totalAcessos": total,
+        "registros": registros,
+        "limiteLista": ACESSOS_LISTA,
+        "armazenamento": armazenamento,
+    }
 
 
 def responder_metricas_acesso(saida):
@@ -1915,11 +1957,11 @@ def responder_metricas_acesso(saida):
         pedido = int(parametro_consulta(saida.path, "dias") or ACESSOS_DIAS)
     except ValueError:
         pedido = ACESSOS_DIAS
-    # "Tudo" (0) cobre o prazo em que as contagens diárias ainda existem no Redis.
+    # "Tudo" (0) cobre o prazo em que os registros diários ainda existem no Redis.
     limite = ACESSOS_EXPIRA // (24 * 60 * 60)
     dias = limite if pedido <= 0 else min(pedido, limite)
     try:
-        dados = resumo_acessos(dias)
+        dados = auditoria_acessos(dias)
         dados["periodoDias"] = 0 if pedido <= 0 else dias
     except Exception as erro:
         print("acessos: falha ao resumir (%s)" % erro, file=sys.stderr, flush=True)

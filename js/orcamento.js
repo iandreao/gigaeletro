@@ -1,12 +1,26 @@
 /* Telemetria de acessos: isolada do orçamento e silenciosa mesmo se a rota falhar. */
 document.addEventListener("DOMContentLoaded", function () {
+  function novaSessao() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID();
+    return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
+  }
   try {
     var parametros = new URLSearchParams(window.location.search);
     var origem = (parametros.get("ref") || parametros.get("utm_source") || "").trim() || "Direto";
+    var sessao = "";
+    try {
+      sessao = window.sessionStorage.getItem("gigaeletro_sessao") || "";
+      if (!sessao) {
+        sessao = novaSessao();
+        window.sessionStorage.setItem("gigaeletro_sessao", sessao);
+      }
+    } catch (bloqueado) {
+      sessao = sessao || novaSessao();
+    }
     fetch("/api/registrar-acesso", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ origem: origem }),
+      body: JSON.stringify({ origem: origem, sessao: sessao }),
       credentials: "same-origin",
       keepalive: true
     }).catch(function () {});
