@@ -689,6 +689,7 @@
   var dashPedido = 0;
   var trafegoDias = 30;
   var trafegoPedido = 0;
+  var trafegoCabecalho = null;
   var MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
   function diasAtras(dias) {
@@ -831,22 +832,23 @@
   }
 
   function renderTrafego(dados) {
-    var unicos = document.querySelector("[data-trafego-unicos]");
-    var resumo = document.querySelector("[data-trafego-resumo]");
     var lista = document.querySelector("[data-trafego-lista]");
     var vazio = document.querySelector("[data-trafego-vazio]");
     var registros = dados.registros || [];
     var dias = Number(dados.periodoDias || 0);
     var total = Number(dados.totalAcessos || 0);
-    if (unicos) unicos.textContent = String(dados.sessoesUnicas || 0);
-    if (resumo) {
-      resumo.textContent = dados.armazenamento === "nenhum"
-        ? "Contagem desativada: falta a variável REDIS_URL na Vercel."
-        : "usuário(s) único(s) " +
-          (dias === 1 ? "hoje" : (dias ? "nos últimos " + dias + " dias" : "em todo o período")) +
-          " · " + total + " acesso(s) registrado(s)" +
-          (total > registros.length ? " · mostrando os " + registros.length + " mais recentes" : "");
-    }
+    trafegoCabecalho = {
+      unicos: String(dados.sessoesUnicas || 0),
+      periodo: dias === 1 ? "hoje" : (dias ? "nos últimos " + dias + " dias" : "em todo o período"),
+      desativado: dados.armazenamento === "nenhum",
+      cortado: total > registros.length ? registros.length : 0,
+      texto: ""
+    };
+    trafegoCabecalho.texto = trafegoCabecalho.desativado
+      ? "Contagem desativada: falta a variável REDIS_URL na Vercel."
+      : "usuário(s) único(s) " + trafegoCabecalho.periodo +
+        " · " + total + " acesso(s) registrado(s)" +
+        (trafegoCabecalho.cortado ? " · mostrando os " + registros.length + " mais recentes" : "");
     if (vazio) vazio.hidden = registros.length > 0;
     if (lista) {
       lista.innerHTML = registros.map(function (linha) {
@@ -877,11 +879,23 @@
       visiveis += 1;
       if (linha.getAttribute("data-sessao")) sessoes[linha.getAttribute("data-sessao")] = true;
     });
+    var unicosFiltro = Object.keys(sessoes).length;
     if (vazio) vazio.hidden = visiveis > 0;
     if (resultado) {
       resultado.textContent = escolhido
-        ? escolhido + ": " + visiveis + " acesso(s) · " + Object.keys(sessoes).length + " usuário(s) único(s) na lista"
+        ? escolhido + ": " + visiveis + " acesso(s) · " + unicosFiltro + " usuário(s) único(s) na lista"
         : "";
+    }
+    var unicos = document.querySelector("[data-trafego-unicos]");
+    var resumo = document.querySelector("[data-trafego-resumo]");
+    if (!trafegoCabecalho) return;
+    var filtrado = escolhido && !trafegoCabecalho.desativado;
+    if (unicos) unicos.textContent = filtrado ? String(unicosFiltro) : trafegoCabecalho.unicos;
+    if (resumo) {
+      resumo.textContent = filtrado
+        ? "usuário(s) único(s) · " + escolhido + " " + trafegoCabecalho.periodo + " · " + visiveis + " acesso(s)" +
+          (trafegoCabecalho.cortado ? " entre os " + trafegoCabecalho.cortado + " mais recentes" : "")
+        : trafegoCabecalho.texto;
     }
   }
 
