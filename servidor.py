@@ -62,7 +62,7 @@ ACESSOS_CORPO_MAX = 4096
 RE_MOBILE = re.compile(r"Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobi", re.IGNORECASE)
 RE_ROBO = re.compile(r"bot|crawl|spider|slurp", re.IGNORECASE)
 RE_SESSAO = re.compile(r"[A-Za-z0-9-]{8,64}")
-CAMPOS_AUDITORIA = ("data_hora", "quem_acessou", "dispositivo")
+CAMPOS_AUDITORIA = ("data_hora", "quem_acessou", "dispositivo", "id_sessao")
 NOMES_DISPOSITIVO = ("Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03")
 CLIENTE_EXTERNO = "Cliente Externo"
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
@@ -1791,7 +1791,7 @@ def sessao_acesso(valor):
 
 
 def quem_acessou(valor):
-    """Só os nomes cadastrados na Área Restrita; qualquer outro valor vira Cliente Externo."""
+    """Só os nomes da equipe (links ?user=); qualquer outro valor vira Cliente Externo."""
     texto = unicodedata.normalize("NFC", str(valor or "")).strip()
     return texto if texto in NOMES_DISPOSITIVO else CLIENTE_EXTERNO
 
@@ -1808,7 +1808,6 @@ def conectar_acessos():
     for coluna in ("id_sessao", "quem_acessou"):
         if coluna not in existentes:
             conn.execute("ALTER TABLE acessos_log ADD COLUMN %s TEXT" % coluna)
-    conn.create_function("texto_busca", 1, texto_busca, deterministic=True)
     return conn
 
 
@@ -1826,16 +1825,6 @@ def gravar_acesso_local(registro):
         conn.commit()
     finally:
         conn.close()
-
-
-def texto_busca(valor):
-    """Sem acento, sem diferença de maiúsculas e com espaços simples, para comparar nomes."""
-    texto = unicodedata.normalize("NFKD", str(valor or "")).encode("ascii", "ignore").decode("ascii")
-    return " ".join(texto.casefold().split())
-
-
-def contem_busca(valor, busca):
-    return texto_busca(busca) in texto_busca(valor)
 
 
 def registrar_acesso(registro):
@@ -1898,15 +1887,8 @@ def ler_logs_redis(leituras):
     return linhas
 
 
-def auditoria_redis(datas, quem=""):
+def auditoria_redis(datas):
     chaves = [ACESSOS_CHAVE + "log:" + dia for dia in datas]
-    if quem:
-        # Filtra a lista geral do período: vale também para os acessos gravados antes do filtro existir.
-        tamanhos = redis_pipeline([["LLEN", chave] for chave in chaves])
-        leituras = [["LRANGE", chave, 0, -1] for chave, tamanho in zip(chaves, tamanhos) if int(tamanho or 0)]
-        achados = [dados for dados in ler_logs_redis(leituras) if contem_busca(dados.get("quem_acessou"), quem)]
-        sessoes = {dados.get("id_sessao") for dados in achados if dados.get("id_sessao")}
-        return [linha_auditoria(dados) for dados in achados[:ACESSOS_LISTA]], len(achados), len(sessoes)
     temporaria = ACESSOS_CHAVE + "tmp:" + secrets.token_hex(8)
     respostas = redis_pipeline(
         [["LLEN", chave] for chave in chaves]
@@ -1930,41 +1912,34 @@ def auditoria_redis(datas, quem=""):
     return [linha_auditoria(dados) for dados in ler_logs_redis(leituras)], sum(tamanhos), unicas
 
 
-def auditoria_sqlite(datas, quem=""):
-    filtro = "data_hora >= ?" + (" AND instr(texto_busca(quem_acessou), ?) > 0" if quem else "")
-    parametros = (datas[-1], texto_busca(quem)) if quem else (datas[-1],)
+def auditoria_sqlite(datas):
     conn = conectar_acessos()
     try:
         linhas = conn.execute(
-            "SELECT data_hora, quem_acessou, dispositivo FROM acessos_log "
-            "WHERE " + filtro + " ORDER BY data_hora DESC, id DESC LIMIT ?",
-            parametros + (ACESSOS_LISTA,),
+            "SELECT data_hora, quem_acessou, dispositivo, id_sessao FROM acessos_log "
+            "WHERE data_hora >= ? ORDER BY data_hora DESC, id DESC LIMIT ?",
+            (datas[-1], ACESSOS_LISTA),
         ).fetchall()
         total, unicas = conn.execute(
-            "SELECT COUNT(*), COUNT(DISTINCT NULLIF(id_sessao, '')) FROM acessos_log WHERE " + filtro,
-            parametros,
+            "SELECT COUNT(*), COUNT(DISTINCT NULLIF(id_sessao, '')) FROM acessos_log WHERE data_hora >= ?",
+            (datas[-1],),
         ).fetchone()
     finally:
         conn.close()
     return [linha_auditoria(dict(linha)) for linha in linhas], int(total or 0), int(unicas or 0)
 
 
-def filtro_quem(valor):
-    texto = " ".join(unicodedata.normalize("NFC", str(valor or "")).split())[:40]
-    return texto if texto_busca(texto) else ""
-
-
-def auditoria_acessos(dias=ACESSOS_DIAS, quem=""):
+def auditoria_acessos(dias=ACESSOS_DIAS):
     hoje = agora_painel().date()
     datas = [(hoje - timedelta(days=atras)).isoformat() for atras in range(dias)]
     if endereco_redis():
-        registros, total, unicas = auditoria_redis(datas, quem)
+        registros, total, unicas = auditoria_redis(datas)
         armazenamento = "redis"
     elif em_vercel():
         registros, total, unicas = [], 0, 0
         armazenamento = "nenhum"
     else:
-        registros, total, unicas = auditoria_sqlite(datas, quem)
+        registros, total, unicas = auditoria_sqlite(datas)
         armazenamento = "sqlite"
     registros.sort(key=lambda linha: linha["data_hora"], reverse=True)
     return {
@@ -1973,7 +1948,6 @@ def auditoria_acessos(dias=ACESSOS_DIAS, quem=""):
         "registros": registros,
         "limiteLista": ACESSOS_LISTA,
         "armazenamento": armazenamento,
-        "filtro": quem,
     }
 
 
@@ -1989,8 +1963,7 @@ def responder_metricas_acesso(saida):
     limite = ACESSOS_EXPIRA // (24 * 60 * 60)
     dias = limite if pedido <= 0 else min(pedido, limite)
     try:
-        busca = parametro_consulta(saida.path, "quem") or parametro_consulta(saida.path, "usuario")
-        dados = auditoria_acessos(dias, filtro_quem(busca))
+        dados = auditoria_acessos(dias)
         dados["periodoDias"] = 0 if pedido <= 0 else dias
     except Exception as erro:
         print("acessos: falha ao resumir (%s)" % erro, file=sys.stderr, flush=True)

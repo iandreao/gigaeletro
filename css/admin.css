@@ -324,14 +324,9 @@ body.gestor .dash-topo h1 { margin: 0; }
 .trafego-resumo { flex: none; margin: 0.2rem 0 0.6rem; }
 .trafego-tabela td { white-space: nowrap; }
 .trafego-tabela td.quem { font-weight: 800; }
-.trafego-barra { flex: none; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 0.5rem 1rem; margin-bottom: 0.6rem; }
+.trafego-barra { flex: none; display: flex; flex-wrap: wrap; align-items: end; gap: 0.5rem 1rem; margin-bottom: 0.6rem; }
 .trafego-filtro { display: grid; gap: 0.25rem; font-size: 0.78rem; font-weight: 800; }
-.trafego-identificar { color: var(--muted); font-size: 0.75rem; font-weight: 700; }
-.trafego-identificar summary { cursor: pointer; text-align: right; text-decoration: underline; }
-.trafego-identificar[open] summary { margin-bottom: 0.4rem; }
-.trafego-identificar-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-.trafego-filtro select,
-.trafego-identificar select {
+.trafego-filtro select {
   min-height: 36px;
   padding: 0 0.6rem;
   border: 1px solid var(--gray-200);
@@ -341,8 +336,7 @@ body.gestor .dash-topo h1 { margin: 0; }
   font-size: 0.85rem;
   font-weight: 700;
 }
-.trafego-identificar .btn { min-height: 36px; padding: 0 0.95rem; border-radius: 0.5rem; font-size: 0.82rem; }
-.trafego-identificar-atual { color: var(--muted); font-size: 0.78rem; font-weight: 700; }
+.trafego-filtro-resultado { padding-bottom: 0.55rem; color: var(--muted); font-size: 0.78rem; font-weight: 700; }
 @media (max-width: 760px) {
   .dash-grid { grid-template-columns: minmax(0, 1fr); }
   .dash-serie { height: 140px; }

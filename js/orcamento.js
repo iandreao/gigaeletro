@@ -1,8 +1,20 @@
 /* Telemetria de acessos: isolada do orçamento e silenciosa mesmo se a rota falhar. */
 document.addEventListener("DOMContentLoaded", function () {
+  var EQUIPE = ["Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03"];
   function novaSessao() {
     if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID();
     return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
+  }
+  /* Aceita ?user=julio, ?user=Balcao01 ou ?user=Balcão%2001 e devolve o nome oficial da equipe. */
+  function nomeDaEquipe(valor) {
+    var chave = function (texto) {
+      return String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "").toLowerCase();
+    };
+    var procurado = chave(valor);
+    for (var i = 0; procurado && i < EQUIPE.length; i += 1) {
+      if (chave(EQUIPE[i]) === procurado) return EQUIPE[i];
+    }
+    return "";
   }
   try {
     var parametros = new URLSearchParams(window.location.search);
@@ -17,9 +29,10 @@ document.addEventListener("DOMContentLoaded", function () {
     } catch (bloqueado) {
       sessao = sessao || novaSessao();
     }
-    var quem = "";
+    var quem = nomeDaEquipe(parametros.get("user"));
     try {
-      quem = window.localStorage.getItem("giga_nome_dispositivo") || "";
+      if (quem) window.sessionStorage.setItem("giga_user", quem);
+      else quem = nomeDaEquipe(window.sessionStorage.getItem("giga_user"));
     } catch (semAcesso) {}
     fetch("/api/registrar-acesso", {
       method: "POST",

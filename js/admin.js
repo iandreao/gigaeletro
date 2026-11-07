@@ -688,7 +688,6 @@
   var dashDias = 30;
   var dashPedido = 0;
   var trafegoDias = 30;
-  var trafegoQuem = "";
   var trafegoPedido = 0;
   var MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -845,19 +844,44 @@
         ? "Contagem desativada: falta a variável REDIS_URL na Vercel."
         : "usuário(s) único(s) " +
           (dias === 1 ? "hoje" : (dias ? "nos últimos " + dias + " dias" : "em todo o período")) +
-          (dados.filtro ? " · " + dados.filtro : "") +
           " · " + total + " acesso(s) registrado(s)" +
           (total > registros.length ? " · mostrando os " + registros.length + " mais recentes" : "");
     }
     if (vazio) vazio.hidden = registros.length > 0;
     if (lista) {
       lista.innerHTML = registros.map(function (linha) {
-        return "<tr>" +
+        return '<tr data-sessao="' + escapar(linha.id_sessao || "") + '">' +
           "<td>" + escapar(horarioAcesso(linha.data_hora)) + "</td>" +
           '<td class="quem">' + escapar(linha.quem_acessou || "—") + "</td>" +
           "<td>" + escapar(linha.dispositivo || "—") + "</td>" +
           "</tr>";
       }).join("");
+    }
+    aplicarFiltroQuem();
+  }
+
+  function aplicarFiltroQuem() {
+    var seletor = document.querySelector("[data-trafego-quem]");
+    var resultado = document.querySelector("[data-trafego-filtro-resultado]");
+    var vazio = document.querySelector("[data-trafego-vazio]");
+    var linhas = document.querySelectorAll("[data-trafego-lista] tr");
+    var escolhido = seletor ? seletor.value.normalize("NFC") : "";
+    var visiveis = 0;
+    var sessoes = {};
+    linhas.forEach(function (linha) {
+      var celula = linha.querySelector("td.quem");
+      var nome = celula ? celula.textContent.trim().normalize("NFC") : "";
+      var mostrar = !escolhido || nome === escolhido;
+      linha.hidden = !mostrar;
+      if (!mostrar) return;
+      visiveis += 1;
+      if (linha.getAttribute("data-sessao")) sessoes[linha.getAttribute("data-sessao")] = true;
+    });
+    if (vazio) vazio.hidden = visiveis > 0;
+    if (resultado) {
+      resultado.textContent = escolhido
+        ? escolhido + ": " + visiveis + " acesso(s) · " + Object.keys(sessoes).length + " usuário(s) único(s) na lista"
+        : "";
     }
   }
 
@@ -867,9 +891,7 @@
     if (!grade) return;
     var pedido = ++trafegoPedido;
     grade.setAttribute("aria-busy", "true");
-    var url = "/api/admin/metricas-acesso?dias=" + encodeURIComponent(trafegoDias);
-    if (trafegoQuem) url += "&quem=" + encodeURIComponent(trafegoQuem);
-    fetch(url, { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
+    fetch("/api/admin/metricas-acesso?dias=" + encodeURIComponent(trafegoDias), { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
       if (resposta.status === 401) {
         window.location.replace("/");
         return null;
@@ -894,49 +916,8 @@
     });
   }
 
-  var CHAVE_DISPOSITIVO = "giga_nome_dispositivo";
-  var seletorDispositivo = document.querySelector("[data-nome-dispositivo]");
-  var dispositivoAtual = document.querySelector("[data-dispositivo-atual]");
-
-  function nomeDispositivoSalvo() {
-    try {
-      return window.localStorage.getItem(CHAVE_DISPOSITIVO) || "";
-    } catch (semAcesso) {
-      return "";
-    }
-  }
-
-  function mostrarDispositivoAtual() {
-    var nome = nomeDispositivoSalvo();
-    if (dispositivoAtual) {
-      dispositivoAtual.textContent = nome ? "Este navegador: " + nome : "Este navegador ainda não foi identificado (conta como Cliente Externo).";
-    }
-    if (seletorDispositivo && nome) seletorDispositivo.value = nome;
-  }
-
-  var salvarDispositivo = document.querySelector("[data-salvar-dispositivo]");
-  if (salvarDispositivo && seletorDispositivo) {
-    salvarDispositivo.addEventListener("click", function () {
-      var nome = seletorDispositivo.value;
-      try {
-        window.localStorage.setItem(CHAVE_DISPOSITIVO, nome);
-      } catch (semAcesso) {
-        window.alert("Este navegador não permite salvar o nome (modo privado ou armazenamento bloqueado).");
-        return;
-      }
-      mostrarDispositivoAtual();
-      window.alert("Este dispositivo agora está identificado como " + nome);
-    });
-  }
-  mostrarDispositivoAtual();
-
   var filtroQuem = document.querySelector("[data-trafego-quem]");
-  if (filtroQuem) {
-    filtroQuem.addEventListener("change", function () {
-      trafegoQuem = filtroQuem.value;
-      carregarTrafego();
-    });
-  }
+  if (filtroQuem) filtroQuem.addEventListener("change", aplicarFiltroQuem);
 
   document.querySelectorAll("[data-trafego-dias]").forEach(function (botao) {
     botao.addEventListener("click", function () {

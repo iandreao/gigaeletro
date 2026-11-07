@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=14">
+  <link rel="stylesheet" href="css/admin.css?v=15">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -194,22 +194,7 @@
             <option value="Balcão 03">Balcão 03</option>
           </select>
         </label>
-        <details class="trafego-identificar">
-          <summary>Identificar este navegador</summary>
-          <div class="trafego-identificar-linha">
-            <select data-nome-dispositivo aria-label="Nome deste navegador">
-              <option value="Aceliani">Aceliani</option>
-              <option value="Julio">Julio</option>
-              <option value="Ivalino">Ivalino</option>
-              <option value="Caixa">Caixa</option>
-              <option value="Balcão 01">Balcão 01</option>
-              <option value="Balcão 02">Balcão 02</option>
-              <option value="Balcão 03">Balcão 03</option>
-            </select>
-            <button class="btn btn-preto" type="button" data-salvar-dispositivo>Salvar Nome Neste Navegador</button>
-            <span class="trafego-identificar-atual" data-dispositivo-atual></span>
-          </div>
-        </details>
+        <span class="trafego-filtro-resultado" data-trafego-filtro-resultado></span>
       </div>
       <p class="gestor-busca-aviso" data-trafego-aviso hidden></p>
       <p class="gestor-vazio" data-trafego-vazio hidden>Nenhum acesso registrado no período para este filtro.</p>
@@ -236,6 +221,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=35"></script>
+  <script src="js/admin.js?v=36"></script>
 </body>
 </html>
