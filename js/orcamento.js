@@ -34,10 +34,12 @@ document.addEventListener("DOMContentLoaded", function () {
       if (quem) window.sessionStorage.setItem("giga_user", quem);
       else quem = nomeDaEquipe(window.sessionStorage.getItem("giga_user"));
     } catch (semAcesso) {}
+    var toque = "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
+    var dispositivo = toque && window.innerWidth < 1024 ? "Mobile" : "Desktop";
     fetch("/api/registrar-acesso", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ origem: origem, sessao: sessao, quem: quem || "Cliente Externo" }),
+      body: JSON.stringify({ origem: origem, sessao: sessao, quem: quem || "Cliente Externo", dispositivo: dispositivo }),
       credentials: "same-origin",
       keepalive: true
     }).catch(function () {});

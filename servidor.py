@@ -1750,7 +1750,10 @@ def redis_pipeline(comandos):
     return respostas[len(preparo):]
 
 
-def dispositivo_acesso(agente):
+def dispositivo_acesso(agente, informado=""):
+    # O navegador detecta toque + largura (iPhone/iPad no Safari se anunciam como Macintosh).
+    if informado in ("Mobile", "Desktop"):
+        return informado
     return "Mobile" if RE_MOBILE.search(agente or "") else "Desktop"
 
 
@@ -1862,7 +1865,7 @@ def responder_registrar_acesso(saida):
                 "ip_anonimizado": anonimizar_ip(ip_do_cliente(saida)),
                 "id_sessao": sessao_acesso(dados.get("sessao")),
                 "quem_acessou": quem_acessou(dados.get("quem")),
-                "dispositivo": dispositivo_acesso(agente),
+                "dispositivo": dispositivo_acesso(agente, dados.get("dispositivo")),
                 "origem": origem_acesso(dados.get("origem")),
             })
     except Exception as erro:
