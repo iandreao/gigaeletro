@@ -844,7 +844,7 @@
     if (hoje) hoje.textContent = String(dados.hoje || 0);
     if (periodo) {
       periodo.textContent = dados.armazenamento === "nenhum"
-        ? "Contagem desativada: falta conectar o banco Upstash Redis na Vercel."
+        ? "Contagem desativada: falta a variável REDIS_URL na Vercel."
         : (dados.totalPeriodo || 0) + " acesso(s) nos últimos " + (dados.periodoDias || 30) + " dias.";
     }
     if (dispositivos) {

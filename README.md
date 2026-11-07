@@ -41,7 +41,7 @@ Só publique alterações que dependem do domínio novo depois desses passos: o 
 | `ADMIN_PASSWORD` | Senha da área do gestor. Sem ela o login fica fechado em produção. |
 | `SEGREDO_SESSAO` | Assina o cookie de sessão do gestor. |
 | `BLOB_READ_WRITE_TOKEN` | Acesso ao Vercel Blob (painel de orçamentos, métricas e PDFs). |
-| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis (Marketplace da Vercel) para a telemetria de acessos. Sem elas o site funciona, mas não conta acessos em produção. Localmente os acessos vão para a tabela SQLite `acessos_log`. |
+| `REDIS_URL` | Redis (Redis Cloud pela Vercel) para a telemetria de acessos, no formato `redis://` ou `rediss://`. Sem ela o site funciona, mas não conta acessos em produção. Localmente os acessos vão para a tabela SQLite `acessos_log`. |
 
 Nunca versionar valores dessas variáveis; arquivos `.env*` estão no `.gitignore`.
 

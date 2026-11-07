@@ -19,11 +19,13 @@ import re
 import secrets
 import socket
 import sqlite3
+import ssl
 import sys
 import threading
 import time
 import unicodedata
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 import xml.etree.ElementTree as ET
@@ -1671,27 +1673,75 @@ def responder_dashboard(saida):
     escrever_json(saida, dados)
 
 
-def credenciais_redis():
-    url = (os.environ.get("KV_REST_API_URL") or os.environ.get("UPSTASH_REDIS_REST_URL") or "").strip().rstrip("/")
-    token = (os.environ.get("KV_REST_API_TOKEN") or os.environ.get("UPSTASH_REDIS_REST_TOKEN") or "").strip()
-    if not url or not token:
-        return None, None
-    return url, token
+def endereco_redis():
+    return (os.environ.get("REDIS_URL") or "").strip()
+
+
+class ErroRedis(Exception):
+    pass
+
+
+def comando_resp(partes):
+    saida = [b"*%d\r\n" % len(partes)]
+    for parte in partes:
+        dado = str(parte).encode("utf-8")
+        saida.append(b"$%d\r\n%s\r\n" % (len(dado), dado))
+    return b"".join(saida)
+
+
+def ler_resp(arquivo):
+    linha = arquivo.readline()
+    if not linha.endswith(b"\r\n"):
+        raise ConnectionError("Redis encerrou a conexão")
+    tipo, valor = linha[:1], linha[1:-2]
+    if tipo == b"+":
+        return valor.decode("utf-8", "replace")
+    if tipo == b"-":
+        return ErroRedis(valor.decode("utf-8", "replace"))
+    if tipo == b":":
+        return int(valor)
+    if tipo == b"$":
+        tamanho = int(valor)
+        if tamanho < 0:
+            return None
+        return arquivo.read(tamanho + 2)[:-2].decode("utf-8", "replace")
+    if tipo == b"*":
+        tamanho = int(valor)
+        if tamanho < 0:
+            return None
+        return [ler_resp(arquivo) for _ in range(tamanho)]
+    raise ConnectionError("resposta inválida do Redis")
 
 
 def redis_pipeline(comandos):
-    url, token = credenciais_redis()
-    if not url:
+    """Envia os comandos numa conexão só (redis:// ou rediss:// do REDIS_URL) e devolve as respostas."""
+    endereco = endereco_redis()
+    if not endereco:
         return None
-    pedido = urllib.request.Request(
-        url + "/pipeline",
-        data=json.dumps([[str(parte) for parte in comando] for comando in comandos]).encode("utf-8"),
-        method="POST",
-        headers={"authorization": "Bearer " + token, "content-type": "application/json"},
-    )
-    with urllib.request.urlopen(pedido, timeout=5) as resposta:
-        respostas = json.loads(resposta.read().decode("utf-8"))
-    return [item.get("result") if isinstance(item, dict) else None for item in respostas]
+    url = urlparse(endereco)
+    if url.scheme not in ("redis", "rediss") or not url.hostname:
+        raise ErroRedis("REDIS_URL inválida")
+    preparo = []
+    if url.password:
+        senha = urllib.parse.unquote(url.password)
+        usuario = urllib.parse.unquote(url.username or "")
+        preparo.append(["AUTH", usuario, senha] if usuario else ["AUTH", senha])
+    banco = (url.path or "").strip("/")
+    if banco.isdigit() and banco != "0":
+        preparo.append(["SELECT", banco])
+    conexao = socket.create_connection((url.hostname, url.port or 6379), timeout=5)
+    try:
+        if url.scheme == "rediss":
+            conexao = ssl.create_default_context().wrap_socket(conexao, server_hostname=url.hostname)
+        conexao.sendall(b"".join(comando_resp(comando) for comando in preparo + comandos))
+        arquivo = conexao.makefile("rb")
+        respostas = [ler_resp(arquivo) for _ in preparo + comandos]
+    finally:
+        conexao.close()
+    for resposta in respostas:
+        if isinstance(resposta, ErroRedis):
+            raise resposta
+    return respostas[len(preparo):]
 
 
 def dispositivo_acesso(agente):
@@ -1753,7 +1803,7 @@ def gravar_acesso_local(registro):
 
 
 def registrar_acesso(registro):
-    if credenciais_redis()[0]:
+    if endereco_redis():
         dia = registro["data_hora"][:10]
         chaves = ["acessos:total:" + dia, "acessos:dispositivo:" + dia, "acessos:origem:" + dia]
         redis_pipeline(
@@ -1808,7 +1858,7 @@ def resumo_acessos(dias=ACESSOS_DIAS):
     datas = [(hoje - timedelta(days=atras)).isoformat() for atras in range(dias)]
     resumo = {"hoje": 0, "periodoDias": dias, "totalPeriodo": 0, "dispositivos": {"Mobile": 0, "Desktop": 0}}
     origens = {}
-    if credenciais_redis()[0]:
+    if endereco_redis():
         comandos = []
         for dia in datas:
             comandos += [
