@@ -688,6 +688,7 @@
   var dashDias = 30;
   var dashPedido = 0;
   var trafegoDias = 30;
+  var trafegoQuem = "";
   var trafegoPedido = 0;
   var MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -844,6 +845,7 @@
         ? "Contagem desativada: falta a variável REDIS_URL na Vercel."
         : "usuário(s) único(s) " +
           (dias === 1 ? "hoje" : (dias ? "nos últimos " + dias + " dias" : "em todo o período")) +
+          (dados.filtro ? " · " + dados.filtro : "") +
           " · " + total + " acesso(s) registrado(s)" +
           (total > registros.length ? " · mostrando os " + registros.length + " mais recentes" : "");
     }
@@ -854,7 +856,6 @@
           "<td>" + escapar(horarioAcesso(linha.data_hora)) + "</td>" +
           '<td class="quem">' + escapar(linha.quem_acessou || "—") + "</td>" +
           "<td>" + escapar(linha.dispositivo || "—") + "</td>" +
-          "<td>" + escapar(linha.origem || "Direto") + "</td>" +
           "</tr>";
       }).join("");
     }
@@ -866,7 +867,9 @@
     if (!grade) return;
     var pedido = ++trafegoPedido;
     grade.setAttribute("aria-busy", "true");
-    fetch("/api/admin/metricas-acesso?dias=" + encodeURIComponent(trafegoDias), { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
+    var url = "/api/admin/metricas-acesso?dias=" + encodeURIComponent(trafegoDias);
+    if (trafegoQuem) url += "&quem=" + encodeURIComponent(trafegoQuem);
+    fetch(url, { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
       if (resposta.status === 401) {
         window.location.replace("/");
         return null;
@@ -926,6 +929,14 @@
     });
   }
   mostrarDispositivoAtual();
+
+  var filtroQuem = document.querySelector("[data-trafego-quem]");
+  if (filtroQuem) {
+    filtroQuem.addEventListener("change", function () {
+      trafegoQuem = filtroQuem.value;
+      carregarTrafego();
+    });
+  }
 
   document.querySelectorAll("[data-trafego-dias]").forEach(function (botao) {
     botao.addEventListener("click", function () {
