@@ -1808,6 +1808,7 @@ def conectar_acessos():
     for coluna in ("id_sessao", "quem_acessou"):
         if coluna not in existentes:
             conn.execute("ALTER TABLE acessos_log ADD COLUMN %s TEXT" % coluna)
+    conn.create_function("texto_busca", 1, texto_busca, deterministic=True)
     return conn
 
 
@@ -1827,26 +1828,28 @@ def gravar_acesso_local(registro):
         conn.close()
 
 
-def sufixo_quem(quem):
-    return ":" + quem if quem else ""
+def texto_busca(valor):
+    """Sem acento, sem diferença de maiúsculas e com espaços simples, para comparar nomes."""
+    texto = unicodedata.normalize("NFKD", str(valor or "")).encode("ascii", "ignore").decode("ascii")
+    return " ".join(texto.casefold().split())
+
+
+def contem_busca(valor, busca):
+    return texto_busca(busca) in texto_busca(valor)
 
 
 def registrar_acesso(registro):
     if endereco_redis():
         dia = registro["data_hora"][:10]
-        linha = json.dumps(registro, ensure_ascii=False)
-        comandos = []
-        # Grava no geral e na chave de quem acessou: o filtro por pessoa lê só as chaves dela.
-        for sufixo in ("", sufixo_quem(registro["quem_acessou"])):
-            lista = ACESSOS_CHAVE + "log:" + dia + sufixo
-            comandos += [
-                ["LPUSH", lista, linha],
-                ["LTRIM", lista, 0, ACESSOS_POR_DIA - 1],
-                ["EXPIRE", lista, ACESSOS_EXPIRA],
-            ]
-            if registro["id_sessao"]:
-                sessoes = ACESSOS_CHAVE + "sessoes:" + dia + sufixo
-                comandos += [["SADD", sessoes, registro["id_sessao"]], ["EXPIRE", sessoes, ACESSOS_EXPIRA]]
+        lista = ACESSOS_CHAVE + "log:" + dia
+        comandos = [
+            ["LPUSH", lista, json.dumps(registro, ensure_ascii=False)],
+            ["LTRIM", lista, 0, ACESSOS_POR_DIA - 1],
+            ["EXPIRE", lista, ACESSOS_EXPIRA],
+        ]
+        if registro["id_sessao"]:
+            sessoes = ACESSOS_CHAVE + "sessoes:" + dia
+            comandos += [["SADD", sessoes, registro["id_sessao"]], ["EXPIRE", sessoes, ACESSOS_EXPIRA]]
         redis_pipeline(comandos)
         return
     # O SQLite da Vercel fica em /tmp e some a cada instância: lá só o Redis guarda acessos.
@@ -1882,13 +1885,33 @@ def linha_auditoria(dados):
     return {campo: str(dados.get(campo) or "") for campo in CAMPOS_AUDITORIA}
 
 
+def ler_logs_redis(leituras):
+    linhas = []
+    for bloco in redis_pipeline(leituras) if leituras else []:
+        for item in bloco or []:
+            try:
+                dados = json.loads(item)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(dados, dict):
+                linhas.append(dados)
+    return linhas
+
+
 def auditoria_redis(datas, quem=""):
-    sufixo = sufixo_quem(quem)
+    chaves = [ACESSOS_CHAVE + "log:" + dia for dia in datas]
+    if quem:
+        # Filtra a lista geral do período: vale também para os acessos gravados antes do filtro existir.
+        tamanhos = redis_pipeline([["LLEN", chave] for chave in chaves])
+        leituras = [["LRANGE", chave, 0, -1] for chave, tamanho in zip(chaves, tamanhos) if int(tamanho or 0)]
+        achados = [dados for dados in ler_logs_redis(leituras) if contem_busca(dados.get("quem_acessou"), quem)]
+        sessoes = {dados.get("id_sessao") for dados in achados if dados.get("id_sessao")}
+        return [linha_auditoria(dados) for dados in achados[:ACESSOS_LISTA]], len(achados), len(sessoes)
     temporaria = ACESSOS_CHAVE + "tmp:" + secrets.token_hex(8)
     respostas = redis_pipeline(
-        [["LLEN", ACESSOS_CHAVE + "log:" + dia + sufixo] for dia in datas]
+        [["LLEN", chave] for chave in chaves]
         + [
-            ["SUNIONSTORE", temporaria] + [ACESSOS_CHAVE + "sessoes:" + dia + sufixo for dia in datas],
+            ["SUNIONSTORE", temporaria] + [ACESSOS_CHAVE + "sessoes:" + dia for dia in datas],
             ["SCARD", temporaria],
             ["DEL", temporaria],
         ]
@@ -1897,28 +1920,19 @@ def auditoria_redis(datas, quem=""):
     unicas = int(respostas[len(datas) + 1] or 0)
     leituras = []
     restante = ACESSOS_LISTA
-    for dia, tamanho in zip(datas, tamanhos):
+    for chave, tamanho in zip(chaves, tamanhos):
         if restante <= 0:
             break
         if tamanho:
             quantos = min(tamanho, restante)
-            leituras.append(["LRANGE", ACESSOS_CHAVE + "log:" + dia + sufixo, 0, quantos - 1])
+            leituras.append(["LRANGE", chave, 0, quantos - 1])
             restante -= quantos
-    registros = []
-    for bloco in redis_pipeline(leituras) if leituras else []:
-        for item in bloco or []:
-            try:
-                dados = json.loads(item)
-            except (TypeError, ValueError):
-                continue
-            if isinstance(dados, dict):
-                registros.append(linha_auditoria(dados))
-    return registros, sum(tamanhos), unicas
+    return [linha_auditoria(dados) for dados in ler_logs_redis(leituras)], sum(tamanhos), unicas
 
 
 def auditoria_sqlite(datas, quem=""):
-    filtro = "data_hora >= ?" + (" AND quem_acessou = ?" if quem else "")
-    parametros = (datas[-1], quem) if quem else (datas[-1],)
+    filtro = "data_hora >= ?" + (" AND instr(texto_busca(quem_acessou), ?) > 0" if quem else "")
+    parametros = (datas[-1], texto_busca(quem)) if quem else (datas[-1],)
     conn = conectar_acessos()
     try:
         linhas = conn.execute(
@@ -1936,8 +1950,8 @@ def auditoria_sqlite(datas, quem=""):
 
 
 def filtro_quem(valor):
-    texto = unicodedata.normalize("NFC", str(valor or "")).strip()
-    return texto if texto in NOMES_DISPOSITIVO or texto == CLIENTE_EXTERNO else ""
+    texto = " ".join(unicodedata.normalize("NFC", str(valor or "")).split())[:40]
+    return texto if texto_busca(texto) else ""
 
 
 def auditoria_acessos(dias=ACESSOS_DIAS, quem=""):
@@ -1975,7 +1989,8 @@ def responder_metricas_acesso(saida):
     limite = ACESSOS_EXPIRA // (24 * 60 * 60)
     dias = limite if pedido <= 0 else min(pedido, limite)
     try:
-        dados = auditoria_acessos(dias, filtro_quem(parametro_consulta(saida.path, "quem")))
+        busca = parametro_consulta(saida.path, "quem") or parametro_consulta(saida.path, "usuario")
+        dados = auditoria_acessos(dias, filtro_quem(busca))
         dados["periodoDias"] = 0 if pedido <= 0 else dias
     except Exception as erro:
         print("acessos: falha ao resumir (%s)" % erro, file=sys.stderr, flush=True)
