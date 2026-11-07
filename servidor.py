@@ -1912,7 +1912,15 @@ def responder_metricas_acesso(saida):
         escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
         return
     try:
-        dados = resumo_acessos()
+        pedido = int(parametro_consulta(saida.path, "dias") or ACESSOS_DIAS)
+    except ValueError:
+        pedido = ACESSOS_DIAS
+    # "Tudo" (0) cobre o prazo em que as contagens diárias ainda existem no Redis.
+    limite = ACESSOS_EXPIRA // (24 * 60 * 60)
+    dias = limite if pedido <= 0 else min(pedido, limite)
+    try:
+        dados = resumo_acessos(dias)
+        dados["periodoDias"] = 0 if pedido <= 0 else dias
     except Exception as erro:
         print("acessos: falha ao resumir (%s)" % erro, file=sys.stderr, flush=True)
         escrever_json(saida, {"ok": False, "erro": "Não foi possível ler os acessos."}, 500)

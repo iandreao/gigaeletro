@@ -690,6 +690,7 @@
   }
   var dashDias = 30;
   var dashPedido = 0;
+  var trafegoPedido = 0;
   var MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
   function diasAtras(dias) {
@@ -841,11 +842,16 @@
     var dispositivos = document.querySelector("[data-trafego-dispositivos]");
     var origens = document.querySelector("[data-trafego-origens]");
     var porDispositivo = dados.dispositivos || {};
+    var dias = Number(dados.periodoDias || 0);
     if (hoje) hoje.textContent = String(dados.hoje || 0);
+    document.querySelectorAll("[data-trafego-rotulo]").forEach(function (rotulo) {
+      rotulo.textContent = dias === 1 ? "(hoje)" : (dias ? "(" + dias + " dias)" : "(todo o período)");
+    });
     if (periodo) {
       periodo.textContent = dados.armazenamento === "nenhum"
         ? "Contagem desativada: falta a variável REDIS_URL na Vercel."
-        : (dados.totalPeriodo || 0) + " acesso(s) nos últimos " + (dados.periodoDias || 30) + " dias.";
+        : (dados.totalPeriodo || 0) + " acesso(s) " +
+          (dias === 1 ? "hoje." : (dias ? "nos últimos " + dias + " dias." : "em todo o período registrado."));
     }
     if (dispositivos) {
       dispositivos.innerHTML = htmlTabelaTrafego("Dispositivo", Object.keys(porDispositivo).map(function (nome) {
@@ -863,10 +869,12 @@
     var grade = document.querySelector("[data-trafego]");
     var aviso = document.querySelector("[data-trafego-aviso]");
     if (!grade) return;
+    var pedido = ++trafegoPedido;
     grade.setAttribute("aria-busy", "true");
-    fetch("/api/admin/metricas-acesso", { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
+    fetch("/api/admin/metricas-acesso?dias=" + encodeURIComponent(dashDias), { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
       return resposta.json().catch(function () { return null; });
     }).then(function (corpo) {
+      if (pedido !== trafegoPedido) return;
       grade.setAttribute("aria-busy", "false");
       var erro = !corpo || !corpo.ok;
       if (aviso) {
@@ -875,6 +883,7 @@
       }
       if (!erro) renderTrafego(corpo);
     }).catch(function () {
+      if (pedido !== trafegoPedido) return;
       grade.setAttribute("aria-busy", "false");
       if (aviso) {
         aviso.hidden = false;
@@ -890,6 +899,7 @@
         outro.setAttribute("aria-pressed", outro === botao ? "true" : "false");
       });
       carregarDashboard();
+      carregarTrafego();
     });
   });
 
