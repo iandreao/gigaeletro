@@ -1,3 +1,18 @@
+/* Telemetria de acessos: isolada do orçamento e silenciosa mesmo se a rota falhar. */
+document.addEventListener("DOMContentLoaded", function () {
+  try {
+    var parametros = new URLSearchParams(window.location.search);
+    var origem = (parametros.get("ref") || parametros.get("utm_source") || "").trim() || "Direto";
+    fetch("/api/registrar-acesso", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ origem: origem }),
+      credentials: "same-origin",
+      keepalive: true
+    }).catch(function () {});
+  } catch (falha) {}
+});
+
 (function () {
   var WHATSAPP = "5527998235652";
   var CHAVE_PEDIDO = "gigaeletro-orcamento";

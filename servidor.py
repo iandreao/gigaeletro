@@ -12,6 +12,7 @@ import csv
 import hashlib
 import hmac
 import io
+import ipaddress
 import json
 import os
 import re
@@ -49,6 +50,13 @@ PAINEL_LIMITE = 2000
 METRICAS_LOCK = threading.Lock()
 METRICAS_BLOB = "orcamentos/metricas.json"
 METRICAS_LIMITE = 5000
+ACESSOS_LOG = "acessos:log"
+ACESSOS_LOG_LIMITE = 5000
+ACESSOS_DIAS = 30
+ACESSOS_EXPIRA = 400 * 24 * 60 * 60
+ACESSOS_CORPO_MAX = 4096
+RE_MOBILE = re.compile(r"Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobi", re.IGNORECASE)
+RE_ROBO = re.compile(r"bot|crawl|spider|slurp", re.IGNORECASE)
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 IMPORTACAO = threading.Lock()
 
@@ -1663,6 +1671,206 @@ def responder_dashboard(saida):
     escrever_json(saida, dados)
 
 
+def credenciais_redis():
+    url = (os.environ.get("KV_REST_API_URL") or os.environ.get("UPSTASH_REDIS_REST_URL") or "").strip().rstrip("/")
+    token = (os.environ.get("KV_REST_API_TOKEN") or os.environ.get("UPSTASH_REDIS_REST_TOKEN") or "").strip()
+    if not url or not token:
+        return None, None
+    return url, token
+
+
+def redis_pipeline(comandos):
+    url, token = credenciais_redis()
+    if not url:
+        return None
+    pedido = urllib.request.Request(
+        url + "/pipeline",
+        data=json.dumps([[str(parte) for parte in comando] for comando in comandos]).encode("utf-8"),
+        method="POST",
+        headers={"authorization": "Bearer " + token, "content-type": "application/json"},
+    )
+    with urllib.request.urlopen(pedido, timeout=5) as resposta:
+        respostas = json.loads(resposta.read().decode("utf-8"))
+    return [item.get("result") if isinstance(item, dict) else None for item in respostas]
+
+
+def dispositivo_acesso(agente):
+    return "Mobile" if RE_MOBILE.search(agente or "") else "Desktop"
+
+
+def ip_do_cliente(saida):
+    encaminhado = saida.headers.get("X-Forwarded-For") or saida.headers.get("X-Real-IP") or ""
+    ip = encaminhado.split(",")[0].strip()
+    if not ip:
+        endereco = getattr(saida, "client_address", None)
+        ip = str(endereco[0]) if endereco else ""
+    return ip
+
+
+def anonimizar_ip(ip):
+    """LGPD: guarda só os dois primeiros blocos do IP."""
+    try:
+        endereco = ipaddress.ip_address(str(ip or "").strip())
+    except ValueError:
+        return ""
+    if endereco.version == 6 and endereco.ipv4_mapped:
+        endereco = endereco.ipv4_mapped
+    if endereco.version == 4:
+        blocos = str(endereco).split(".")
+        return "%s.%s.X.X" % (blocos[0], blocos[1])
+    blocos = endereco.exploded.split(":")
+    return "%s:%s:X:X:X:X:X:X" % (blocos[0], blocos[1])
+
+
+def origem_acesso(valor):
+    texto = re.sub(r"[^\w .:/@+-]", "", str(valor or "")).strip()[:60]
+    if not texto or texto.lower() == "direto":
+        return "Direto"
+    return texto.lower()
+
+
+def conectar_acessos():
+    conn = conectar()
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS acessos_log ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+        "ip_anonimizado TEXT, dispositivo TEXT, origem TEXT)"
+    )
+    return conn
+
+
+def gravar_acesso_local(registro):
+    conn = conectar_acessos()
+    try:
+        conn.execute(
+            "INSERT INTO acessos_log (data_hora, ip_anonimizado, dispositivo, origem) VALUES (?, ?, ?, ?)",
+            (registro["data_hora"], registro["ip_anonimizado"], registro["dispositivo"], registro["origem"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def registrar_acesso(registro):
+    if credenciais_redis()[0]:
+        dia = registro["data_hora"][:10]
+        chaves = ["acessos:total:" + dia, "acessos:dispositivo:" + dia, "acessos:origem:" + dia]
+        redis_pipeline(
+            [
+                ["INCR", chaves[0]],
+                ["HINCRBY", chaves[1], registro["dispositivo"], 1],
+                ["ZINCRBY", chaves[2], 1, registro["origem"]],
+            ]
+            + [["EXPIRE", chave, ACESSOS_EXPIRA] for chave in chaves]
+            + [
+                ["LPUSH", ACESSOS_LOG, json.dumps(registro, ensure_ascii=False)],
+                ["LTRIM", ACESSOS_LOG, 0, ACESSOS_LOG_LIMITE - 1],
+            ]
+        )
+        return
+    # O SQLite da Vercel fica em /tmp e some a cada instância: lá só o Redis guarda acessos.
+    if em_vercel():
+        return
+    gravar_acesso_local(registro)
+
+
+def responder_registrar_acesso(saida):
+    # A telemetria nunca pode atrapalhar o site: qualquer falha vira só um aviso no log.
+    try:
+        agente = saida.headers.get("User-Agent") or ""
+        tamanho = int(saida.headers.get("Content-Length", "0") or "0")
+        if not RE_ROBO.search(agente) and 0 <= tamanho <= ACESSOS_CORPO_MAX:
+            corpo = saida.rfile.read(tamanho) if tamanho else b""
+            dados = json.loads(corpo.decode("utf-8")) if corpo else {}
+            if not isinstance(dados, dict):
+                dados = {}
+            registrar_acesso({
+                "data_hora": agora_painel().strftime("%Y-%m-%d %H:%M:%S"),
+                "ip_anonimizado": anonimizar_ip(ip_do_cliente(saida)),
+                "dispositivo": dispositivo_acesso(agente),
+                "origem": origem_acesso(dados.get("origem")),
+            })
+    except Exception as erro:
+        print("acessos: falha ao registrar (%s)" % erro, file=sys.stderr, flush=True)
+    escrever_json(saida, {"status": "sucesso"})
+
+
+def pares_redis(resultado):
+    if isinstance(resultado, dict):
+        return list(resultado.items())
+    lista = resultado or []
+    return list(zip(lista[0::2], lista[1::2]))
+
+
+def resumo_acessos(dias=ACESSOS_DIAS):
+    hoje = agora_painel().date()
+    datas = [(hoje - timedelta(days=atras)).isoformat() for atras in range(dias)]
+    resumo = {"hoje": 0, "periodoDias": dias, "totalPeriodo": 0, "dispositivos": {"Mobile": 0, "Desktop": 0}}
+    origens = {}
+    if credenciais_redis()[0]:
+        comandos = []
+        for dia in datas:
+            comandos += [
+                ["GET", "acessos:total:" + dia],
+                ["HGETALL", "acessos:dispositivo:" + dia],
+                ["ZRANGE", "acessos:origem:" + dia, 0, -1, "WITHSCORES"],
+            ]
+        respostas = redis_pipeline(comandos) or []
+        for indice, dia in enumerate(datas):
+            total, dispositivos, por_origem = (respostas[indice * 3:indice * 3 + 3] + [None, None, None])[:3]
+            quantidade = int(total or 0)
+            resumo["totalPeriodo"] += quantidade
+            if dia == datas[0]:
+                resumo["hoje"] = quantidade
+            for nome, valor in pares_redis(dispositivos):
+                resumo["dispositivos"][nome] = resumo["dispositivos"].get(nome, 0) + int(float(valor or 0))
+            for nome, valor in pares_redis(por_origem):
+                origens[nome] = origens.get(nome, 0) + int(float(valor or 0))
+        resumo["armazenamento"] = "redis"
+    elif em_vercel():
+        resumo["armazenamento"] = "nenhum"
+    else:
+        conn = conectar_acessos()
+        try:
+            linhas = conn.execute(
+                "SELECT substr(data_hora, 1, 10) AS dia, dispositivo, origem, COUNT(*) AS qtd "
+                "FROM acessos_log WHERE data_hora >= ? GROUP BY dia, dispositivo, origem",
+                (datas[-1],),
+            ).fetchall()
+        finally:
+            conn.close()
+        for linha in linhas:
+            quantidade = int(linha["qtd"])
+            resumo["totalPeriodo"] += quantidade
+            if linha["dia"] == datas[0]:
+                resumo["hoje"] += quantidade
+            nome = linha["dispositivo"] or "Desktop"
+            resumo["dispositivos"][nome] = resumo["dispositivos"].get(nome, 0) + quantidade
+            origem = linha["origem"] or "Direto"
+            origens[origem] = origens.get(origem, 0) + quantidade
+        resumo["armazenamento"] = "sqlite"
+    resumo["origens"] = [
+        {"origem": nome, "acessos": qtd}
+        for nome, qtd in sorted(origens.items(), key=lambda par: (-par[1], par[0]))[:10]
+    ]
+    return resumo
+
+
+def responder_metricas_acesso(saida):
+    if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+        escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
+        return
+    try:
+        dados = resumo_acessos()
+    except Exception as erro:
+        print("acessos: falha ao resumir (%s)" % erro, file=sys.stderr, flush=True)
+        escrever_json(saida, {"ok": False, "erro": "Não foi possível ler os acessos."}, 500)
+        return
+    dados["ok"] = True
+    escrever_json(saida, dados)
+
+
 def responder_orcamentos(saida):
     if saida.command == "GET":
         admin = token_valido(cookie_de(saida.headers.get("Cookie")))
@@ -1907,6 +2115,9 @@ class Handler(SimpleHTTPRequestHandler):
         if caminho == "/api/dashboard-estatisticas":
             responder_dashboard(self)
             return
+        if caminho == "/api/admin/metricas-acesso":
+            responder_metricas_acesso(self)
+            return
         if caminho == "/api/ver-pdf":
             responder_ver_pdf(self)
             return
@@ -1935,6 +2146,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if caminho == "/api/orcamentos":
             responder_orcamentos(self)
+            return
+        if caminho == "/api/registrar-acesso":
+            responder_registrar_acesso(self)
             return
         if caminho != "/api/catalogo":
             self.send_error(404)

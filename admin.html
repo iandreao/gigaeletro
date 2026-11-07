@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=10">
+  <link rel="stylesheet" href="css/admin.css?v=11">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -166,6 +166,23 @@
         </section>
       </div>
       <p class="dash-nota" data-dash-nota hidden></p>
+      <h2 class="dash-secao">Tráfego do site</h2>
+      <p class="gestor-busca-aviso" data-trafego-aviso hidden></p>
+      <div class="dash-grid" data-trafego aria-busy="true">
+        <section class="dash-card dash-volume">
+          <h2>Acessos ao site</h2>
+          <p class="dash-numero"><strong data-trafego-hoje>0</strong> hoje</p>
+          <p class="dash-nota" data-trafego-periodo></p>
+        </section>
+        <section class="dash-card">
+          <h2>Dispositivos (30 dias)</h2>
+          <div data-trafego-dispositivos></div>
+        </section>
+        <section class="dash-card">
+          <h2>Principais origens (30 dias)</h2>
+          <div data-trafego-origens></div>
+        </section>
+      </div>
     </div>
     </div>
   </main>
@@ -177,6 +194,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=29"></script>
+  <script src="js/admin.js?v=30"></script>
 </body>
 </html>

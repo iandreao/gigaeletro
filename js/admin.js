@@ -181,6 +181,7 @@
     preencherDataHoje();
     carregarOrcamentos();
     carregarDashboard();
+    carregarTrafego();
   }
 
   function mostrarAba(nome) {
@@ -203,7 +204,10 @@
     botao.addEventListener("click", function () {
       mostrarAba(botao.getAttribute("data-aba"));
       fecharMenuGestor();
-      if (botao.getAttribute("data-aba") === "dashboard") carregarDashboard();
+      if (botao.getAttribute("data-aba") === "dashboard") {
+        carregarDashboard();
+        carregarTrafego();
+      }
     });
   });
 
@@ -818,6 +822,64 @@
       if (pedido !== dashPedido) return;
       grade.setAttribute("aria-busy", "false");
       avisoDashboard("Erro ao carregar o painel comercial.");
+    });
+  }
+
+  function htmlTabelaTrafego(titulo, linhas) {
+    var total = linhas.reduce(function (soma, linha) { return soma + linha.qtd; }, 0);
+    if (!total) return '<p class="dash-vazio">Sem acessos registrados.</p>';
+    return '<div class="dash-tabela-caixa"><table class="dash-tabela">' +
+      '<thead><tr><th scope="col">' + escapar(titulo) + '</th><th scope="col">Acessos</th><th scope="col">%</th></tr></thead>' +
+      '<tbody>' + linhas.map(function (linha) {
+        return '<tr><th scope="row">' + escapar(linha.nome) + '</th><td>' + linha.qtd + '</td><td>' + pct(linha.qtd * 100 / total) + '</td></tr>';
+      }).join("") + '</tbody></table></div>';
+  }
+
+  function renderTrafego(dados) {
+    var hoje = document.querySelector("[data-trafego-hoje]");
+    var periodo = document.querySelector("[data-trafego-periodo]");
+    var dispositivos = document.querySelector("[data-trafego-dispositivos]");
+    var origens = document.querySelector("[data-trafego-origens]");
+    var porDispositivo = dados.dispositivos || {};
+    if (hoje) hoje.textContent = String(dados.hoje || 0);
+    if (periodo) {
+      periodo.textContent = dados.armazenamento === "nenhum"
+        ? "Contagem desativada: falta conectar o banco Upstash Redis na Vercel."
+        : (dados.totalPeriodo || 0) + " acesso(s) nos últimos " + (dados.periodoDias || 30) + " dias.";
+    }
+    if (dispositivos) {
+      dispositivos.innerHTML = htmlTabelaTrafego("Dispositivo", Object.keys(porDispositivo).map(function (nome) {
+        return { nome: nome, qtd: Number(porDispositivo[nome] || 0) };
+      }));
+    }
+    if (origens) {
+      origens.innerHTML = htmlTabelaTrafego("Origem", (dados.origens || []).map(function (item) {
+        return { nome: item.origem, qtd: Number(item.acessos || 0) };
+      }));
+    }
+  }
+
+  function carregarTrafego() {
+    var grade = document.querySelector("[data-trafego]");
+    var aviso = document.querySelector("[data-trafego-aviso]");
+    if (!grade) return;
+    grade.setAttribute("aria-busy", "true");
+    fetch("/api/admin/metricas-acesso", { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
+      return resposta.json().catch(function () { return null; });
+    }).then(function (corpo) {
+      grade.setAttribute("aria-busy", "false");
+      var erro = !corpo || !corpo.ok;
+      if (aviso) {
+        aviso.hidden = !erro;
+        aviso.textContent = erro ? (corpo && corpo.erro ? corpo.erro : "Erro ao carregar o tráfego do site.") : "";
+      }
+      if (!erro) renderTrafego(corpo);
+    }).catch(function () {
+      grade.setAttribute("aria-busy", "false");
+      if (aviso) {
+        aviso.hidden = false;
+        aviso.textContent = "Erro ao carregar o tráfego do site.";
+      }
     });
   }
 

@@ -320,6 +320,7 @@ body.gestor .dash-topo h1 { margin: 0; }
 .dash-nome-curto { display: none; }
 .dash-vazio { margin: auto; color: var(--muted); font-size: 0.85rem; font-weight: 700; align-self: center; }
 .dash-nota { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.75rem; font-weight: 700; }
+.dash-secao { max-width: none; margin: 1.5rem 0 0.75rem; font-size: 1.05rem; font-weight: 800; }
 @media (max-width: 760px) {
   .dash-grid { grid-template-columns: minmax(0, 1fr); }
   .dash-serie { height: 140px; }
