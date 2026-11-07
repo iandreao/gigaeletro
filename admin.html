@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=12">
+  <link rel="stylesheet" href="css/admin.css?v=13">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -180,6 +180,22 @@
         </div>
       </div>
       <p class="dash-numero trafego-resumo"><strong data-trafego-unicos>0</strong> <span data-trafego-resumo>usuário(s) único(s)</span></p>
+      <section class="dash-card trafego-identificar" aria-labelledby="titulo-identificar">
+        <h2 id="titulo-identificar">Identificar Este Dispositivo</h2>
+        <div class="trafego-identificar-linha">
+          <select data-nome-dispositivo aria-label="Nome deste dispositivo">
+            <option value="Aceliani">Aceliani</option>
+            <option value="Julio">Julio</option>
+            <option value="Ivalino">Ivalino</option>
+            <option value="Caixa">Caixa</option>
+            <option value="Balcão 01">Balcão 01</option>
+            <option value="Balcão 02">Balcão 02</option>
+            <option value="Balcão 03">Balcão 03</option>
+          </select>
+          <button class="btn btn-preto" type="button" data-salvar-dispositivo>Salvar Nome Neste Navegador</button>
+          <span class="trafego-identificar-atual" data-dispositivo-atual></span>
+        </div>
+      </section>
       <p class="gestor-busca-aviso" data-trafego-aviso hidden></p>
       <p class="gestor-vazio" data-trafego-vazio hidden>Nenhum acesso registrado no período.</p>
       <div class="gestor-tabela-box" data-trafego aria-busy="true">
@@ -187,10 +203,9 @@
           <thead>
             <tr>
               <th>Horário Exato</th>
-              <th>Cidade/UF</th>
+              <th>Quem Acessou</th>
               <th>Dispositivo</th>
               <th>Origem</th>
-              <th>ID da Sessão</th>
             </tr>
           </thead>
           <tbody data-trafego-lista></tbody>
@@ -207,6 +222,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=33"></script>
+  <script src="js/admin.js?v=34"></script>
 </body>
 </html>

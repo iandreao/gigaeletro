@@ -62,7 +62,9 @@ ACESSOS_CORPO_MAX = 4096
 RE_MOBILE = re.compile(r"Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobi", re.IGNORECASE)
 RE_ROBO = re.compile(r"bot|crawl|spider|slurp", re.IGNORECASE)
 RE_SESSAO = re.compile(r"[A-Za-z0-9-]{8,64}")
-CAMPOS_AUDITORIA = ("data_hora", "cidade", "estado", "dispositivo", "origem", "id_sessao")
+CAMPOS_AUDITORIA = ("data_hora", "quem_acessou", "dispositivo", "origem")
+NOMES_DISPOSITIVO = ("Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03")
+CLIENTE_EXTERNO = "Cliente Externo"
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 IMPORTACAO = threading.Lock()
 
@@ -1788,13 +1790,10 @@ def sessao_acesso(valor):
     return texto if RE_SESSAO.fullmatch(texto) else ""
 
 
-def local_acesso(saida):
-    if not em_vercel():
-        return "Localhost", ""
-    cidade = urllib.parse.unquote(saida.headers.get("x-vercel-ip-city") or "")
-    cidade = re.sub(r"[\x00-\x1f<>]", "", cidade).strip()[:80]
-    estado = re.sub(r"[^A-Za-z0-9]", "", saida.headers.get("x-vercel-ip-country-region") or "").upper()[:6]
-    return cidade, estado
+def quem_acessou(valor):
+    """Só os nomes cadastrados na Área Restrita; qualquer outro valor vira Cliente Externo."""
+    texto = unicodedata.normalize("NFC", str(valor or "")).strip()
+    return texto if texto in NOMES_DISPOSITIVO else CLIENTE_EXTERNO
 
 
 def conectar_acessos():
@@ -1803,10 +1802,10 @@ def conectar_acessos():
         "CREATE TABLE IF NOT EXISTS acessos_log ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-        "ip_anonimizado TEXT, id_sessao TEXT, dispositivo TEXT, origem TEXT, cidade TEXT, estado TEXT)"
+        "ip_anonimizado TEXT, id_sessao TEXT, quem_acessou TEXT, dispositivo TEXT, origem TEXT)"
     )
     existentes = {linha[1] for linha in conn.execute("PRAGMA table_info(acessos_log)")}
-    for coluna in ("id_sessao", "cidade", "estado"):
+    for coluna in ("id_sessao", "quem_acessou"):
         if coluna not in existentes:
             conn.execute("ALTER TABLE acessos_log ADD COLUMN %s TEXT" % coluna)
     return conn
@@ -1816,11 +1815,11 @@ def gravar_acesso_local(registro):
     conn = conectar_acessos()
     try:
         conn.execute(
-            "INSERT INTO acessos_log (data_hora, ip_anonimizado, id_sessao, dispositivo, origem, cidade, estado) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO acessos_log (data_hora, ip_anonimizado, id_sessao, quem_acessou, dispositivo, origem) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             (
                 registro["data_hora"], registro["ip_anonimizado"], registro["id_sessao"],
-                registro["dispositivo"], registro["origem"], registro["cidade"], registro["estado"],
+                registro["quem_acessou"], registro["dispositivo"], registro["origem"],
             ),
         )
         conn.commit()
@@ -1858,15 +1857,13 @@ def responder_registrar_acesso(saida):
             dados = json.loads(corpo.decode("utf-8")) if corpo else {}
             if not isinstance(dados, dict):
                 dados = {}
-            cidade, estado = local_acesso(saida)
             registrar_acesso({
                 "data_hora": agora_painel().strftime("%Y-%m-%d %H:%M:%S"),
                 "ip_anonimizado": anonimizar_ip(ip_do_cliente(saida)),
                 "id_sessao": sessao_acesso(dados.get("sessao")),
+                "quem_acessou": quem_acessou(dados.get("quem")),
                 "dispositivo": dispositivo_acesso(agente),
                 "origem": origem_acesso(dados.get("origem")),
-                "cidade": cidade,
-                "estado": estado,
             })
     except Exception as erro:
         print("acessos: falha ao registrar (%s)" % erro, file=sys.stderr, flush=True)
@@ -1914,7 +1911,7 @@ def auditoria_sqlite(datas):
     conn = conectar_acessos()
     try:
         linhas = conn.execute(
-            "SELECT data_hora, cidade, estado, dispositivo, origem, id_sessao FROM acessos_log "
+            "SELECT data_hora, quem_acessou, dispositivo, origem FROM acessos_log "
             "WHERE data_hora >= ? ORDER BY data_hora DESC, id DESC LIMIT ?",
             (datas[-1], ACESSOS_LISTA),
         ).fetchall()

@@ -17,10 +17,14 @@ document.addEventListener("DOMContentLoaded", function () {
     } catch (bloqueado) {
       sessao = sessao || novaSessao();
     }
+    var quem = "";
+    try {
+      quem = window.localStorage.getItem("giga_nome_dispositivo") || "";
+    } catch (semAcesso) {}
     fetch("/api/registrar-acesso", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ origem: origem, sessao: sessao }),
+      body: JSON.stringify({ origem: origem, sessao: sessao, quem: quem || "Cliente Externo" }),
       credentials: "same-origin",
       keepalive: true
     }).catch(function () {});

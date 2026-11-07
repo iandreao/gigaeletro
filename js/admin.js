@@ -830,11 +830,6 @@
     return data.length === 3 ? data[2] + "/" + data[1] + "/" + data[0] + " " + (partes[1] || "") : String(valor || "");
   }
 
-  function localAcesso(linha) {
-    if (linha.cidade && linha.estado) return linha.cidade + "/" + linha.estado;
-    return linha.cidade || linha.estado || "—";
-  }
-
   function renderTrafego(dados) {
     var unicos = document.querySelector("[data-trafego-unicos]");
     var resumo = document.querySelector("[data-trafego-resumo]");
@@ -855,13 +850,11 @@
     if (vazio) vazio.hidden = registros.length > 0;
     if (lista) {
       lista.innerHTML = registros.map(function (linha) {
-        var sessao = String(linha.id_sessao || "");
         return "<tr>" +
           "<td>" + escapar(horarioAcesso(linha.data_hora)) + "</td>" +
-          "<td>" + escapar(localAcesso(linha)) + "</td>" +
+          '<td class="quem">' + escapar(linha.quem_acessou || "—") + "</td>" +
           "<td>" + escapar(linha.dispositivo || "—") + "</td>" +
           "<td>" + escapar(linha.origem || "Direto") + "</td>" +
-          '<td class="sessao" title="' + escapar(sessao) + '">' + escapar(sessao ? sessao.slice(0, 8) : "—") + "</td>" +
           "</tr>";
       }).join("");
     }
@@ -897,6 +890,42 @@
       }
     });
   }
+
+  var CHAVE_DISPOSITIVO = "giga_nome_dispositivo";
+  var seletorDispositivo = document.querySelector("[data-nome-dispositivo]");
+  var dispositivoAtual = document.querySelector("[data-dispositivo-atual]");
+
+  function nomeDispositivoSalvo() {
+    try {
+      return window.localStorage.getItem(CHAVE_DISPOSITIVO) || "";
+    } catch (semAcesso) {
+      return "";
+    }
+  }
+
+  function mostrarDispositivoAtual() {
+    var nome = nomeDispositivoSalvo();
+    if (dispositivoAtual) {
+      dispositivoAtual.textContent = nome ? "Este navegador: " + nome : "Este navegador ainda não foi identificado (conta como Cliente Externo).";
+    }
+    if (seletorDispositivo && nome) seletorDispositivo.value = nome;
+  }
+
+  var salvarDispositivo = document.querySelector("[data-salvar-dispositivo]");
+  if (salvarDispositivo && seletorDispositivo) {
+    salvarDispositivo.addEventListener("click", function () {
+      var nome = seletorDispositivo.value;
+      try {
+        window.localStorage.setItem(CHAVE_DISPOSITIVO, nome);
+      } catch (semAcesso) {
+        window.alert("Este navegador não permite salvar o nome (modo privado ou armazenamento bloqueado).");
+        return;
+      }
+      mostrarDispositivoAtual();
+      window.alert("Este dispositivo agora está identificado como " + nome);
+    });
+  }
+  mostrarDispositivoAtual();
 
   document.querySelectorAll("[data-trafego-dias]").forEach(function (botao) {
     botao.addEventListener("click", function () {

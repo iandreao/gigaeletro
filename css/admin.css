@@ -323,7 +323,22 @@ body.gestor .dash-topo h1 { margin: 0; }
 /* Rastreamento de tráfego */
 .trafego-resumo { flex: none; margin: 0.2rem 0 0.6rem; }
 .trafego-tabela td { white-space: nowrap; }
-.trafego-tabela td.sessao { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--muted); }
+.trafego-tabela td.quem { font-weight: 800; }
+.trafego-identificar { flex: none; margin-bottom: 0.6rem; padding: 0.6rem 0.8rem; }
+.trafego-identificar h2 { margin-bottom: 0.4rem; }
+.trafego-identificar-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.trafego-identificar select {
+  min-height: 36px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 0.5rem;
+  background: var(--white);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.trafego-identificar .btn { min-height: 36px; padding: 0 0.95rem; border-radius: 0.5rem; font-size: 0.82rem; }
+.trafego-identificar-atual { color: var(--muted); font-size: 0.78rem; font-weight: 700; }
 @media (max-width: 760px) {
   .dash-grid { grid-template-columns: minmax(0, 1fr); }
   .dash-serie { height: 140px; }
