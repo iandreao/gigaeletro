@@ -297,7 +297,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }, true);
 
   if (enviar) {
-    enviar.textContent = "Enviar Orçamento";
+    enviar.textContent = "Enviar por WhatsApp";
     enviar.addEventListener("click", enviarWhatsApp);
     if (enviarEmail) enviarEmail.addEventListener("click", enviarPorEmail);
     document.addEventListener("gv-itens-orcamento", function (evento) {
@@ -771,7 +771,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function soltarBotaoEnvio() {
-    if (enviar) enviar.textContent = "Enviar Orçamento";
+    if (enviar) enviar.textContent = "Enviar por WhatsApp";
     liberarEnvio();
   }
 
@@ -803,7 +803,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function enviarWhatsApp() {
     if (envioEmCurso) return;
     setCatalogo(false);
-    /* Enviar Orçamento só segue com o formulário amarelo completo e válido. */
+    /* Enviar por WhatsApp só segue com o formulário amarelo completo e válido. */
     var pendente = primeiroCampoIncompleto();
     if (pendente || !formularioPreenchido()) {
       alert("Favor preencher os dados do cliente");
@@ -1208,7 +1208,7 @@ document.addEventListener("DOMContentLoaded", function () {
     zerarQuadroOrcamento();
     orcamentoSendoEditadoId = "";
     orcamentoSendoEditadoDocumento = "";
-    if (enviar) enviar.textContent = "Enviar Orçamento";
+    if (enviar) enviar.textContent = "Enviar por WhatsApp";
     document.dispatchEvent(new CustomEvent("gv-orcamento-enviado"));
   }
 
@@ -2066,7 +2066,7 @@ document.addEventListener("DOMContentLoaded", function () {
     salvarPedido();
     renderResumo();
     if (registro.cliente) preencherCliente(registro.cliente);
-    if (enviar) enviar.textContent = "Enviar Orçamento";
+    if (enviar) enviar.textContent = "Enviar por WhatsApp";
     liberarEnvio();
     if (avisoEnvio) avisoEnvio.hidden = true;
     if (resumoEl) resumoEl.scrollTop = 0;

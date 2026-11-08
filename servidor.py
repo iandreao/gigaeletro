@@ -1892,7 +1892,7 @@ def email_valido(valor):
 
 def emails_copia_admin():
     partes = (os.environ.get("EMAIL_ADMIN_COPIA") or "").replace(";", ",").split(",")
-    return [email for email in (email_valido(parte) for parte in partes) if email]
+    return [email for email in (email_destino(parte) for parte in partes) if email]
 
 
 def envio_email_bloqueado(ip):
@@ -1988,7 +1988,7 @@ def responder_enviar_orcamento_email(saida):
     if str(dados.get("site") or "").strip():
         escrever_json(saida, {"ok": True})
         return
-    destino = email_valido(dados.get("email"))
+    destino = email_destino(dados.get("email"))
     if not destino:
         escrever_json(saida, {"ok": False, "erro": "Informe um e-mail válido."}, 400)
         return

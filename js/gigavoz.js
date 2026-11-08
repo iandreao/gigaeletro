@@ -971,7 +971,7 @@
           var botoes = document.querySelectorAll("button");
           var i;
           for (i = 0; i < botoes.length; i += 1) {
-            if (String(botoes[i].textContent || "").indexOf("Enviar Orçamento") !== -1) {
+            if (String(botoes[i].textContent || "").indexOf("Enviar por WhatsApp") !== -1) {
               botao = botoes[i];
               break;
             }
