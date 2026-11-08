@@ -1885,7 +1885,7 @@ def responder_registrar_acesso(saida):
     escrever_json(saida, {"status": "sucesso"})
 
 
-def email_valido(valor):
+def email_destino(valor):
     texto = str(valor or "").strip()
     return texto if len(texto) <= 120 and RE_EMAIL.fullmatch(texto) else ""
 
