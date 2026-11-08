@@ -8,9 +8,11 @@ No computador o banco é data/gigaeletro.db. Na Vercel o disco do projeto é
 somente leitura, então o SQLite e a auditoria ficam em /tmp e o catálogo
 publicado (data/catalogo.json) continua sendo a fonte das 5476 linhas.
 """
+import base64
 import csv
 import hashlib
 import hmac
+import html
 import io
 import ipaddress
 import json
@@ -65,6 +67,16 @@ RE_SESSAO = re.compile(r"[A-Za-z0-9-]{8,64}")
 CAMPOS_AUDITORIA = ("data_hora", "quem_acessou", "dispositivo", "id_sessao")
 NOMES_DISPOSITIVO = ("Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03")
 CLIENTE_EXTERNO = "Cliente Externo"
+RESEND_URL = "https://api.resend.com/emails"
+# Modo de teste do Resend: só entrega no e-mail dono da conta até o domínio próprio ser verificado.
+EMAIL_REMETENTE_PADRAO = "Gigaeletro <onboarding@resend.dev>"
+EMAIL_ARQUIVO = "Pedido-de-Orcamento-Gigaeletro.pdf"
+EMAIL_CORPO_MAX = LIMITE_PDF * 4 // 3 + 16 * 1024
+EMAIL_JANELA = 10 * 60
+EMAIL_POR_JANELA = 5
+EMAIL_ENVIOS = {}
+EMAIL_LOCK = threading.Lock()
+RE_EMAIL = re.compile(r"[^\s@<>,;:\"'()\[\]\\]+@[^\s@<>,;:\"'()\[\]\\]+\.[^\s@<>,;:\"'()\[\]\\]+")
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 IMPORTACAO = threading.Lock()
 
@@ -1873,6 +1885,152 @@ def responder_registrar_acesso(saida):
     escrever_json(saida, {"status": "sucesso"})
 
 
+def email_valido(valor):
+    texto = str(valor or "").strip()
+    return texto if len(texto) <= 120 and RE_EMAIL.fullmatch(texto) else ""
+
+
+def emails_copia_admin():
+    partes = (os.environ.get("EMAIL_ADMIN_COPIA") or "").replace(";", ",").split(",")
+    return [email for email in (email_valido(parte) for parte in partes) if email]
+
+
+def envio_email_bloqueado(ip):
+    """Limita os envios por IP para a rota pública não virar disparador de spam."""
+    chave = hashlib.sha256(("email:" + str(ip or "")).encode("utf-8")).hexdigest()[:32]
+    if endereco_redis():
+        contador = "email:{giga}:" + chave
+        try:
+            _, total = redis_pipeline([["SET", contador, 0, "EX", EMAIL_JANELA, "NX"], ["INCR", contador]])
+            return int(total) > EMAIL_POR_JANELA
+        except Exception as erro:
+            print("email: limite indisponível (%s)" % erro, file=sys.stderr, flush=True)
+            return False
+    agora = time.time()
+    with EMAIL_LOCK:
+        recentes = [momento for momento in EMAIL_ENVIOS.get(chave, []) if agora - momento < EMAIL_JANELA]
+        recentes.append(agora)
+        EMAIL_ENVIOS[chave] = recentes
+        return len(recentes) > EMAIL_POR_JANELA
+
+
+def pdf_do_payload(valor):
+    texto = str(valor or "")
+    if texto.startswith("data:"):
+        texto = texto.split(",", 1)[-1]
+    try:
+        conteudo = base64.b64decode(texto, validate=True)
+    except (ValueError, TypeError):
+        return b""
+    if not conteudo.startswith(b"%PDF") or len(conteudo) > LIMITE_PDF:
+        return b""
+    return conteudo
+
+
+def mensagem_orcamento_email(nome):
+    saudacao = "Olá, %s!" % nome if nome else "Olá!"
+    texto = (
+        saudacao + "\n\n"
+        "Segue em anexo o seu pedido de orçamento da Gigaeletro.\n"
+        "Os preços têm validade de 15 dias. O estoque e o frete serão confirmados pelo WhatsApp (27) 99823-5652.\n\n"
+        "Gigaeletro Material Elétrico\n"
+        "https://gigaeletro.com.br"
+    )
+    corpo = (
+        '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#1a1a1a">'
+        "<p>" + html.escape(saudacao) + "</p>"
+        "<p>Segue em anexo o seu pedido de orçamento da <strong>Gigaeletro</strong>.</p>"
+        "<p>Os preços têm validade de 15 dias. O estoque e o frete serão confirmados pelo "
+        '<a href="https://wa.me/5527998235652">WhatsApp (27) 99823-5652</a>.</p>'
+        '<p style="margin-top:24px">Gigaeletro Material Elétrico<br>'
+        '<a href="https://gigaeletro.com.br">gigaeletro.com.br</a></p>'
+        "</div>"
+    )
+    return texto, corpo
+
+
+def disparar_resend(chave, payload):
+    requisicao = urllib.request.Request(
+        RESEND_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Authorization": "Bearer " + chave,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "gigaeletro-site/1.0",
+        },
+    )
+    with urllib.request.urlopen(requisicao, timeout=20) as resposta:
+        retorno = json.loads(resposta.read().decode("utf-8") or "{}")
+    return retorno if isinstance(retorno, dict) else {}
+
+
+def responder_enviar_orcamento_email(saida):
+    chave = (os.environ.get("RESEND_API_KEY") or "").strip()
+    if not chave:
+        escrever_json(saida, {"ok": False, "erro": "Envio por e-mail indisponível no momento."}, 503)
+        return
+    try:
+        tamanho = int(saida.headers.get("Content-Length", "0") or "0")
+    except ValueError:
+        tamanho = -1
+    if tamanho <= 0 or tamanho > EMAIL_CORPO_MAX:
+        escrever_json(saida, {"ok": False, "erro": "Orçamento grande demais para envio por e-mail."}, 413)
+        return
+    try:
+        dados = json.loads(saida.rfile.read(tamanho).decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        dados = None
+    if not isinstance(dados, dict):
+        escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
+        return
+    if str(dados.get("site") or "").strip():
+        escrever_json(saida, {"ok": True})
+        return
+    destino = email_valido(dados.get("email"))
+    if not destino:
+        escrever_json(saida, {"ok": False, "erro": "Informe um e-mail válido."}, 400)
+        return
+    conteudo = pdf_do_payload(dados.get("pdf"))
+    if not conteudo:
+        escrever_json(saida, {"ok": False, "erro": "Não foi possível ler o PDF do orçamento."}, 400)
+        return
+    if envio_email_bloqueado(ip_do_cliente(saida)):
+        escrever_json(saida, {"ok": False, "erro": "Muitos envios em sequência. Tente novamente em alguns minutos."}, 429)
+        return
+    nome = " ".join(unicodedata.normalize("NFC", str(dados.get("nome") or "")).split())[:120]
+    texto, corpo = mensagem_orcamento_email(nome)
+    payload = {
+        "from": (os.environ.get("EMAIL_REMETENTE") or "").strip() or EMAIL_REMETENTE_PADRAO,
+        "to": [destino],
+        "subject": "Seu pedido de orçamento - Gigaeletro",
+        "html": corpo,
+        "text": texto,
+        "attachments": [{"filename": EMAIL_ARQUIVO, "content": base64.b64encode(conteudo).decode("ascii")}],
+    }
+    copias = [email for email in emails_copia_admin() if email.lower() != destino.lower()]
+    if copias:
+        payload["bcc"] = copias
+    if emails_copia_admin():
+        payload["reply_to"] = emails_copia_admin()[0]
+    try:
+        retorno = disparar_resend(chave, payload)
+    except urllib.error.HTTPError as erro:
+        detalhe = erro.read(600).decode("utf-8", "replace")
+        print("email: Resend recusou (%s) %s" % (erro.code, detalhe), file=sys.stderr, flush=True)
+        mensagem = "Não foi possível enviar o e-mail agora. Tente novamente ou use o WhatsApp."
+        if "testing emails" in detalhe:
+            mensagem = "Envio por e-mail em fase de testes: por enquanto só o e-mail da loja recebe."
+        escrever_json(saida, {"ok": False, "erro": mensagem}, 502)
+        return
+    except (urllib.error.URLError, OSError, ValueError) as erro:
+        print("email: falha ao falar com o Resend (%s)" % erro, file=sys.stderr, flush=True)
+        escrever_json(saida, {"ok": False, "erro": "Não foi possível enviar o e-mail agora. Tente novamente ou use o WhatsApp."}, 502)
+        return
+    escrever_json(saida, {"ok": True, "id": str(retorno.get("id") or "")})
+
+
 def linha_auditoria(dados):
     return {campo: str(dados.get(campo) or "") for campo in CAMPOS_AUDITORIA}
 
@@ -2254,6 +2412,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if caminho == "/api/registrar-acesso":
             responder_registrar_acesso(self)
+            return
+        if caminho == "/api/enviar-orcamento-email":
+            responder_enviar_orcamento_email(self)
             return
         if caminho != "/api/catalogo":
             self.send_error(404)

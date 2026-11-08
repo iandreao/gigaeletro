@@ -1087,3 +1087,9 @@ body.home .cliente-form input::placeholder {
   font-weight: 400;
   opacity: 1;
 }
+
+/* Enviar Orçamento e Enviar por E-mail lado a lado, sem aumentar a altura do quadro. */
+.quote-side .envio-botoes { display: flex; gap: 0.4rem; }
+.quote-side .envio-botoes .btn { flex: 1 1 0; min-width: 0; margin-bottom: 0; white-space: nowrap; }
+.quote-side .envio-botoes .btn-line:disabled,
+.quote-side .envio-botoes .btn-line:disabled:hover { background: var(--white); color: var(--ink); border-color: var(--ink); }

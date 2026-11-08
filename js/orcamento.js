@@ -76,6 +76,7 @@ document.addEventListener("DOMContentLoaded", function () {
   var restritaOverlay = document.querySelector(".overlay[data-fechar-restrita]");
   var restritaErro = document.querySelector("[data-restrita-erro]");
   var enviar = document.querySelector("[data-enviar]");
+  var enviarEmail = document.querySelector("[data-enviar-email]");
   var limparOrcamento = document.querySelector("[data-limpar-orcamento]");
   var status = document.querySelector("[data-cart-status]");
   var formCliente = document.querySelector("[data-cliente]");
@@ -83,6 +84,7 @@ document.addEventListener("DOMContentLoaded", function () {
   var consultaCep = 0;
   var cepPedido = "";
   var envioEmCurso = false;
+  var envioEmailEmCurso = false;
   var restaurandoCliente = false;
   var clienteAvisado = false;
   var timerClientePronto = 0;
@@ -264,7 +266,7 @@ document.addEventListener("DOMContentLoaded", function () {
       var campo = event.target;
       if (!campoMonitorado(campo) || !valorInvalido(campo)) return;
       var destino = event.relatedTarget;
-      if (destino && destino.closest && (destino.closest(".site-header") || destino.closest("[data-enviar]") || destino.closest(".tipo-pessoa") || destino.closest("[data-historico]") || destino.closest("[data-editar-orcamento]") || destino.closest("[data-abrir-historico]"))) return;
+      if (destino && destino.closest && (destino.closest(".site-header") || destino.closest("[data-enviar], [data-enviar-email]") || destino.closest(".tipo-pessoa") || destino.closest("[data-historico]") || destino.closest("[data-editar-orcamento]") || destino.closest("[data-abrir-historico]"))) return;
       window.setTimeout(function () {
         if (valorInvalido(campo) && document.activeElement !== campo) campo.focus();
       }, 0);
@@ -277,7 +279,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!campoMonitorado(ativo) || !formCliente || !formCliente.contains(ativo) || !valorInvalido(ativo)) return;
     if (ativo === event.target || ativo.contains(event.target)) return;
     /* O menu superior nunca fica preso a um campo inválido. */
-    if (event.target.closest && (event.target.closest(".site-header") || event.target.closest("[data-enviar]") || event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
+    if (event.target.closest && (event.target.closest(".site-header") || event.target.closest("[data-enviar], [data-enviar-email]") || event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
     event.preventDefault();
     mostrarDadoInvalido(ativo);
     ativo.focus();
@@ -286,7 +288,7 @@ document.addEventListener("DOMContentLoaded", function () {
   document.addEventListener("click", function (event) {
     var ativo = document.activeElement;
     if (!campoMonitorado(ativo) || !valorInvalido(ativo)) return;
-    if (event.target.closest && (event.target.closest(".site-header") || event.target.closest("[data-enviar]") || event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
+    if (event.target.closest && (event.target.closest(".site-header") || event.target.closest("[data-enviar], [data-enviar-email]") || event.target.closest(".tipo-pessoa") || event.target.closest("[data-historico]") || event.target.closest("[data-editar-orcamento]") || event.target.closest("[data-abrir-historico]"))) return;
     if (ativo.contains(event.target)) return;
     event.preventDefault();
     event.stopPropagation();
@@ -297,6 +299,7 @@ document.addEventListener("DOMContentLoaded", function () {
   if (enviar) {
     enviar.textContent = "Enviar Orçamento";
     enviar.addEventListener("click", enviarWhatsApp);
+    if (enviarEmail) enviarEmail.addEventListener("click", enviarPorEmail);
     document.addEventListener("gv-itens-orcamento", function (evento) {
       incluirItensVoz(evento && evento.detail);
     });
@@ -894,6 +897,92 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  function pdfEmBase64(blob) {
+    return new Promise(function (resolver, rejeitar) {
+      var leitor = new FileReader();
+      leitor.onload = function () { resolver(String(leitor.result || "").split(",")[1] || ""); };
+      leitor.onerror = function () { rejeitar(leitor.error); };
+      leitor.readAsDataURL(blob);
+    });
+  }
+
+  function soltarBotaoEmail() {
+    envioEmailEmCurso = false;
+    if (enviarEmail) enviarEmail.textContent = "Enviar por E-mail";
+    liberarEnvio();
+  }
+
+  function enviarPorEmail() {
+    if (envioEmCurso || envioEmailEmCurso) return;
+    setCatalogo(false);
+    if (!carrinhoValido()) {
+      mostrarAviso("Adicione ao menos um produto ao orçamento.");
+      return;
+    }
+    /* Neste envio o e-mail do formulário é o destinatário: ele é conferido antes dos demais campos. */
+    var campoEmail = formCliente && formCliente.elements.email;
+    var destino = String(campoEmail && campoEmail.value || "").trim();
+    if (!destino) {
+      mostrarAviso("Informe seu e-mail para receber o orçamento.");
+      if (campoEmail) campoEmail.focus();
+      return;
+    }
+    if (!emailValido(destino)) {
+      reterCampo("email");
+      mostrarAviso("E-mail inválido. Confira o endereço para receber o orçamento.");
+      return;
+    }
+    var pendente = primeiroCampoIncompleto();
+    if (pendente || !formularioPreenchido()) {
+      alert("Favor preencher os dados do cliente");
+      if (!pendente && formCliente) pendente = formCliente.querySelector("input[required]");
+      if (pendente) pendente.focus();
+      return;
+    }
+    var cliente = lerCliente();
+    var erro = validarCliente(cliente);
+    if (erro) {
+      mostrarAviso(erro);
+      return;
+    }
+    var subtotal = selecionados.reduce(function (soma, item) { return soma + item.preco * item.qtd; }, 0);
+    var pdf;
+    try {
+      pdf = gerarPdf(cliente, subtotal);
+    } catch (falha) {
+      mostrarAviso("Não foi possível gerar o PDF do orçamento.");
+      return;
+    }
+    envioEmailEmCurso = true;
+    if (enviarEmail) {
+      enviarEmail.disabled = true;
+      enviarEmail.textContent = "Enviando...";
+    }
+    var armadilha = formCliente && formCliente.elements.sobrenome_confirmacao;
+    pdfEmBase64(pdf).then(function (base64) {
+      return fetch("/api/enviar-orcamento-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: destino,
+          nome: cliente.nome,
+          pdf: base64,
+          site: armadilha ? String(armadilha.value || "") : ""
+        })
+      });
+    }).then(function (resposta) {
+      return resposta.json().catch(function () { return null; }).then(function (corpo) {
+        if (!resposta.ok || !corpo || !corpo.ok) throw { erroServidor: corpo && corpo.erro };
+      });
+    }).then(function () {
+      soltarBotaoEmail();
+      mostrarAviso("Orçamento enviado para " + destino);
+    }, function (falha) {
+      soltarBotaoEmail();
+      mostrarAviso((falha && falha.erroServidor) || "Não foi possível enviar o e-mail agora. Tente novamente ou use o WhatsApp.");
+    });
+  }
+
   function gravarPainelGestor(cliente, pdfId) {
     var corpo = {
       nome: cliente.nome,
@@ -983,7 +1072,7 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
     avisoEnvio.classList.add("gv-aviso-livre");
-    avisoEnvio.classList.toggle("gv-aviso-sucesso", texto === "Orçamento enviado com sucesso via Whatsapp");
+    avisoEnvio.classList.toggle("gv-aviso-sucesso", texto === "Orçamento enviado com sucesso via Whatsapp" || String(texto || "").indexOf("Orçamento enviado para ") === 0);
     avisoEnvio.hidden = false;
     avisoEnvio.style.display = "";
     avisoEnvio.textContent = texto;
@@ -1427,6 +1516,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function liberarEnvio() {
     acompanharCliente(false);
     if (limparOrcamento) limparOrcamento.hidden = !carrinhoValido();
+    if (enviarEmail && !envioEmailEmCurso) enviarEmail.disabled = envioEmCurso || !carrinhoValido();
     if (!enviar || envioEmCurso) return;
     var quadro = document.querySelector(".quote-side") || document.querySelector("#carrinho");
     var listaVozNaTela = !!(quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1);
