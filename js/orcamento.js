@@ -77,6 +77,8 @@ document.addEventListener("DOMContentLoaded", function () {
   var restritaErro = document.querySelector("[data-restrita-erro]");
   var enviar = document.querySelector("[data-enviar]");
   var enviarEmail = document.querySelector("[data-enviar-email]");
+  /* Desligado até o domínio ser verificado no Resend; mude para true para liberar o botão. */
+  var EMAIL_ATIVO = false;
   var limparOrcamento = document.querySelector("[data-limpar-orcamento]");
   var status = document.querySelector("[data-cart-status]");
   var formCliente = document.querySelector("[data-cliente]");
@@ -299,7 +301,10 @@ document.addEventListener("DOMContentLoaded", function () {
   if (enviar) {
     enviar.textContent = "Enviar por WhatsApp";
     enviar.addEventListener("click", enviarWhatsApp);
-    if (enviarEmail) enviarEmail.addEventListener("click", enviarPorEmail);
+    if (enviarEmail) {
+      enviarEmail.addEventListener("click", enviarPorEmail);
+      if (!EMAIL_ATIVO) enviarEmail.title = "Envio por e-mail em breve";
+    }
     document.addEventListener("gv-itens-orcamento", function (evento) {
       incluirItensVoz(evento && evento.detail);
     });
@@ -913,7 +918,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function enviarPorEmail() {
-    if (envioEmCurso || envioEmailEmCurso) return;
+    if (!EMAIL_ATIVO || envioEmCurso || envioEmailEmCurso) return;
     setCatalogo(false);
     if (!carrinhoValido()) {
       mostrarAviso("Adicione ao menos um produto ao orçamento.");
@@ -1516,7 +1521,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function liberarEnvio() {
     acompanharCliente(false);
     if (limparOrcamento) limparOrcamento.hidden = !carrinhoValido();
-    if (enviarEmail && !envioEmailEmCurso) enviarEmail.disabled = envioEmCurso || !carrinhoValido();
+    if (enviarEmail && !envioEmailEmCurso) enviarEmail.disabled = !EMAIL_ATIVO || envioEmCurso || !carrinhoValido();
     if (!enviar || envioEmCurso) return;
     var quadro = document.querySelector(".quote-side") || document.querySelector("#carrinho");
     var listaVozNaTela = !!(quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1);
