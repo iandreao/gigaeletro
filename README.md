@@ -44,7 +44,7 @@ Só publique alterações que dependem do domínio novo depois desses passos: o 
 | `REDIS_URL` | Redis (Redis Cloud pela Vercel) para a telemetria de acessos, no formato `redis://` ou `rediss://`. Sem ela o site funciona, mas não conta acessos em produção. Localmente os acessos vão para a tabela SQLite `acessos_log`. |
 | `RESEND_API_KEY` | Chave do Resend usada por `POST /api/enviar-orcamento-email` (botão "Enviar por E-mail"). Sem ela o botão responde que o envio está indisponível. |
 | `EMAIL_ADMIN_COPIA` | E-mail(s) da loja que recebem cópia oculta (Bcc) de cada orçamento enviado; vários separados por vírgula. O primeiro também vira o endereço de resposta. |
-| `EMAIL_REMETENTE` | Opcional. Remetente do e-mail; padrão `Gigaeletro <onboarding@resend.dev>` (modo de teste do Resend, que só entrega no e-mail dono da conta). Troque por um endereço `@gigaeletro.com.br` depois de verificar o domínio no Resend. |
+| `EMAIL_REMETENTE` | Opcional. Remetente do e-mail; padrão `Gigaeletro <orcamentos@gigaeletro.com.br>`. Precisa ser de um domínio verificado no Resend. Para testes sem domínio, use `Gigaeletro <onboarding@resend.dev>`, que só entrega no e-mail dono da conta. |
 
 Nunca versionar valores dessas variáveis; arquivos `.env*` estão no `.gitignore`.
 

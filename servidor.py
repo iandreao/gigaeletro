@@ -68,8 +68,8 @@ CAMPOS_AUDITORIA = ("data_hora", "quem_acessou", "dispositivo", "id_sessao")
 NOMES_DISPOSITIVO = ("Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03")
 CLIENTE_EXTERNO = "Cliente Externo"
 RESEND_URL = "https://api.resend.com/emails"
-# Modo de teste do Resend: só entrega no e-mail dono da conta até o domínio próprio ser verificado.
-EMAIL_REMETENTE_PADRAO = "Gigaeletro <onboarding@resend.dev>"
+# O domínio precisa estar verificado no Resend; EMAIL_REMETENTE troca o endereço sem mexer no código.
+EMAIL_REMETENTE_PADRAO = "Gigaeletro <orcamentos@gigaeletro.com.br>"
 EMAIL_ARQUIVO = "Pedido-de-Orcamento-Gigaeletro.pdf"
 EMAIL_CORPO_MAX = LIMITE_PDF * 4 // 3 + 16 * 1024
 EMAIL_JANELA = 10 * 60
@@ -2009,10 +2009,9 @@ def responder_enviar_orcamento_email(saida):
         "text": texto,
         "attachments": [{"filename": EMAIL_ARQUIVO, "content": base64.b64encode(conteudo).decode("ascii")}],
     }
-    # TEMPORÁRIO (sandbox do Resend): a cópia oculta é recusada se não for o dono da conta. Reative após verificar o domínio.
-    # copias = [email for email in emails_copia_admin() if email.lower() != destino.lower()]
-    # if copias:
-    #     payload["bcc"] = copias
+    copias = [email for email in emails_copia_admin() if email.lower() != destino.lower()]
+    if copias:
+        payload["bcc"] = copias
     if emails_copia_admin():
         payload["reply_to"] = emails_copia_admin()[0]
     try:
@@ -2021,8 +2020,9 @@ def responder_enviar_orcamento_email(saida):
         detalhe = erro.read(600).decode("utf-8", "replace")
         print("email: Resend recusou (%s) %s" % (erro.code, detalhe), file=sys.stderr, flush=True)
         mensagem = "Não foi possível enviar o e-mail agora. Tente novamente ou use o WhatsApp."
-        if "testing emails" in detalhe:
-            mensagem = "Envio por e-mail em fase de testes: por enquanto só o e-mail da loja recebe."
+        if erro.code in (401, 403):
+            # Chave, domínio ou remetente mal configurados: o cliente não resolve tentando de novo.
+            mensagem = "Envio por e-mail indisponível no momento. Use o WhatsApp."
         escrever_json(saida, {"ok": False, "erro": mensagem}, 502)
         return
     except (urllib.error.URLError, OSError, ValueError) as erro:
