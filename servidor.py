@@ -1890,9 +1890,27 @@ def email_destino(valor):
     return texto if len(texto) <= 120 and RE_EMAIL.fullmatch(texto) else ""
 
 
+def variavel_sem_aspas(nome):
+    # No painel da Vercel é comum colar o valor entre aspas, ou "limpar" o campo deixando só "".
+    return (os.environ.get(nome) or "").strip().strip("\"'").strip()
+
+
 def emails_copia_admin():
-    partes = (os.environ.get("EMAIL_ADMIN_COPIA") or "").replace(";", ",").split(",")
-    return [email for email in (email_destino(parte) for parte in partes) if email]
+    partes = variavel_sem_aspas("EMAIL_ADMIN_COPIA").replace(";", ",").split(",")
+    return [email for email in (email_destino(parte.strip().strip("\"'")) for parte in partes) if email]
+
+
+def remetente_email():
+    """EMAIL_REMETENTE no formato email@dominio ou Nome <email@dominio>; fora disso vale o padrão."""
+    valor = variavel_sem_aspas("EMAIL_REMETENTE")
+    if not valor:
+        return EMAIL_REMETENTE_PADRAO
+    nome, _, resto = valor.rpartition("<")
+    endereco = resto[:-1].strip() if resto.endswith(">") and nome.strip() else valor
+    if "<" in nome or ">" in nome or not email_destino(endereco):
+        print("email: EMAIL_REMETENTE fora do formato aceito; usando o remetente padrão", file=sys.stderr, flush=True)
+        return EMAIL_REMETENTE_PADRAO
+    return valor
 
 
 def envio_email_bloqueado(ip):
@@ -1967,7 +1985,7 @@ def disparar_resend(chave, payload):
 
 
 def responder_enviar_orcamento_email(saida):
-    chave = (os.environ.get("RESEND_API_KEY") or "").strip()
+    chave = variavel_sem_aspas("RESEND_API_KEY")
     if not chave:
         escrever_json(saida, {"ok": False, "erro": "Envio por e-mail indisponível no momento."}, 503)
         return
@@ -2002,7 +2020,7 @@ def responder_enviar_orcamento_email(saida):
     nome = " ".join(unicodedata.normalize("NFC", str(dados.get("nome") or "")).split())[:120]
     texto, corpo = mensagem_orcamento_email(nome)
     payload = {
-        "from": (os.environ.get("EMAIL_REMETENTE") or "").strip() or EMAIL_REMETENTE_PADRAO,
+        "from": remetente_email(),
         "to": [destino],
         "subject": "Seu pedido de orçamento - Gigaeletro",
         "html": corpo,
@@ -2020,7 +2038,7 @@ def responder_enviar_orcamento_email(saida):
         detalhe = erro.read(600).decode("utf-8", "replace")
         print("email: Resend recusou (%s) %s" % (erro.code, detalhe), file=sys.stderr, flush=True)
         mensagem = "Não foi possível enviar o e-mail agora. Tente novamente ou use o WhatsApp."
-        if erro.code in (401, 403):
+        if erro.code in (401, 403, 422):
             # Chave, domínio ou remetente mal configurados: o cliente não resolve tentando de novo.
             mensagem = "Envio por e-mail indisponível no momento. Use o WhatsApp."
         escrever_json(saida, {"ok": False, "erro": mensagem}, 502)
