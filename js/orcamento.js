@@ -77,8 +77,8 @@ document.addEventListener("DOMContentLoaded", function () {
   var restritaErro = document.querySelector("[data-restrita-erro]");
   var enviar = document.querySelector("[data-enviar]");
   var enviarEmail = document.querySelector("[data-enviar-email]");
-  /* Desligado até o domínio ser verificado no Resend; mude para true para liberar o botão. */
-  var EMAIL_ATIVO = false;
+  /* Mude para false para desligar o botão Enviar por E-mail sem remover o código. */
+  const EMAIL_ATIVO = true;
   var limparOrcamento = document.querySelector("[data-limpar-orcamento]");
   var status = document.querySelector("[data-cart-status]");
   var formCliente = document.querySelector("[data-cliente]");
