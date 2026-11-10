@@ -71,7 +71,7 @@ RESEND_URL = "https://api.resend.com/emails"
 # O domínio precisa estar verificado no Resend; EMAIL_REMETENTE troca o endereço sem mexer no código.
 EMAIL_REMETENTE_PADRAO = "Gigaeletro <orcamentos@gigaeletro.com.br>"
 EMAIL_ARQUIVO = "Pedido-de-Orcamento-Gigaeletro.pdf"
-EMAIL_CORPO_MAX = LIMITE_PDF * 4 // 3 + 16 * 1024
+EMAIL_CORPO_MAX = LIMITE_PDF * 4 // 3 + 256 * 1024
 EMAIL_JANELA = 10 * 60
 EMAIL_POR_JANELA = 5
 EMAIL_ENVIOS = {}
@@ -1382,6 +1382,17 @@ def registrar_intencoes(corpo):
     return registro
 
 
+def pedido_painel_valido(corpo):
+    if not isinstance(corpo, dict) or not str(corpo.get("nome") or "").strip():
+        return False
+    documento = apenas_digitos(corpo.get("documento") or "")
+    return (
+        (cpf_valido(documento) or cnpj_valido(documento))
+        and telefone_painel_valido(apenas_digitos(corpo.get("telefone") or ""))
+        and bool(normalizar_itens_painel(corpo.get("itens")))
+    )
+
+
 def incluir_orcamento_painel(corpo):
     if not isinstance(corpo, dict):
         return None
@@ -2014,10 +2025,29 @@ def responder_enviar_orcamento_email(saida):
     if not conteudo:
         escrever_json(saida, {"ok": False, "erro": "Não foi possível ler o PDF do orçamento."}, 400)
         return
+    pedido = dados.get("painel")
+    if not pedido_painel_valido(pedido):
+        escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
+        return
     if envio_email_bloqueado(ip_do_cliente(saida)):
         escrever_json(saida, {"ok": False, "erro": "Muitos envios em sequência. Tente novamente em alguns minutos."}, 429)
         return
     nome = " ".join(unicodedata.normalize("NFC", str(dados.get("nome") or "")).split())[:120]
+    pedido = dict(pedido)
+    try:
+        pedido["pdfId"] = guardar_pdf(nome or pedido.get("nome"), conteudo)
+    except (ValueError, OSError) as erro:
+        # Como no WhatsApp: sem o PDF publicado, o orçamento entra no painel sem o link.
+        print("email: PDF não guardado (%s)" % erro, file=sys.stderr, flush=True)
+        pedido["pdfId"] = ""
+    try:
+        registro = incluir_orcamento_painel(pedido)
+    except OSError as erro:
+        print("email: painel não gravado (%s)" % erro, file=sys.stderr, flush=True)
+        registro = None
+    if not registro:
+        escrever_json(saida, {"ok": False, "erro": "Não foi possível registrar o orçamento. Tente novamente ou use o WhatsApp."}, 500)
+        return
     texto, corpo = mensagem_orcamento_email(nome)
     payload = {
         "from": remetente_email(),
@@ -2037,6 +2067,7 @@ def responder_enviar_orcamento_email(saida):
     except urllib.error.HTTPError as erro:
         detalhe = erro.read(600).decode("utf-8", "replace")
         print("email: Resend recusou (%s) %s" % (erro.code, detalhe), file=sys.stderr, flush=True)
+        desfazer_orcamento_email(registro)
         mensagem = "Não foi possível enviar o e-mail agora. Tente novamente ou use o WhatsApp."
         if erro.code in (401, 403, 422):
             # Chave, domínio ou remetente mal configurados: o cliente não resolve tentando de novo.
@@ -2045,9 +2076,19 @@ def responder_enviar_orcamento_email(saida):
         return
     except (urllib.error.URLError, OSError, ValueError) as erro:
         print("email: falha ao falar com o Resend (%s)" % erro, file=sys.stderr, flush=True)
+        desfazer_orcamento_email(registro)
         escrever_json(saida, {"ok": False, "erro": "Não foi possível enviar o e-mail agora. Tente novamente ou use o WhatsApp."}, 502)
         return
-    escrever_json(saida, {"ok": True, "id": str(retorno.get("id") or "")})
+    registrar_metrica(registro)
+    escrever_json(saida, {"ok": True, "id": registro["id"], "pdfId": registro["pdfId"], "emailId": str(retorno.get("id") or "")})
+
+
+def desfazer_orcamento_email(registro):
+    # O cliente vai tentar de novo ou usar o WhatsApp; manter o registro duplicaria o orçamento no painel.
+    try:
+        excluir_orcamento_painel(registro["id"])
+    except OSError as erro:
+        print("email: orçamento %s ficou no painel sem o e-mail (%s)" % (registro["id"], erro), file=sys.stderr, flush=True)
 
 
 def linha_auditoria(dados):

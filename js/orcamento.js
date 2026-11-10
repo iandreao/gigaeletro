@@ -806,7 +806,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function enviarWhatsApp() {
-    if (envioEmCurso) return;
+    if (envioEmCurso || envioEmailEmCurso) return;
     setCatalogo(false);
     /* Enviar por WhatsApp só segue com o formulário amarelo completo e válido. */
     var pendente = primeiroCampoIncompleto();
@@ -963,6 +963,11 @@ document.addEventListener("DOMContentLoaded", function () {
       enviarEmail.disabled = true;
       enviarEmail.textContent = "Enviando...";
     }
+    if (enviar) enviar.disabled = true;
+    cliente.tipo = tipoPessoa();
+    var painel = dadosPainel(cliente, "");
+    var antigo = orcamentoSendoEditadoId;
+    var documentoAntigo = orcamentoSendoEditadoDocumento || apenasDigitos(cliente.documento);
     var armadilha = formCliente && formCliente.elements.sobrenome_confirmacao;
     pdfEmBase64(pdf).then(function (base64) {
       return fetch("/api/enviar-orcamento-email", {
@@ -972,15 +977,20 @@ document.addEventListener("DOMContentLoaded", function () {
           email: destino,
           nome: cliente.nome,
           pdf: base64,
+          painel: painel,
           site: armadilha ? String(armadilha.value || "") : ""
         })
       });
     }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (corpo) {
         if (!resposta.ok || !corpo || !corpo.ok) throw { erroServidor: corpo && corpo.erro };
+        return String(corpo.id || "");
       });
-    }).then(function () {
-      soltarBotaoEmail();
+    }).then(function (idPainel) {
+      envioEmailEmCurso = false;
+      if (enviarEmail) enviarEmail.textContent = "Enviar por E-mail";
+      if (idPainel && antigo && antigo !== idPainel) descartarPainelEditado(antigo, documentoAntigo);
+      limparDepoisDoEnvio();
       mostrarAviso("Orçamento enviado para " + destino);
     }, function (falha) {
       soltarBotaoEmail();
@@ -988,8 +998,8 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  function gravarPainelGestor(cliente, pdfId) {
-    var corpo = {
+  function dadosPainel(cliente, pdfId) {
+    return {
       nome: cliente.nome,
       documento: apenasDigitos(cliente.documento),
       telefone: apenasDigitos(cliente.celular),
@@ -1012,10 +1022,13 @@ document.addEventListener("DOMContentLoaded", function () {
         };
       }).filter(function (item) { return item.produto; }))
     };
+  }
+
+  function gravarPainelGestor(cliente, pdfId) {
     return fetch("/api/orcamentos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(corpo)
+      body: JSON.stringify(dadosPainel(cliente, pdfId))
     }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
         if (!resposta.ok || !publicado || !publicado.ok) return "";
@@ -1522,7 +1535,7 @@ document.addEventListener("DOMContentLoaded", function () {
     acompanharCliente(false);
     if (limparOrcamento) limparOrcamento.hidden = !carrinhoValido();
     if (enviarEmail && !envioEmailEmCurso) enviarEmail.disabled = !EMAIL_ATIVO || envioEmCurso || !carrinhoValido();
-    if (!enviar || envioEmCurso) return;
+    if (!enviar || envioEmCurso || envioEmailEmCurso) return;
     var quadro = document.querySelector(".quote-side") || document.querySelector("#carrinho");
     var listaVozNaTela = !!(quadro && String(quadro.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1);
     if (itensVoz().length >= 1 || listaVozNaTela) {
