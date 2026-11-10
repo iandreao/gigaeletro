@@ -2009,9 +2009,10 @@ def responder_enviar_orcamento_email(saida):
         "text": texto,
         "attachments": [{"filename": EMAIL_ARQUIVO, "content": base64.b64encode(conteudo).decode("ascii")}],
     }
-    copias = [email for email in emails_copia_admin() if email.lower() != destino.lower()]
-    if copias:
-        payload["bcc"] = copias
+    # TEMPORÁRIO (sandbox do Resend): a cópia oculta é recusada se não for o dono da conta. Reative após verificar o domínio.
+    # copias = [email for email in emails_copia_admin() if email.lower() != destino.lower()]
+    # if copias:
+    #     payload["bcc"] = copias
     if emails_copia_admin():
         payload["reply_to"] = emails_copia_admin()[0]
     try:
