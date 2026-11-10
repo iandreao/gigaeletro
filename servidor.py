@@ -1407,7 +1407,8 @@ def motivo_pedido_invalido(corpo):
     return "itens"
 
 
-def incluir_orcamento_painel(corpo):
+def incluir_orcamento_painel(corpo, meio_envio=""):
+    """meio_envio vem da rota ("WhatsApp" ou "E-mail"), nunca do corpo enviado pelo navegador."""
     if not isinstance(corpo, dict):
         return None
     nome = str(corpo.get("nome") or "").strip()[:120]
@@ -1433,6 +1434,7 @@ def incluir_orcamento_painel(corpo):
         "cliente": cliente_do_painel(corpo, nome, documento, telefone),
         "status": "Pendente",
         "vendedor": "",
+        "meio_envio": meio_envio,
     }
     with PAINEL_LOCK:
         lista = ler_painel()
@@ -2061,7 +2063,7 @@ def responder_enviar_orcamento_email(saida):
         print("email: PDF não guardado (%s)" % erro, file=sys.stderr, flush=True)
         pedido["pdfId"] = ""
     try:
-        registro = incluir_orcamento_painel(pedido)
+        registro = incluir_orcamento_painel(pedido, "E-mail")
     except OSError as erro:
         print("email: painel não gravado (%s)" % erro, file=sys.stderr, flush=True)
         registro = None
@@ -2301,7 +2303,7 @@ def responder_orcamentos(saida):
         escrever_json(saida, {"ok": True, "id": registro["pdfId"]})
         return
     try:
-        registro = incluir_orcamento_painel(corpo)
+        registro = incluir_orcamento_painel(corpo, "WhatsApp")
     except OSError:
         escrever_json(saida, {"ok": False, "erro": "Não foi possível gravar o orçamento."}, 500)
         return

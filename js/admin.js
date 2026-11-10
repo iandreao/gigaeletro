@@ -514,6 +514,11 @@
     });
   }
 
+  function meioEnvio(item) {
+    var meio = String((item && item.meio_envio) || "");
+    return meio === "WhatsApp" || meio === "E-mail" ? meio : "-";
+  }
+
   function renderOrcamentos(lista, concluida) {
     if (!listaGestor) return;
     orcamentosAtuais = lista;
@@ -526,6 +531,7 @@
         "<td>" + escapar(documentoVisivel(String(item.documento || ""))) + "</td>" +
         "<td>" + escapar(item.telefone) + "</td>" +
         '<td class="num">' + moedaPainel(item.total) + "</td>" +
+        '<td class="meio">' + escapar(meioEnvio(item)) + "</td>" +
         '<td class="status"><select class="gestor-status gestor-status-' + classeStatus(statusAtual(item)) + '" data-status data-id="' + id + '" data-anterior="' + escapar(statusAtual(item)) + '" aria-label="Status">' +
           opcoesSelect(STATUS_ORCAMENTO, statusAtual(item)) +
         "</select></td>" +

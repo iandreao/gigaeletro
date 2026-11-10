@@ -12,7 +12,8 @@
   font-size: 0.85rem;
 }
 .gestor-tabela th.acoes,
-.gestor-tabela td.acoes { white-space: nowrap; }
+.gestor-tabela td.acoes,
+.gestor-tabela td.meio { white-space: nowrap; }
 .gestor-tabela th.status,
 .gestor-tabela td.status,
 .gestor-tabela th.vendedor,

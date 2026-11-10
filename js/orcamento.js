@@ -2239,7 +2239,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function textoValidade(base) {
-    return "Os preços constantes deste orçamento têm validade para até o dia " + dataValidade(base) + ". O estoque e o frete serão confirmados no Whatsapp.";
+    return "Os preços constantes deste orçamento têm validade para até o dia " + dataValidade(base) + ". O estoque e o frete serão confirmados no WhatsApp ou no E-mail.";
   }
 
   function atualizarValidadeTela() {
