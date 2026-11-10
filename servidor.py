@@ -1393,6 +1393,20 @@ def pedido_painel_valido(corpo):
     )
 
 
+def motivo_pedido_invalido(corpo):
+    """Só o nome do campo recusado: o log não guarda dados do cliente."""
+    if not isinstance(corpo, dict):
+        return "formato"
+    documento = apenas_digitos(corpo.get("documento") or "")
+    if not str(corpo.get("nome") or "").strip():
+        return "nome"
+    if not (cpf_valido(documento) or cnpj_valido(documento)):
+        return "documento"
+    if not telefone_painel_valido(apenas_digitos(corpo.get("telefone") or "")):
+        return "telefone"
+    return "itens"
+
+
 def incluir_orcamento_painel(corpo):
     if not isinstance(corpo, dict):
         return None
@@ -2026,7 +2040,13 @@ def responder_enviar_orcamento_email(saida):
         escrever_json(saida, {"ok": False, "erro": "Não foi possível ler o PDF do orçamento."}, 400)
         return
     pedido = dados.get("painel")
+    if pedido is None:
+        # Aba aberta antes do deploy: o script antigo não manda cliente e itens para o painel.
+        print("email: pedido sem os dados do painel (script desatualizado no navegador)", file=sys.stderr, flush=True)
+        escrever_json(saida, {"ok": False, "erro": "Esta página está desatualizada. Recarregue a página (F5) e envie novamente."}, 409)
+        return
     if not pedido_painel_valido(pedido):
+        print("email: dados do painel recusados (%s)" % motivo_pedido_invalido(pedido), file=sys.stderr, flush=True)
         escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
         return
     if envio_email_bloqueado(ip_do_cliente(saida)):
