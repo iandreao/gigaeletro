@@ -1099,3 +1099,47 @@ body.home .cliente-form input::placeholder {
   white-space: nowrap;
   font-size: clamp(0.7rem, calc(4.75cqi - 1.7px), 1.0625rem);
 }
+
+/*
+ * Zoom do navegador ou janela estreita: abaixo de 1280px úteis as três colunas espremem o formulário
+ * (telefone, e-mail e CEP cortados). A foto e o formulário seguem lado a lado e o Seu orçamento
+ * desce para a linha de baixo, na largura toda; a página volta a rolar em vez de cortar o conteúdo.
+ */
+@media (min-width: 981px) and (max-width: 1279px) {
+  body.home {
+    height: auto;
+    min-height: 100dvh;
+    overflow-x: clip;
+    overflow-y: auto;
+  }
+  body.home main,
+  body.home .hero {
+    flex: none;
+    height: auto;
+    overflow: visible;
+  }
+  body.home .hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    row-gap: 18px;
+    height: auto;
+    padding-right: 20px;
+    padding-bottom: 20px;
+  }
+  body.home .hero-par {
+    grid-column: 1;
+    grid-row: 1;
+    height: auto;
+  }
+  body.home .hero-foto { flex: 1 1 0; height: auto; }
+  body.home .hero-centro { flex: 0 0 clamp(400px, 46%, 520px); height: auto; }
+  body.home .quote-side {
+    grid-column: 1;
+    grid-row: 2;
+    height: auto;
+    min-height: 320px;
+    max-height: max(420px, 75dvh);
+    margin-right: 0;
+  }
+  body.home .quote-side .legal { max-width: none; }
+}

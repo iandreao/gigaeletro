@@ -511,6 +511,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if (fundo) fundo.hidden = !aberto;
     document.body.classList.toggle("catalogo-aberto", aberto);
     if (aberto) {
+      /* Fixo na tela e medido na abertura: com a página rolada (zoom ou tablet), a busca ficaria acima da tela. */
+      if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: "instant" });
       ancoraCatalogo = "orcamento";
       posicionarCatalogo("orcamento");
       if (buscaEl) buscaEl.focus();
