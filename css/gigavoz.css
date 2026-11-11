@@ -1143,3 +1143,99 @@ body.home .cliente-form input::placeholder {
   }
   body.home .quote-side .legal { max-width: none; }
 }
+
+/* Confirmação de identidade antes de abrir "Meus Orçamentos".
+   O modal vira coluna: em telas baixas só as opções rolam e o botão de confirmar continua à vista. */
+body.home .historico-modal:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+}
+body.home .historico-modal .drawer-head { flex: none; }
+body.home .historico-modal .historico-corpo {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+body.home .historico-busca,
+body.home .historico-vazio { flex: none; }
+body.home .historico-corpo:has(.historico-identidade:not([hidden])) .historico-instrucao { display: none; }
+body.home .historico-corpo:has(.historico-identidade:not([hidden])) .historico-busca { margin-top: 0.7rem; }
+body.home .historico-identidade {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0.85rem 0 0.2rem;
+  padding: 0.75rem 0.8rem 0.85rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.6rem;
+  background: #fafafa;
+}
+body.home .historico-identidade[hidden] { display: none; }
+body.home .historico-identidade [data-identidade-perguntas] {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+body.home .historico-identidade-titulo,
+body.home .historico-identidade .historico-erro,
+body.home .historico-identidade .btn { flex: none; }
+body.home .historico-identidade-titulo {
+  margin: 0 0 0.55rem;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+body.home .historico-pergunta {
+  min-width: 0;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  border: 0;
+}
+body.home .historico-pergunta legend {
+  margin-bottom: 0.3rem;
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+body.home .historico-pergunta label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 0.25rem;
+  padding: 0.38rem 0.6rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.45rem;
+  background: #fff;
+  font-size: 0.92rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+body.home .historico-pergunta label:has(input:checked) {
+  border-color: var(--yellow);
+  background: var(--yellow-50);
+}
+body.home .historico-pergunta input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 0;
+  accent-color: #111;
+}
+body.home .historico-identidade .historico-erro { margin: 0 0 0.5rem; }
+body.home .historico-identidade .btn {
+  width: 100%;
+  min-height: 44px;
+  margin: 0.2rem 0 0;
+}
+body.home .historico-identidade .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

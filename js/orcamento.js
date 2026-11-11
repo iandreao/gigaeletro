@@ -353,6 +353,7 @@ document.addEventListener("DOMContentLoaded", function () {
     historicoConsulta = [];
     historicoBuscando = false;
     historicoPedido += 1;
+    esconderIdentidade();
     var campoBusca = document.querySelector("[data-historico-documento]");
     var erroBusca = document.querySelector("[data-historico-erro]");
     if (campoBusca) campoBusca.value = "";
@@ -382,6 +383,12 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     }
     buscaHistorico.addEventListener("submit", buscarHistorico);
+  }
+
+  var formIdentidade = document.querySelector("[data-historico-identidade]");
+  if (formIdentidade) {
+    formIdentidade.addEventListener("change", atualizarConfirmarIdentidade);
+    formIdentidade.addEventListener("submit", confirmarIdentidade);
   }
 
   var recentesLista = document.querySelector("[data-recentes-lista]");
@@ -1981,19 +1988,32 @@ document.addEventListener("DOMContentLoaded", function () {
     documentoConsulta = docLimpo;
     historicoConsulta = [];
     historicoBuscando = true;
+    esconderIdentidade();
     if (erro) erro.hidden = true;
     renderRecentes();
     fetch("/api/orcamentos?documento=" + encodeURIComponent(docLimpo), { cache: "no-store" }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (corpo) {
-        if (!resposta.ok || !corpo || !corpo.ok || !Array.isArray(corpo.orcamentos)) {
-          throw new Error("busca");
-        }
-        return corpo.orcamentos;
+        if (!corpo || (!resposta.ok && !corpo.erro)) throw new Error("busca");
+        return corpo;
       });
-    }).then(function (lista) {
+    }).then(function (corpo) {
       if (pedido !== historicoPedido) return;
       historicoBuscando = false;
-      historicoConsulta = lista.map(registroHistorico).filter(function (item) { return item.id; });
+      if (!corpo.ok) {
+        documentoConsulta = "";
+        if (erro) {
+          erro.hidden = false;
+          erro.textContent = corpo.erro;
+        }
+        renderRecentes();
+        return;
+      }
+      if (corpo.verificacao) {
+        mostrarIdentidade(corpo.perguntas || {});
+        renderRecentes();
+        return;
+      }
+      historicoConsulta = (Array.isArray(corpo.orcamentos) ? corpo.orcamentos : []).map(registroHistorico).filter(function (item) { return item.id; });
       renderRecentes();
     }).catch(function () {
       if (pedido !== historicoPedido) return;
@@ -2004,6 +2024,122 @@ document.addEventListener("DOMContentLoaded", function () {
         erro.textContent = "Não foi possível consultar os orçamentos.";
       }
       renderRecentes();
+    });
+  }
+
+  var PERGUNTAS_IDENTIDADE = [
+    { campo: "telefone", titulo: "Confirme seu telefone:" },
+    { campo: "email", titulo: "Confirme seu e-mail:" }
+  ];
+  var identidadeCampos = [];
+  var identidadePendente = false;
+  var identidadeBloqueada = false;
+
+  function esconderIdentidade() {
+    identidadePendente = false;
+    identidadeBloqueada = false;
+    identidadeCampos = [];
+    var form = document.querySelector("[data-historico-identidade]");
+    var perguntas = document.querySelector("[data-identidade-perguntas]");
+    var erro = document.querySelector("[data-identidade-erro]");
+    if (form) form.hidden = true;
+    if (perguntas) perguntas.textContent = "";
+    if (erro) erro.hidden = true;
+  }
+
+  function mostrarIdentidade(perguntas) {
+    var form = document.querySelector("[data-historico-identidade]");
+    var caixa = document.querySelector("[data-identidade-perguntas]");
+    if (!form || !caixa) return;
+    caixa.textContent = "";
+    identidadeCampos = [];
+    PERGUNTAS_IDENTIDADE.forEach(function (pergunta) {
+      var opcoes = perguntas[pergunta.campo];
+      if (!Array.isArray(opcoes) || !opcoes.length) return;
+      identidadeCampos.push(pergunta.campo);
+      var grupo = document.createElement("fieldset");
+      grupo.className = "historico-pergunta";
+      var legenda = document.createElement("legend");
+      legenda.textContent = pergunta.titulo;
+      grupo.appendChild(legenda);
+      opcoes.forEach(function (opcao) {
+        var rotulo = document.createElement("label");
+        var radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "identidade-" + pergunta.campo;
+        radio.value = String(opcao);
+        var texto = document.createElement("span");
+        texto.textContent = String(opcao);
+        rotulo.appendChild(radio);
+        rotulo.appendChild(texto);
+        grupo.appendChild(rotulo);
+      });
+      caixa.appendChild(grupo);
+    });
+    identidadePendente = true;
+    form.hidden = false;
+    var erro = document.querySelector("[data-identidade-erro]");
+    if (erro) erro.hidden = true;
+    atualizarConfirmarIdentidade();
+  }
+
+  function respostaIdentidade(campo) {
+    var marcado = document.querySelector('[data-historico-identidade] input[name="identidade-' + campo + '"]:checked');
+    return marcado ? marcado.value : "";
+  }
+
+  function atualizarConfirmarIdentidade() {
+    var botao = document.querySelector("[data-identidade-confirmar]");
+    if (!botao) return;
+    botao.disabled = identidadeBloqueada || !identidadeCampos.length || identidadeCampos.some(function (campo) { return !respostaIdentidade(campo); });
+  }
+
+  function confirmarIdentidade(event) {
+    if (event) event.preventDefault();
+    var botao = document.querySelector("[data-identidade-confirmar]");
+    var erro = document.querySelector("[data-identidade-erro]");
+    if (!identidadePendente || !documentoConsulta || (botao && botao.disabled)) return;
+    var pedido = historicoPedido;
+    var corpo = { documento: documentoConsulta };
+    identidadeCampos.forEach(function (campo) { corpo[campo] = respostaIdentidade(campo); });
+    if (botao) {
+      botao.disabled = true;
+      botao.textContent = "Confirmando...";
+    }
+    if (erro) erro.hidden = true;
+    fetch("/api/validar-identidade-orcamento", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify(corpo)
+    }).then(function (resposta) {
+      return resposta.json().catch(function () { return null; }).then(function (dados) {
+        if (!dados) throw new Error("identidade");
+        return dados;
+      });
+    }).then(function (dados) {
+      if (pedido !== historicoPedido) return;
+      if (botao) botao.textContent = "Confirmar e Ver Orçamentos";
+      if (dados.ok && Array.isArray(dados.orcamentos)) {
+        esconderIdentidade();
+        historicoConsulta = dados.orcamentos.map(registroHistorico).filter(function (item) { return item.id; });
+        renderRecentes();
+        return;
+      }
+      if (erro) {
+        erro.hidden = false;
+        erro.textContent = dados.erro || "Não foi possível confirmar seus dados.";
+      }
+      if (dados.bloqueado) identidadeBloqueada = true;
+      atualizarConfirmarIdentidade();
+    }).catch(function () {
+      if (pedido !== historicoPedido) return;
+      if (botao) botao.textContent = "Confirmar e Ver Orçamentos";
+      if (erro) {
+        erro.hidden = false;
+        erro.textContent = "Não foi possível confirmar seus dados. Tente novamente.";
+      }
+      atualizarConfirmarIdentidade();
     });
   }
 
@@ -2108,7 +2244,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var vazio = document.querySelector("[data-historico-vazio]");
     if (!lista) return;
     lista.textContent = "";
-    if (!documentoConsulta) {
+    if (!documentoConsulta || identidadePendente) {
       if (vazio) vazio.hidden = true;
       return;
     }

@@ -17,6 +17,7 @@ import io
 import ipaddress
 import json
 import os
+import random
 import re
 import secrets
 import socket
@@ -78,6 +79,17 @@ EMAIL_JANELA = 10 * 60
 EMAIL_POR_JANELA = 5
 EMAIL_ENVIOS = {}
 EMAIL_LOCK = threading.Lock()
+# Confirmação de identidade em "Meus Orçamentos": opções mascaradas por campo e trava por CPF/CNPJ.
+# A trava fica no Redis (compartilhada entre as instâncias da Vercel); sem ele, na memória da instância.
+KBA_OPCOES = 4
+KBA_TENTATIVAS = 3
+KBA_BLOQUEIO = 15 * 60
+KBA_ERROS = {}
+KBA_LOCK = threading.Lock()
+KBA_PREFIXOS_EMAIL = (
+    "an", "ma", "jo", "ca", "lu", "ra", "fe", "pa", "ju", "ga", "be", "ro", "da", "le",
+    "mi", "al", "ed", "vi", "th", "br", "sa", "re", "gu", "fa", "ri", "ad", "ce", "di",
+)
 RE_EMAIL = re.compile(r"[^\s@<>,;:\"'()\[\]\\]+@[^\s@<>,;:\"'()\[\]\\]+\.[^\s@<>,;:\"'()\[\]\\]+")
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 IMPORTACAO = threading.Lock()
@@ -1257,6 +1269,113 @@ def documento_consulta_valido(documento):
     return ""
 
 
+def mascarar_telefone(valor):
+    digitos = apenas_digitos(str(valor or ""))
+    if len(digitos) in (12, 13) and digitos.startswith("55"):
+        digitos = digitos[2:]
+    if len(digitos) not in (10, 11):
+        return ""
+    numero = digitos[2:]
+    return "(%s) %s%s-%s" % (digitos[:2], numero[0], "*" * (len(numero) - 5), numero[-4:])
+
+
+def mascarar_email(valor):
+    local, arroba, dominio = str(valor or "").strip().lower().rpartition("@")
+    if not arroba or not local or "." not in dominio:
+        return ""
+    return (local[:2] if len(local) > 2 else local[:1]) + "***@" + dominio
+
+
+def dados_identidade(registros):
+    """Telefone e e-mail mascarados do orçamento mais recente que tiver cada um (registros já vêm do mais novo)."""
+    telefone = email = ""
+    for registro in registros:
+        cliente = registro.get("cliente") if isinstance(registro.get("cliente"), dict) else {}
+        if not telefone:
+            telefone = mascarar_telefone(registro.get("telefone") or cliente.get("celular"))
+        if not email:
+            email = mascarar_email(cliente.get("email") or registro.get("email"))
+        if telefone and email:
+            break
+    return {"telefone": telefone, "email": email}
+
+
+def opcao_falsa(real, campo, sorteio):
+    if campo == "telefone":
+        return real[:-4] + "%04d" % sorteio.randrange(10000)
+    visivel, _, dominio = real.partition("***@")
+    return sorteio.choice(KBA_PREFIXOS_EMAIL)[:len(visivel)] + "***@" + dominio
+
+
+def opcoes_identidade(documento, campo, real):
+    """As opções falsas saem de um HMAC do CPF/CNPJ: repetir a busca devolve sempre as mesmas, então
+    comparar duas consultas não revela qual é a verdadeira."""
+    semente = hmac.new(segredo_sessao(), ("kba|%s|%s" % (campo, documento)).encode("utf-8"), hashlib.sha256).digest()
+    sorteio = random.Random(semente)
+    opcoes = [real]
+    for _ in range(200):
+        if len(opcoes) >= KBA_OPCOES:
+            break
+        falsa = opcao_falsa(real, campo, sorteio)
+        if falsa not in opcoes:
+            opcoes.append(falsa)
+    sorteio.shuffle(opcoes)
+    return opcoes
+
+
+def chave_identidade(documento):
+    # Só o hash do CPF/CNPJ vai para o Redis.
+    return "kba:{giga}:" + hashlib.sha256(("kba:" + documento).encode("utf-8")).hexdigest()[:32]
+
+
+def contador_identidade(documento, incrementar=False):
+    """(tentativas sem acerto, segundos até o contador zerar). Cada INCR renova o prazo de KBA_BLOQUEIO,
+    então atingir KBA_TENTATIVAS bloqueia o CPF/CNPJ por esse prazo a partir da última tentativa."""
+    if endereco_redis():
+        chave = chave_identidade(documento)
+        try:
+            if incrementar:
+                total, _, prazo = redis_pipeline([["INCR", chave], ["EXPIRE", chave, KBA_BLOQUEIO], ["TTL", chave]])
+            else:
+                total, prazo = redis_pipeline([["GET", chave], ["TTL", chave]])
+            return int(total or 0), max(0, int(prazo or 0))
+        except Exception as erro:
+            print("identidade: Redis indisponível, trava na memória (%s)" % erro, file=sys.stderr, flush=True)
+    agora = time.time()
+    with KBA_LOCK:
+        estado = KBA_ERROS.get(documento)
+        if estado and estado["expira"] <= agora:
+            KBA_ERROS.pop(documento, None)
+            estado = None
+        if incrementar:
+            estado = {"total": (estado["total"] if estado else 0) + 1, "expira": agora + KBA_BLOQUEIO}
+            KBA_ERROS[documento] = estado
+        if not estado:
+            return 0, 0
+        return estado["total"], max(0, int(estado["expira"] - agora))
+
+
+def zerar_identidade(documento):
+    with KBA_LOCK:
+        KBA_ERROS.pop(documento, None)
+    if endereco_redis():
+        try:
+            redis_pipeline([["DEL", chave_identidade(documento)]])
+        except Exception as erro:
+            print("identidade: Redis indisponível ao zerar (%s)" % erro, file=sys.stderr, flush=True)
+
+
+def bloqueio_identidade(documento):
+    """Segundos restantes de bloqueio do CPF/CNPJ depois de KBA_TENTATIVAS erros seguidos."""
+    total, prazo = contador_identidade(documento)
+    return prazo if total >= KBA_TENTATIVAS else 0
+
+
+def aviso_bloqueio_identidade(segundos):
+    minutos = max(1, (segundos + 59) // 60)
+    return "Muitas tentativas incorretas para este CPF/CNPJ. Tente novamente em %d minuto%s." % (minutos, "" if minutos == 1 else "s")
+
+
 def cliente_do_painel(corpo, nome, documento, telefone):
     bruto = corpo.get("cliente") if isinstance(corpo.get("cliente"), dict) else {}
     tipo = str(bruto.get("tipo") or corpo.get("tipo") or "").strip().lower()
@@ -2238,6 +2357,85 @@ def responder_metricas_acesso(saida):
     escrever_json(saida, dados)
 
 
+IDENTIDADE_INDISPONIVEL = "Não foi possível confirmar sua identidade por aqui. Fale com a Gigaeletro pelo WhatsApp."
+
+
+def responder_desafio_identidade(saida, documento, lista):
+    """Primeira etapa do cliente: nunca devolve orçamentos, só as opções mascaradas de telefone e e-mail."""
+    registros = filtrar_painel(lista, documento)
+    if not registros:
+        escrever_json(saida, {"ok": True, "orcamentos": []})
+        return
+    restante = bloqueio_identidade(documento)
+    if restante:
+        escrever_json(saida, {"ok": False, "bloqueado": True, "erro": aviso_bloqueio_identidade(restante)}, 429)
+        return
+    reais = {campo: valor for campo, valor in dados_identidade(registros).items() if valor}
+    if not reais or not segredo_sessao():
+        escrever_json(saida, {"ok": False, "erro": IDENTIDADE_INDISPONIVEL}, 409)
+        return
+    perguntas = {campo: opcoes_identidade(documento, campo, valor) for campo, valor in reais.items()}
+    escrever_json(saida, {"ok": True, "verificacao": True, "perguntas": perguntas})
+
+
+def responder_validar_identidade(saida):
+    if saida.command != "POST":
+        saida.send_error(405)
+        return
+    bruto = ler_corpo(saida)
+    if bruto is None or len(bruto) > 4096:
+        escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
+        return
+    try:
+        corpo = json.loads(bruto.decode("utf-8") or "{}")
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
+        return
+    if not isinstance(corpo, dict):
+        escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
+        return
+    documento = documento_consulta_valido(corpo.get("documento"))
+    if not documento:
+        escrever_json(saida, {"ok": False, "erro": "CPF ou CNPJ inválido"}, 400)
+        return
+    restante = bloqueio_identidade(documento)
+    if restante:
+        escrever_json(saida, {"ok": False, "bloqueado": True, "erro": aviso_bloqueio_identidade(restante)}, 429)
+        return
+    try:
+        registros = filtrar_painel(ler_painel(), documento)
+    except OSError:
+        escrever_json(saida, {"ok": False, "erro": "Não foi possível consultar os orçamentos."}, 500)
+        return
+    reais = {campo: valor for campo, valor in dados_identidade(registros).items() if valor}
+    if not reais or not segredo_sessao():
+        escrever_json(saida, {"ok": False, "erro": IDENTIDADE_INDISPONIVEL}, 409)
+        return
+    # A tentativa é contada antes de conferir: pedidos em paralelo não passam todos pela verificação acima.
+    tentativa, prazo = contador_identidade(documento, incrementar=True)
+    if tentativa > KBA_TENTATIVAS:
+        escrever_json(saida, {"ok": False, "bloqueado": True, "erro": aviso_bloqueio_identidade(prazo or KBA_BLOQUEIO)}, 429)
+        return
+    acertou = all(
+        hmac.compare_digest(str(corpo.get(campo) or "").encode("utf-8"), valor.encode("utf-8"))
+        for campo, valor in reais.items()
+    )
+    if acertou:
+        zerar_identidade(documento)
+        escrever_json(saida, {"ok": True, "orcamentos": registros})
+        return
+    restantes = KBA_TENTATIVAS - tentativa
+    if restantes <= 0:
+        escrever_json(saida, {"ok": False, "bloqueado": True, "erro": aviso_bloqueio_identidade(prazo or KBA_BLOQUEIO)}, 429)
+        return
+    escrever_json(saida, {
+        "ok": False,
+        "restantes": restantes,
+        "erro": "Os dados selecionados não conferem. Resta%s %d tentativa%s." % (
+            "m" if restantes > 1 else "", restantes, "s" if restantes > 1 else ""),
+    }, 403)
+
+
 def responder_orcamentos(saida):
     if saida.command == "GET":
         admin = token_valido(cookie_de(saida.headers.get("Cookie")))
@@ -2251,17 +2449,15 @@ def responder_orcamentos(saida):
             escrever_json(saida, {"ok": False, "erro": "Não foi possível ler os orçamentos."}, 500)
             return
         documento = apenas_digitos(documento)
-        lixeira = False
-        if admin:
-            inicio = parametro_consulta(saida.path, "dataInicio")
-            fim = parametro_consulta(saida.path, "dataFim")
-            if not str(inicio or "").strip() and not str(fim or "").strip():
-                unico = parametro_consulta(saida.path, "data")
-                inicio = fim = unico
-            lixeira = parametro_consulta(saida.path, "lixeira") == "1"
-        else:
-            inicio = fim = ""
-            documento = documento_consulta_valido(documento)
+        if not admin:
+            responder_desafio_identidade(saida, documento_consulta_valido(documento), lista)
+            return
+        inicio = parametro_consulta(saida.path, "dataInicio")
+        fim = parametro_consulta(saida.path, "dataFim")
+        if not str(inicio or "").strip() and not str(fim or "").strip():
+            unico = parametro_consulta(saida.path, "data")
+            inicio = fim = unico
+        lixeira = parametro_consulta(saida.path, "lixeira") == "1"
         escrever_json(saida, {"ok": True, "orcamentos": filtrar_painel(lista, documento, inicio, fim, lixeira)})
         return
     if saida.command == "DELETE":
@@ -2532,6 +2728,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if caminho == "/api/orcamentos":
             responder_orcamentos(self)
+            return
+        if caminho == "/api/validar-identidade-orcamento":
+            responder_validar_identidade(self)
             return
         if caminho == "/api/registrar-acesso":
             responder_registrar_acesso(self)
