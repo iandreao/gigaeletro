@@ -1140,6 +1140,7 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         tipo: "intencoes",
+        meio_envio: "Comando de Voz",
         nome: cliente.nome,
         documento: cliente.documento,
         telefone: cliente.telefone,

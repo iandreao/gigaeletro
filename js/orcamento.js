@@ -967,7 +967,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     if (enviar) enviar.disabled = true;
     cliente.tipo = tipoPessoa();
-    var painel = dadosPainel(cliente, "");
+    var painel = dadosPainel(cliente, "", "E-mail");
     var antigo = orcamentoSendoEditadoId;
     var documentoAntigo = orcamentoSendoEditadoDocumento || apenasDigitos(cliente.documento);
     var armadilha = formCliente && formCliente.elements.sobrenome_confirmacao;
@@ -1000,8 +1000,9 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  function dadosPainel(cliente, pdfId) {
+  function dadosPainel(cliente, pdfId, meioEnvio) {
     return {
+      meio_envio: meioEnvio,
       nome: cliente.nome,
       documento: apenasDigitos(cliente.documento),
       telefone: apenasDigitos(cliente.celular),
@@ -1030,7 +1031,7 @@ document.addEventListener("DOMContentLoaded", function () {
     return fetch("/api/orcamentos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dadosPainel(cliente, pdfId))
+      body: JSON.stringify(dadosPainel(cliente, pdfId, "WhatsApp"))
     }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
         if (!resposta.ok || !publicado || !publicado.ok) return "";
@@ -2241,7 +2242,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function textoValidade(base) {
-    return "Os preços constantes deste orçamento têm validade para até o dia " + dataValidade(base) + ". O estoque e o frete serão confirmados no WhatsApp ou no E-mail.";
+    return "Os preços deste orçamento valem até " + dataValidade(base) + ". O estoque e o frete serão informados no WhatsApp ou no E-mail.";
   }
 
   function atualizarValidadeTela() {

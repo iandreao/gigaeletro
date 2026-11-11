@@ -51,6 +51,8 @@ PDF_LOCK = threading.Lock()
 PAINEL_LOCK = threading.Lock()
 PAINEL_BLOB = "orcamentos/painel.json"
 PAINEL_LIMITE = 2000
+MEIOS_ENVIO = ("WhatsApp", "E-mail", "Comando de Voz")
+MEIO_ENVIO_PADRAO = "WhatsApp"
 METRICAS_LOCK = threading.Lock()
 METRICAS_BLOB = "orcamentos/metricas.json"
 METRICAS_LIMITE = 5000
@@ -1375,7 +1377,8 @@ def registrar_intencoes(corpo):
     if not nome or not (cpf_valido(documento) or cnpj_valido(documento)) or not telefone_painel_valido(telefone):
         return None
     pedido["pdfId"] = guardar_pdf(nome, pdf_intencoes(nome, formatar_telefone(telefone), pedido["itens"]))
-    registro = incluir_orcamento_painel(pedido)
+    # A lista de voz entra no painel antes de o cliente escolher WhatsApp ou E-mail.
+    registro = incluir_orcamento_painel(pedido, meio_envio_da_rota("Comando de Voz", corpo))
     if not registro:
         return None
     registro["pdfId"] = pedido["pdfId"]
@@ -1407,10 +1410,20 @@ def motivo_pedido_invalido(corpo):
     return "itens"
 
 
-def incluir_orcamento_painel(corpo, meio_envio=""):
-    """meio_envio vem da rota ("WhatsApp" ou "E-mail"), nunca do corpo enviado pelo navegador."""
+def meio_envio_da_rota(rota, corpo=None):
+    """A rota define o canal; o meio_envio do navegador só é conferido, para o painel nunca ficar em branco."""
+    informado = str(corpo.get("meio_envio") or "").strip() if isinstance(corpo, dict) else ""
+    if informado and informado != rota:
+        print("painel: meio_envio %r difere da rota; gravado %r" % (informado[:20], rota), file=sys.stderr, flush=True)
+    return rota
+
+
+def incluir_orcamento_painel(corpo, meio_envio):
     if not isinstance(corpo, dict):
         return None
+    if meio_envio not in MEIOS_ENVIO:
+        print("painel: meio_envio %r inválido; gravado %r" % (str(meio_envio)[:20], MEIO_ENVIO_PADRAO), file=sys.stderr, flush=True)
+        meio_envio = MEIO_ENVIO_PADRAO
     nome = str(corpo.get("nome") or "").strip()[:120]
     documento = apenas_digitos(corpo.get("documento") or "")
     telefone = apenas_digitos(corpo.get("telefone") or "")
@@ -2063,7 +2076,7 @@ def responder_enviar_orcamento_email(saida):
         print("email: PDF não guardado (%s)" % erro, file=sys.stderr, flush=True)
         pedido["pdfId"] = ""
     try:
-        registro = incluir_orcamento_painel(pedido, "E-mail")
+        registro = incluir_orcamento_painel(pedido, meio_envio_da_rota("E-mail", pedido))
     except OSError as erro:
         print("email: painel não gravado (%s)" % erro, file=sys.stderr, flush=True)
         registro = None
@@ -2303,7 +2316,7 @@ def responder_orcamentos(saida):
         escrever_json(saida, {"ok": True, "id": registro["pdfId"]})
         return
     try:
-        registro = incluir_orcamento_painel(corpo, "WhatsApp")
+        registro = incluir_orcamento_painel(corpo, meio_envio_da_rota("WhatsApp", corpo))
     except OSError:
         escrever_json(saida, {"ok": False, "erro": "Não foi possível gravar o orçamento."}, 500)
         return

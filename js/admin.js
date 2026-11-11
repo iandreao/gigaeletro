@@ -516,7 +516,7 @@
 
   function meioEnvio(item) {
     var meio = String((item && item.meio_envio) || "");
-    return meio === "WhatsApp" || meio === "E-mail" ? meio : "-";
+    return meio === "WhatsApp" || meio === "E-mail" || meio === "Comando de Voz" ? meio : "-";
   }
 
   function renderOrcamentos(lista, concluida) {
