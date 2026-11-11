@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=16">
+  <link rel="stylesheet" href="css/admin.css?v=17">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -37,7 +37,7 @@
       </nav>
     </div>
     <div class="wrap gestor-topo-orc" data-visao="orcamentos">
-      <h1>Orçamentos recebidos</h1>
+      <h1 data-titulo-orcamentos>Orçamentos recebidos</h1>
       <form class="gestor-filtros" data-gestor-filtros>
         <label class="gestor-data">Data Início
           <input id="filtro-data-inicio" type="date" data-gestor-data-inicio>
@@ -66,6 +66,7 @@
           </select>
         </label>
         <button class="btn btn-preto gestor-buscar" type="submit">Buscar</button>
+        <button class="btn btn-line gestor-buscar gestor-lixeira" type="button" aria-pressed="false" data-gestor-lixeira>Ver Excluídos / Lixeira</button>
       </form>
     </div>
   </div>
@@ -222,6 +223,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=39"></script>
+  <script src="js/admin.js?v=40"></script>
 </body>
 </html>

@@ -11,6 +11,21 @@
   font: inherit;
   font-size: 0.85rem;
 }
+.gestor-filtros .gestor-lixeira { margin-bottom: 0; }
+.gestor-filtros .gestor-lixeira[aria-pressed="true"],
+.gestor-filtros .gestor-lixeira[aria-pressed="true"]:hover { background: var(--yellow); border-color: var(--yellow); }
+.gestor-acoes button[data-restaurar-orcamento] {
+  width: auto;
+  gap: 0.3rem;
+  padding: 0 0.5rem;
+  color: #15803d;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.gestor-acoes button[data-restaurar-orcamento]:hover,
+.gestor-acoes button[data-restaurar-orcamento]:focus-visible { color: #166534; background: #f0fdf4; }
+.gestor-tabela td.excluido-info { color: var(--gray-600, #4b5563); font-size: 0.8rem; }
 .gestor-tabela th.acoes,
 .gestor-tabela td.acoes,
 .gestor-tabela td.meio { white-space: nowrap; }

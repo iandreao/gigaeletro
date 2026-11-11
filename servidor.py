@@ -1221,7 +1221,8 @@ def normalizar_data_painel(valor):
     return ""
 
 
-def filtrar_painel(lista, documento, inicio="", fim=""):
+def filtrar_painel(lista, documento, inicio="", fim="", lixeira=False):
+    """lixeira=False devolve só os ativos; lixeira=True, só os excluídos."""
     documento = apenas_digitos(documento)
     bruto_inicio = str(inicio or "").strip()
     bruto_fim = str(fim or "").strip()
@@ -1231,6 +1232,8 @@ def filtrar_painel(lista, documento, inicio="", fim=""):
         return []
     saida = []
     for item in lista:
+        if bool(item.get("excluido")) != lixeira:
+            continue
         dia = normalizar_data_painel(item.get("data"))
         if inicio and (not dia or dia < inicio):
             continue
@@ -1281,7 +1284,8 @@ def cliente_do_painel(corpo, nome, documento, telefone):
     }
 
 
-def excluir_orcamento_painel(identificador, documento=""):
+def excluir_orcamento_painel(identificador, documento="", quem="gestor"):
+    """Exclusão lógica: o registro vai para a lixeira com cliente e itens intactos e pode ser restaurado."""
     identificador = str(identificador or "")
     documento = apenas_digitos(documento)
     if not id_painel_valido(identificador):
@@ -1293,9 +1297,38 @@ def excluir_orcamento_painel(identificador, documento=""):
             return None
         if documento and str(alvo.get("documento") or "") != documento:
             return None
-        restante = [item for item in lista if str(item.get("id") or "") != identificador]
-        gravar_painel(restante)
+        if not alvo.get("excluido"):
+            alvo["excluido"] = True
+            alvo["excluidoEm"] = agora_painel().isoformat(timespec="seconds")
+            alvo["excluidoPor"] = quem
+            gravar_painel(lista)
     return True
+
+
+def restaurar_orcamento_painel(identificador):
+    identificador = str(identificador or "")
+    if not id_painel_valido(identificador):
+        return False
+    with PAINEL_LOCK:
+        lista = ler_painel()
+        alvo = next((item for item in lista if str(item.get("id") or "") == identificador), None)
+        if alvo is None:
+            return None
+        if alvo.get("excluido"):
+            for campo in ("excluido", "excluidoEm", "excluidoPor"):
+                alvo.pop(campo, None)
+            gravar_painel(lista)
+    return True
+
+
+def remover_orcamento_painel(identificador):
+    """Remoção definitiva, só para desfazer um registro que nunca chegou ao cliente (e-mail recusado)."""
+    identificador = str(identificador or "")
+    with PAINEL_LOCK:
+        lista = ler_painel()
+        restante = [item for item in lista if str(item.get("id") or "") != identificador]
+        if len(restante) != len(lista):
+            gravar_painel(restante)
 
 
 def status_atendimento(valor):
@@ -1542,6 +1575,7 @@ def metrica_do_orcamento(registro):
     cliente = registro.get("cliente") or {}
     data = str(registro.get("data") or agora_painel().isoformat(timespec="seconds"))
     return {
+        "id": str(registro.get("id") or ""),
         "data": data,
         "dia": normalizar_data_painel(data) or hoje_painel(),
         "metodo": "gigavoz" if itens and voz * 2 > len(itens) else "tradicional",
@@ -1699,10 +1733,44 @@ def metricas_retroativas(metricas, inicio="", fim="", painel=None):
         instante = instante_painel(registro.get("data"))
         if corte is not None and (instante is None or instante >= corte):
             continue
-        if pre_registro_intencoes(registro):
+        if registro.get("excluido") or pre_registro_intencoes(registro):
             continue
         historico.append(metrica_do_orcamento(registro))
     return historico
+
+
+def metricas_validas(metricas, painel):
+    """O Painel Comercial só conta orçamentos ativos. Sai a métrica cujo orçamento está na lixeira ou já não
+    existe (apagado antes da lixeira ou substituído numa edição). Métricas mais antigas que o registro mais
+    antigo do painel ficam: o painel guarda só os últimos PAINEL_LIMITE e não dá para conferir."""
+    if not painel:
+        return metricas
+    ativos_id, ativos_data, excluidos_id, excluidos_data = set(), set(), set(), set()
+    for registro in painel:
+        excluido = bool(registro.get("excluido"))
+        (excluidos_id if excluido else ativos_id).add(str(registro.get("id") or ""))
+        (excluidos_data if excluido else ativos_data).add(str(registro.get("data") or ""))
+    instantes = [instante_painel(registro.get("data")) for registro in painel]
+    instantes = [valor for valor in instantes if valor is not None]
+    mais_antigo = min(instantes) if instantes else None
+    validas = []
+    for metrica in metricas:
+        identificador = str(metrica.get("id") or "")
+        data = str(metrica.get("data") or "")
+        if identificador:
+            if identificador in excluidos_id:
+                continue
+            ativo = identificador in ativos_id
+        else:
+            if data in excluidos_data and data not in ativos_data:
+                continue
+            ativo = data in ativos_data
+        if not ativo:
+            instante = instante_painel(data)
+            if mais_antigo is None or instante is None or instante >= mais_antigo:
+                continue
+        validas.append(metrica)
+    return validas
 
 
 def responder_dashboard(saida):
@@ -1721,13 +1789,15 @@ def responder_dashboard(saida):
     except OSError:
         painel = []
     historico = metricas_retroativas(lista, inicio, fim, painel)
-    completar_valores(lista, painel)
-    dados = estatisticas_dashboard(lista + historico, inicio, fim)
+    validas = metricas_validas(lista, painel)
+    completar_valores(validas, painel)
+    dados = estatisticas_dashboard(validas + historico, inicio, fim)
     if dados is None:
         escrever_json(saida, {"ok": False, "erro": "Período inválido."}, 400)
         return
     dados["ok"] = True
     dados["retroativos"] = len(historico)
+    dados["desconsiderados"] = len(lista) - len(validas)
     escrever_json(saida, dados)
 
 
@@ -2121,7 +2191,7 @@ def responder_enviar_orcamento_email(saida):
 def desfazer_orcamento_email(registro):
     # O cliente vai tentar de novo ou usar o WhatsApp; manter o registro duplicaria o orçamento no painel.
     try:
-        excluir_orcamento_painel(registro["id"])
+        remover_orcamento_painel(registro["id"])
     except OSError as erro:
         print("email: orçamento %s ficou no painel sem o e-mail (%s)" % (registro["id"], erro), file=sys.stderr, flush=True)
 
@@ -2242,16 +2312,18 @@ def responder_orcamentos(saida):
             escrever_json(saida, {"ok": False, "erro": "Não foi possível ler os orçamentos."}, 500)
             return
         documento = apenas_digitos(documento)
+        lixeira = False
         if admin:
             inicio = parametro_consulta(saida.path, "dataInicio")
             fim = parametro_consulta(saida.path, "dataFim")
             if not str(inicio or "").strip() and not str(fim or "").strip():
                 unico = parametro_consulta(saida.path, "data")
                 inicio = fim = unico
+            lixeira = parametro_consulta(saida.path, "lixeira") == "1"
         else:
             inicio = fim = ""
             documento = documento_consulta_valido(documento)
-        escrever_json(saida, {"ok": True, "orcamentos": filtrar_painel(lista, documento, inicio, fim)})
+        escrever_json(saida, {"ok": True, "orcamentos": filtrar_painel(lista, documento, inicio, fim, lixeira)})
         return
     if saida.command == "DELETE":
         admin = token_valido(cookie_de(saida.headers.get("Cookie")))
@@ -2264,7 +2336,7 @@ def responder_orcamentos(saida):
             escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
             return
         try:
-            removido = excluir_orcamento_painel(identificador, "" if admin else documento)
+            removido = excluir_orcamento_painel(identificador, "" if admin else documento, "gestor" if admin else "cliente")
         except OSError:
             escrever_json(saida, {"ok": False, "erro": "Não foi possível excluir o orçamento."}, 500)
             return
@@ -2284,6 +2356,23 @@ def responder_orcamentos(saida):
         corpo = json.loads(bruto.decode("utf-8") or "{}")
     except (UnicodeDecodeError, json.JSONDecodeError):
         escrever_json(saida, {"ok": False, "erro": "Não foi possível gravar o orçamento."}, 400)
+        return
+    if corpo.get("restaurar") is True:
+        if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+            escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
+            return
+        try:
+            restaurado = restaurar_orcamento_painel(corpo.get("id"))
+        except OSError:
+            escrever_json(saida, {"ok": False, "erro": "Não foi possível restaurar o orçamento."}, 500)
+            return
+        if restaurado is None:
+            escrever_json(saida, {"ok": False, "erro": "Orçamento não encontrado."}, 404)
+            return
+        if not restaurado:
+            escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
+            return
+        escrever_json(saida, {"ok": True})
         return
     if corpo.get("atendimento") is True:
         if not token_valido(cookie_de(saida.headers.get("Cookie"))):

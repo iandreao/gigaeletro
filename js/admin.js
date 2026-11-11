@@ -373,6 +373,9 @@
     if (tipo === "lixeira") {
       return '<svg ' + comum + '><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
     }
+    if (tipo === "desfazer") {
+      return '<svg ' + comum + '><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>';
+    }
     return '<svg ' + comum + '><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>';
   }
 
@@ -519,11 +522,38 @@
     return meio === "WhatsApp" || meio === "E-mail" || meio === "Comando de Voz" ? meio : "-";
   }
 
+  function infoExclusao(item) {
+    var texto = "Excluído";
+    if (item.excluidoEm) texto += " em " + dataVisivel(item.excluidoEm);
+    if (item.excluidoPor === "cliente") texto += " pelo cliente";
+    if (item.excluidoPor === "gestor") texto += " pelo gestor";
+    return texto;
+  }
+
+  function linhaLixeira(item) {
+    var id = escapar(item.id);
+    return '<tr class="gestor-excluido">' +
+      "<td>" + escapar(dataVisivel(item.data)) + "</td>" +
+      "<td>" + escapar(item.nome) + "</td>" +
+      "<td>" + escapar(documentoVisivel(String(item.documento || ""))) + "</td>" +
+      "<td>" + escapar(item.telefone) + "</td>" +
+      '<td class="num">' + moedaPainel(item.total) + "</td>" +
+      '<td class="meio">' + escapar(meioEnvio(item)) + "</td>" +
+      '<td class="status excluido-info">' + escapar(statusAtual(item)) + "</td>" +
+      '<td class="vendedor excluido-info">' + escapar(vendedorAtual(item) || "-") + "</td>" +
+      '<td class="acoes"><div class="gestor-acoes">' +
+        '<button type="button" data-ver-orcamento="' + id + '" aria-label="Visualizar" title="Visualizar">' + iconeAcao("olho") + "</button>" +
+        '<button type="button" data-restaurar-orcamento="' + id + '" title="' + escapar(infoExclusao(item)) + '">' + iconeAcao("desfazer") + "Restaurar</button>" +
+      "</div></td>" +
+    "</tr>";
+  }
+
   function renderOrcamentos(lista, concluida) {
     if (!listaGestor) return;
     orcamentosAtuais = lista;
     if (vazioGestor) vazioGestor.hidden = !concluida || lista.length > 0;
     listaGestor.innerHTML = lista.map(function (item) {
+      if (modoLixeira) return linhaLixeira(item);
       var id = escapar(item.id);
       return "<tr>" +
         "<td>" + escapar(dataVisivel(item.data)) + "</td>" +
@@ -548,14 +578,21 @@
   }
 
   var consultaPainel = 0;
+  var modoLixeira = false;
   var idsExcluidos = {};
+  var idsRestaurados = {};
+
+  function idsOcultos() {
+    return modoLixeira ? idsRestaurados : idsExcluidos;
+  }
 
   function aplicarFiltrosLocais(lista) {
     var filtros = lerFiltrosBusca();
     var status = filtros.status;
     var vendedor = filtros.vendedor;
+    var ocultos = idsOcultos();
     return (lista || []).filter(function (item) {
-      if (idsExcluidos[String(item.id)]) return false;
+      if (ocultos[String(item.id)]) return false;
       if (status && statusAtual(item) !== status) return false;
       if (vendedor && vendedorAtual(item) !== vendedor) return false;
       return true;
@@ -567,7 +604,7 @@
     if (vazioGestor) vazioGestor.hidden = true;
     var pedido = ++consultaPainel;
     var filtros = lerFiltrosBusca();
-    var url = "/api/orcamentos?dataInicio=" + encodeURIComponent(filtros.dataInicio) + "&dataFim=" + encodeURIComponent(filtros.dataFim) + "&cpf_cnpj=" + encodeURIComponent(filtros.cpf_cnpj);
+    var url = "/api/orcamentos?dataInicio=" + encodeURIComponent(filtros.dataInicio) + "&dataFim=" + encodeURIComponent(filtros.dataFim) + "&cpf_cnpj=" + encodeURIComponent(filtros.cpf_cnpj) + (modoLixeira ? "&lixeira=1" : "");
     console.log("[orcamentos] busca", filtros, url);
     fetch(url, { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
       if (resposta.status === 401) {
@@ -593,7 +630,8 @@
         return;
       }
       var lista = Array.isArray(corpo.orcamentos) ? corpo.orcamentos : [];
-      lista = lista.filter(function (atual) { return !idsExcluidos[String(atual.id)]; });
+      var ocultos = idsOcultos();
+      lista = lista.filter(function (atual) { return !ocultos[String(atual.id)]; });
       orcamentosCarregados = lista;
       cargaConcluida = true;
       var visiveis = aplicarFiltrosLocais(orcamentosCarregados);
@@ -657,16 +695,35 @@
         return;
       }
       var excluir = event.target.closest("[data-excluir-orcamento]");
-      if (excluir) excluirOrcamento(acharOrcamento(excluir.getAttribute("data-excluir-orcamento")));
+      if (excluir) {
+        excluirOrcamento(acharOrcamento(excluir.getAttribute("data-excluir-orcamento")));
+        return;
+      }
+      var restaurar = event.target.closest("[data-restaurar-orcamento]");
+      if (restaurar) restaurarOrcamento(acharOrcamento(restaurar.getAttribute("data-restaurar-orcamento")));
     });
   }
 
-  function excluirOrcamento(item) {
-    if (!item || !item.id) return;
-    var nome = String(item.nome || "este cliente");
-    if (!window.confirm("Excluir o orçamento de " + nome + "?")) return;
-    fetch("/api/orcamentos?id=" + encodeURIComponent(item.id), {
-      method: "DELETE",
+  var botaoLixeira = document.querySelector("[data-gestor-lixeira]");
+  var tituloOrcamentos = document.querySelector("[data-titulo-orcamentos]");
+  if (botaoLixeira) {
+    botaoLixeira.addEventListener("click", function () {
+      modoLixeira = !modoLixeira;
+      botaoLixeira.setAttribute("aria-pressed", modoLixeira ? "true" : "false");
+      botaoLixeira.textContent = modoLixeira ? "Voltar aos Orçamentos" : "Ver Excluídos / Lixeira";
+      if (tituloOrcamentos) tituloOrcamentos.textContent = modoLixeira ? "Lixeira: orçamentos excluídos" : "Orçamentos recebidos";
+      fecharDetalhe();
+      orcamentosCarregados = [];
+      renderOrcamentos([], false);
+      carregarOrcamentos();
+    });
+  }
+
+  function alterarOrcamento(item, requisicao, ocultosAqui, ocultosLa, erro) {
+    fetch(requisicao.url, {
+      method: requisicao.method,
+      headers: requisicao.body ? { "Content-Type": "application/json" } : undefined,
+      body: requisicao.body,
       cache: "no-store",
       credentials: "same-origin"
     }).then(function (resposta) {
@@ -675,21 +732,41 @@
         return null;
       }
       return resposta.json().catch(function () { return null; }).then(function (corpo) {
-        if (!resposta.ok || !corpo || !corpo.ok) throw new Error("excluir");
+        if (!resposta.ok || !corpo || !corpo.ok) throw new Error(erro);
         return corpo;
       });
     }).then(function (corpo) {
       if (!corpo) return;
       fecharDetalhe();
-      idsExcluidos[String(item.id)] = true;
+      ocultosAqui[String(item.id)] = true;
+      delete ocultosLa[String(item.id)];
       orcamentosCarregados = orcamentosCarregados.filter(function (atual) {
         return String(atual.id) !== String(item.id);
       });
       renderOrcamentos(aplicarFiltrosLocais(orcamentosCarregados), true);
       carregarOrcamentos();
     }).catch(function () {
-      window.alert("Não foi possível excluir o orçamento.");
+      window.alert(erro);
     });
+  }
+
+  function excluirOrcamento(item) {
+    if (!item || !item.id) return;
+    var nome = String(item.nome || "este cliente");
+    if (!window.confirm("Mover o orçamento de " + nome + " para a Lixeira?\nEle deixa de contar no Painel Comercial e pode ser restaurado depois.")) return;
+    alterarOrcamento(item, {
+      url: "/api/orcamentos?id=" + encodeURIComponent(item.id),
+      method: "DELETE"
+    }, idsExcluidos, idsRestaurados, "Não foi possível excluir o orçamento.");
+  }
+
+  function restaurarOrcamento(item) {
+    if (!item || !item.id) return;
+    alterarOrcamento(item, {
+      url: "/api/orcamentos",
+      method: "POST",
+      body: JSON.stringify({ restaurar: true, id: item.id })
+    }, idsRestaurados, idsExcluidos, "Não foi possível restaurar o orçamento.");
   }
   var dashDias = 30;
   var dashPedido = 0;
