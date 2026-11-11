@@ -1990,7 +1990,7 @@ def mensagem_orcamento_email(nome):
     texto = (
         saudacao + "\n\n"
         "Segue em anexo o seu pedido de orçamento da Gigaeletro.\n"
-        "Os preços têm validade de 15 dias. O estoque e o frete serão confirmados pelo WhatsApp (27) 99823-5652.\n\n"
+        "Os preços deste orçamento valem por 15 dias. O estoque e o frete serão informados no WhatsApp ou no E-mail.\n\n"
         "Gigaeletro Material Elétrico\n"
         "https://gigaeletro.com.br"
     )
@@ -1998,8 +1998,8 @@ def mensagem_orcamento_email(nome):
         '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#1a1a1a">'
         "<p>" + html.escape(saudacao) + "</p>"
         "<p>Segue em anexo o seu pedido de orçamento da <strong>Gigaeletro</strong>.</p>"
-        "<p>Os preços têm validade de 15 dias. O estoque e o frete serão confirmados pelo "
-        '<a href="https://wa.me/5527998235652">WhatsApp (27) 99823-5652</a>.</p>'
+        "<p>Os preços deste orçamento valem por 15 dias. O estoque e o frete serão informados no "
+        '<a href="https://wa.me/5527998235652">WhatsApp</a> ou no E-mail.</p>'
         '<p style="margin-top:24px">Gigaeletro Material Elétrico<br>'
         '<a href="https://gigaeletro.com.br">gigaeletro.com.br</a></p>'
         "</div>"
