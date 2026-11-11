@@ -2100,14 +2100,14 @@ document.addEventListener("DOMContentLoaded", function () {
     var erro = document.querySelector("[data-identidade-erro]");
     if (!identidadePendente || !documentoConsulta || (botao && botao.disabled)) return;
     var pedido = historicoPedido;
-    var corpo = { documento: documentoConsulta };
+    var corpo = { acao: "validar_identidade", documento: documentoConsulta };
     identidadeCampos.forEach(function (campo) { corpo[campo] = respostaIdentidade(campo); });
     if (botao) {
       botao.disabled = true;
       botao.textContent = "Confirmando...";
     }
     if (erro) erro.hidden = true;
-    fetch("/api/validar-identidade-orcamento", {
+    fetch("/api/orcamentos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       cache: "no-store",

@@ -2378,22 +2378,8 @@ def responder_desafio_identidade(saida, documento, lista):
     escrever_json(saida, {"ok": True, "verificacao": True, "perguntas": perguntas})
 
 
-def responder_validar_identidade(saida):
-    if saida.command != "POST":
-        saida.send_error(405)
-        return
-    bruto = ler_corpo(saida)
-    if bruto is None or len(bruto) > 4096:
-        escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
-        return
-    try:
-        corpo = json.loads(bruto.decode("utf-8") or "{}")
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
-        return
-    if not isinstance(corpo, dict):
-        escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
-        return
+def responder_validar_identidade(saida, corpo):
+    """POST /api/orcamentos com acao "validar_identidade": segunda etapa de "Meus Orçamentos"."""
     documento = documento_consulta_valido(corpo.get("documento"))
     if not documento:
         escrever_json(saida, {"ok": False, "erro": "CPF ou CNPJ inválido"}, 400)
@@ -2491,6 +2477,9 @@ def responder_orcamentos(saida):
         corpo = json.loads(bruto.decode("utf-8") or "{}")
     except (UnicodeDecodeError, json.JSONDecodeError):
         escrever_json(saida, {"ok": False, "erro": "Não foi possível gravar o orçamento."}, 400)
+        return
+    if isinstance(corpo, dict) and corpo.get("acao") == "validar_identidade":
+        responder_validar_identidade(saida, corpo)
         return
     if corpo.get("restaurar") is True:
         if not token_valido(cookie_de(saida.headers.get("Cookie"))):
@@ -2728,9 +2717,6 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if caminho == "/api/orcamentos":
             responder_orcamentos(self)
-            return
-        if caminho == "/api/validar-identidade-orcamento":
-            responder_validar_identidade(self)
             return
         if caminho == "/api/registrar-acesso":
             responder_registrar_acesso(self)
