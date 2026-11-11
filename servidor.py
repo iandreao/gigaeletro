@@ -1610,16 +1610,6 @@ def valor_da_metrica(metrica):
         return None
 
 
-def completar_valores(metricas, painel):
-    """Métricas gravadas antes do campo total recuperam o valor no registro do painel pela mesma data."""
-    if not painel:
-        return
-    valores = {str(registro.get("data") or ""): valor_do_registro(registro) for registro in painel}
-    for metrica in metricas:
-        if "total" not in metrica and metrica.get("data") in valores:
-            metrica["total"] = valores[metrica["data"]]
-
-
 def porcentagens(contagem, total, valores):
     return {
         chave: {
@@ -1698,14 +1688,6 @@ def estatisticas_dashboard(lista, inicio="", fim=""):
     }
 
 
-def pre_registro_intencoes(registro):
-    """O PDF de intenções do GigaVoz (só itens sem código) antecede o envio final, que já é contado."""
-    itens = registro.get("itens") or []
-    return bool(itens) and all(
-        not str(item.get("codigo") or "").strip() and not item.get("preco") for item in itens
-    )
-
-
 def instante_painel(valor):
     try:
         return datetime.fromisoformat(str(valor or "")).timestamp()
@@ -1713,64 +1695,26 @@ def instante_painel(valor):
         return None
 
 
-def metricas_retroativas(metricas, inicio="", fim="", painel=None):
-    """Converte o histórico do painel (anterior a metricas.json) no mesmo formato anônimo."""
-    instantes = [instante_painel(item.get("data")) for item in metricas]
-    instantes = [valor for valor in instantes if valor is not None]
-    corte = min(instantes) if instantes else None
-    dia_corte = min((item["dia"] for item in metricas), default="")
-    inicio = normalizar_data_painel(inicio)
-    fim = normalizar_data_painel(fim)
-    if dia_corte and inicio and inicio > dia_corte:
-        return []
-    historico = []
-    for registro in painel if painel is not None else ler_painel():
-        dia = normalizar_data_painel(registro.get("data"))
-        if not dia or (inicio and dia < inicio) or (fim and dia > fim):
-            continue
-        if dia_corte and dia > dia_corte:
-            continue
-        instante = instante_painel(registro.get("data"))
-        if corte is not None and (instante is None or instante >= corte):
-            continue
-        if registro.get("excluido") or pre_registro_intencoes(registro):
-            continue
-        historico.append(metrica_do_orcamento(registro))
-    return historico
-
-
 def metricas_validas(metricas, painel):
-    """O Painel Comercial só conta orçamentos ativos. Sai a métrica cujo orçamento está na lixeira ou já não
-    existe (apagado antes da lixeira ou substituído numa edição). Métricas mais antigas que o registro mais
-    antigo do painel ficam: o painel guarda só os últimos PAINEL_LIMITE e não dá para conferir."""
-    if not painel:
+    """O Painel Comercial conta os mesmos orçamentos da listagem ativa: todo registro do painel sem
+    excluido: true, inclusive os antigos sem id, sem meio_envio ou sem métrica gravada. metricas.json só
+    entra com o que o painel já descartou por ter passado de PAINEL_LIMITE."""
+    if painel is None:
         return metricas
-    ativos_id, ativos_data, excluidos_id, excluidos_data = set(), set(), set(), set()
-    for registro in painel:
-        excluido = bool(registro.get("excluido"))
-        (excluidos_id if excluido else ativos_id).add(str(registro.get("id") or ""))
-        (excluidos_data if excluido else ativos_data).add(str(registro.get("data") or ""))
+    ativos = [metrica_do_orcamento(registro) for registro in painel if not registro.get("excluido")]
+    if len(painel) < PAINEL_LIMITE:
+        return ativos
     instantes = [instante_painel(registro.get("data")) for registro in painel]
     instantes = [valor for valor in instantes if valor is not None]
-    mais_antigo = min(instantes) if instantes else None
-    validas = []
+    if not instantes:
+        return ativos
+    mais_antigo = min(instantes)
+    descartados = []
     for metrica in metricas:
-        identificador = str(metrica.get("id") or "")
-        data = str(metrica.get("data") or "")
-        if identificador:
-            if identificador in excluidos_id:
-                continue
-            ativo = identificador in ativos_id
-        else:
-            if data in excluidos_data and data not in ativos_data:
-                continue
-            ativo = data in ativos_data
-        if not ativo:
-            instante = instante_painel(data)
-            if mais_antigo is None or instante is None or instante >= mais_antigo:
-                continue
-        validas.append(metrica)
-    return validas
+        instante = instante_painel(metrica.get("data"))
+        if instante is not None and instante < mais_antigo:
+            descartados.append(metrica)
+    return descartados + ativos
 
 
 def responder_dashboard(saida):
@@ -1787,17 +1731,12 @@ def responder_dashboard(saida):
     try:
         painel = ler_painel()
     except OSError:
-        painel = []
-    historico = metricas_retroativas(lista, inicio, fim, painel)
-    validas = metricas_validas(lista, painel)
-    completar_valores(validas, painel)
-    dados = estatisticas_dashboard(validas + historico, inicio, fim)
+        painel = None
+    dados = estatisticas_dashboard(metricas_validas(lista, painel), inicio, fim)
     if dados is None:
         escrever_json(saida, {"ok": False, "erro": "Período inválido."}, 400)
         return
     dados["ok"] = True
-    dados["retroativos"] = len(historico)
-    dados["desconsiderados"] = len(lista) - len(validas)
     escrever_json(saida, dados)
 
 

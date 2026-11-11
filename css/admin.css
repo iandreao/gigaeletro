@@ -133,7 +133,7 @@ body.gestor .brand img {
 body.gestor .gestor-topo-orc h1 {
   max-width: min(14em, 100%);
   margin-bottom: 0.4rem;
-  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  font-size: 1.35rem;
   font-weight: 800;
   line-height: 1.05;
   letter-spacing: -0.035em;
