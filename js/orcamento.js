@@ -2122,7 +2122,7 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     }).then(function (dados) {
       if (pedido !== historicoPedido) return;
-      if (botao) botao.textContent = "Confirmar e Ver Orçamentos";
+      if (botao) botao.textContent = "Confirmar Dados";
       if (dados.ok && Array.isArray(dados.orcamentos)) {
         esconderIdentidade();
         historicoConsulta = dados.orcamentos.map(registroHistorico).filter(function (item) { return item.id; });
@@ -2137,7 +2137,7 @@ document.addEventListener("DOMContentLoaded", function () {
       atualizarConfirmarIdentidade();
     }).catch(function () {
       if (pedido !== historicoPedido) return;
-      if (botao) botao.textContent = "Confirmar e Ver Orçamentos";
+      if (botao) botao.textContent = "Confirmar Dados";
       if (erro) {
         erro.hidden = false;
         erro.textContent = "Não foi possível confirmar seus dados. Tente novamente.";

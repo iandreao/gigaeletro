@@ -404,14 +404,18 @@
 
   function centralizarModalHome(modal) {
     if (!modal || modal.hidden || modal.dataset.arrastado === "1" || modal.classList.contains("is-arrastando")) return;
-    var foto = document.querySelector(".hero-foto");
+    var foto = window.matchMedia("(min-width: 981px)").matches ? document.querySelector(".hero-foto") : null;
     var fotoDir = foto ? foto.getBoundingClientRect().right : 0;
+    var lateral = document.querySelector(".quote-side");
+    var lateralEsq = lateral ? lateral.getBoundingClientRect().left : 0;
+    /* Faixa central: da fachada até "Seu orçamento" quando ele está ao lado; senão, até a borda da tela. */
+    var faixaEsq = fotoDir > 0 ? fotoDir + 8 : 12;
+    var faixaDir = fotoDir > 0 && lateralEsq > faixaEsq ? lateralEsq - 8 : window.innerWidth - 12;
     var identidade = modal.querySelector("[data-historico-identidade]");
-    var teto = identidade && !identidade.hidden && window.innerWidth >= 768 ? 460 : 360;
-    var largura = Math.min(teto, Math.max(240, window.innerWidth - 24));
-    var esquerda = Math.round((window.innerWidth - largura) / 2);
-    var limite = Math.round(fotoDir + 16);
-    if (esquerda < limite) esquerda = limite;
+    var teto = identidade && !identidade.hidden && window.innerWidth >= 768 ? 390 : 360;
+    var largura = Math.min(teto, Math.max(240, faixaDir - faixaEsq));
+    var esquerda = Math.round(faixaEsq + (faixaDir - faixaEsq - largura) / 2);
+    if (esquerda < 12) esquerda = 12;
     var maximo = window.innerWidth - 12 - largura;
     if (esquerda > maximo) esquerda = Math.max(12, maximo);
     modal.style.left = esquerda + "px";
@@ -420,6 +424,16 @@
     modal.style.transform = "translateY(-50%)";
     modal.style.width = largura + "px";
     modal.style.maxWidth = largura + "px";
+    /* Com a fachada à vista e "Seu orçamento" abaixo da coluna central, o modal sobe para não cobri-lo. */
+    if (!lateral || fotoDir <= 0 || lateralEsq > faixaEsq) return;
+    var altura = modal.offsetHeight;
+    var cabecalho = document.querySelector(".site-header");
+    var topoMinimo = (cabecalho ? cabecalho.getBoundingClientRect().bottom : 0) + 8;
+    var baseMaxima = lateral.getBoundingClientRect().top - 8;
+    if ((window.innerHeight + altura) / 2 > baseMaxima && baseMaxima - altura >= topoMinimo) {
+      modal.style.top = Math.round(baseMaxima - altura) + "px";
+      modal.style.transform = "none";
+    }
   }
 
   function posicionarCatalogoColuna(modal) {
