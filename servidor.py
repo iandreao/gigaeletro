@@ -83,7 +83,7 @@ EMAIL_LOCK = threading.Lock()
 # A trava fica no Redis (compartilhada entre as instâncias da Vercel); sem ele, na memória da instância.
 KBA_OPCOES = 4
 KBA_TENTATIVAS = 3
-KBA_BLOQUEIO = 15 * 60
+KBA_BLOQUEIO = 5 * 60
 KBA_ERROS = {}
 KBA_LOCK = threading.Lock()
 KBA_PREFIXOS_EMAIL = (

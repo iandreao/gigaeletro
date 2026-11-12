@@ -406,7 +406,9 @@
     if (!modal || modal.hidden || modal.dataset.arrastado === "1" || modal.classList.contains("is-arrastando")) return;
     var foto = document.querySelector(".hero-foto");
     var fotoDir = foto ? foto.getBoundingClientRect().right : 0;
-    var largura = Math.min(360, Math.max(240, window.innerWidth - 24));
+    var identidade = modal.querySelector("[data-historico-identidade]");
+    var teto = identidade && !identidade.hidden && window.innerWidth >= 768 ? 460 : 360;
+    var largura = Math.min(teto, Math.max(240, window.innerWidth - 24));
     var esquerda = Math.round((window.innerWidth - largura) / 2);
     var limite = Math.round(fotoDir + 16);
     if (esquerda < limite) esquerda = limite;
@@ -464,7 +466,7 @@
       historico.dataset.gvCentro = "1";
       new MutationObserver(function () {
         window.requestAnimationFrame(function () { centralizarModalHome(historico); });
-      }).observe(historico, { attributes: true, attributeFilter: ["hidden"] });
+      }).observe(historico, { attributes: true, attributeFilter: ["hidden"], subtree: true });
     }
   }
   function posicionarGravador() {

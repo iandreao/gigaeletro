@@ -2062,6 +2062,9 @@ document.addEventListener("DOMContentLoaded", function () {
       var legenda = document.createElement("legend");
       legenda.textContent = pergunta.titulo;
       grupo.appendChild(legenda);
+      var grade = document.createElement("div");
+      grade.className = "historico-opcoes";
+      grupo.appendChild(grade);
       opcoes.forEach(function (opcao) {
         var rotulo = document.createElement("label");
         var radio = document.createElement("input");
@@ -2072,7 +2075,7 @@ document.addEventListener("DOMContentLoaded", function () {
         texto.textContent = String(opcao);
         rotulo.appendChild(radio);
         rotulo.appendChild(texto);
-        grupo.appendChild(rotulo);
+        grade.appendChild(rotulo);
       });
       caixa.appendChild(grupo);
     });
