@@ -1,4 +1,4 @@
-"""GET /api/admin/metricas-acesso na Vercel."""
+"""GET e POST (limpar_trafego) /api/admin/metricas-acesso na Vercel."""
 import sys
 from pathlib import Path
 
@@ -12,3 +12,6 @@ import servidor
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         servidor.responder_metricas_acesso(self)
+
+    def do_POST(self):
+        servidor.responder_limpar_acessos(self)

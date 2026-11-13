@@ -1973,10 +1973,29 @@ def sessao_acesso(valor):
     return texto if RE_SESSAO.fullmatch(texto) else ""
 
 
-def quem_acessou(valor):
-    """Só os nomes da equipe (links ?user=); qualquer outro valor vira Cliente Externo."""
+def nome_equipe(valor):
+    """Nome marcado no navegador (?equipe= ou login do admin): letras, números, espaço e . ' - _; até 30 caracteres."""
+    texto = re.sub(r"[^\w .'-]", "", unicodedata.normalize("NFC", str(valor or "")))
+    return re.sub(r"\s+", " ", texto).strip()[:30].strip()
+
+
+def quem_acessou(equipe, legado=""):
+    """Navegador marcado como da equipe vira "Interno (Nome)"; o resto é Cliente Externo."""
+    nome = nome_equipe(equipe)
+    if not nome:
+        legado = unicodedata.normalize("NFC", str(legado or "")).strip()
+        nome = legado if legado in NOMES_DISPOSITIVO else ""
+    return "Interno (%s)" % nome if nome else CLIENTE_EXTERNO
+
+
+def classificar_quem(valor):
+    """Registros antigos guardavam só o nome da equipe (links ?user=); hoje eles também são internos."""
     texto = unicodedata.normalize("NFC", str(valor or "")).strip()
-    return texto if texto in NOMES_DISPOSITIVO else CLIENTE_EXTERNO
+    if texto.startswith("Interno (") and texto.endswith(")"):
+        return texto
+    if texto in NOMES_DISPOSITIVO:
+        return "Interno (%s)" % texto
+    return CLIENTE_EXTERNO
 
 
 def conectar_acessos():
@@ -2044,7 +2063,7 @@ def responder_registrar_acesso(saida):
                 "data_hora": agora_painel().strftime("%Y-%m-%d %H:%M:%S"),
                 "ip_anonimizado": anonimizar_ip(ip_do_cliente(saida)),
                 "id_sessao": sessao_acesso(dados.get("sessao")),
-                "quem_acessou": quem_acessou(dados.get("quem")),
+                "quem_acessou": quem_acessou(dados.get("equipe"), dados.get("quem")),
                 "dispositivo": dispositivo_acesso(agente, dados.get("dispositivo")),
                 "origem": origem_acesso(dados.get("origem")),
             })
@@ -2255,7 +2274,10 @@ def desfazer_orcamento_email(registro):
 
 
 def linha_auditoria(dados):
-    return {campo: str(dados.get(campo) or "") for campo in CAMPOS_AUDITORIA}
+    linha = {campo: str(dados.get(campo) or "") for campo in CAMPOS_AUDITORIA}
+    linha["quem_acessou"] = classificar_quem(linha["quem_acessou"])
+    linha["tipo"] = "Externo" if linha["quem_acessou"] == CLIENTE_EXTERNO else "Interno"
+    return linha
 
 
 def ler_logs_redis(leituras):
@@ -2355,6 +2377,48 @@ def responder_metricas_acesso(saida):
         return
     dados["ok"] = True
     escrever_json(saida, dados)
+
+
+def limpar_acessos():
+    """Apaga o rastreamento: no Redis, as listas e sessões de cada dia do prazo de expiração; localmente, a tabela."""
+    if endereco_redis():
+        hoje = agora_painel().date()
+        chaves = []
+        for atras in range(-1, ACESSOS_EXPIRA // (24 * 60 * 60) + 2):
+            dia = (hoje - timedelta(days=atras)).isoformat()
+            chaves += [ACESSOS_CHAVE + "log:" + dia, ACESSOS_CHAVE + "sessoes:" + dia]
+        redis_pipeline([["DEL"] + chaves[inicio:inicio + 200] for inicio in range(0, len(chaves), 200)])
+        return
+    if em_vercel():
+        return
+    conn = conectar_acessos()
+    try:
+        conn.execute("DELETE FROM acessos_log")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def responder_limpar_acessos(saida):
+    """POST /api/admin/metricas-acesso com acao "limpar_trafego": zera o histórico do Rastreamento de Tráfego."""
+    corpo = ler_corpo(saida)
+    if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+        escrever_json(saida, {"ok": False, "erro": "Sessão do painel expirada. Entre novamente na Área Restrita."}, 401)
+        return
+    try:
+        dados = json.loads((corpo or b"").decode("utf-8") or "{}")
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        dados = None
+    if not isinstance(dados, dict) or dados.get("acao") != "limpar_trafego":
+        escrever_json(saida, {"ok": False, "erro": "Ação inválida."}, 400)
+        return
+    try:
+        limpar_acessos()
+    except Exception as erro:
+        print("acessos: falha ao limpar (%s)" % erro, file=sys.stderr, flush=True)
+        escrever_json(saida, {"ok": False, "erro": "Não foi possível limpar o histórico de tráfego."}, 500)
+        return
+    escrever_json(saida, {"ok": True})
 
 
 IDENTIDADE_INDISPONIVEL = "Não foi possível confirmar sua identidade por aqui. Fale com a Gigaeletro pelo WhatsApp."
@@ -2720,6 +2784,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if caminho == "/api/registrar-acesso":
             responder_registrar_acesso(self)
+            return
+        if caminho == "/api/admin/metricas-acesso":
+            responder_limpar_acessos(self)
             return
         if caminho == "/api/enviar-orcamento-email":
             responder_enviar_orcamento_email(self)

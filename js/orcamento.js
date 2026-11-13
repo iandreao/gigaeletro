@@ -1,11 +1,31 @@
-/* Telemetria de acessos: isolada do orçamento e silenciosa mesmo se a rota falhar. */
+/* Telemetria de acessos: isolada do orçamento e silenciosa mesmo se a rota falhar.
+   Cada navegador registra no máximo uma visita por dia em cada dispositivo (Desktop ou Mobile). */
 document.addEventListener("DOMContentLoaded", function () {
   var EQUIPE = ["Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03"];
+  var CHAVE_INTERNO = "gigaeletro_interno";
+  var CHAVE_VISITA = "gigaeletro_visita";
+  function lerLocal(chave) {
+    try {
+      return window.localStorage.getItem(chave) || "";
+    } catch (semArmazenamento) {
+      return "";
+    }
+  }
+  function gravarLocal(chave, valor) {
+    try {
+      if (valor) window.localStorage.setItem(chave, valor);
+      else window.localStorage.removeItem(chave);
+    } catch (semArmazenamento) {}
+  }
+  function hojeLocal() {
+    var agora = new Date();
+    return agora.getFullYear() + "-" + String(agora.getMonth() + 1).padStart(2, "0") + "-" + String(agora.getDate()).padStart(2, "0");
+  }
   function novaSessao() {
     if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID();
     return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
   }
-  /* Aceita ?user=julio, ?user=Balcao01 ou ?user=Balcão%2001 e devolve o nome oficial da equipe. */
+  /* Aceita julio, Balcao01 ou Balcão 01 e devolve o nome oficial da equipe. */
   function nomeDaEquipe(valor) {
     var chave = function (texto) {
       return String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "").toLowerCase();
@@ -16,9 +36,37 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     return "";
   }
+  /* Mesmas regras do servidor: letras, números, espaço e . ' - _, até 30 caracteres. */
+  function nomeInterno(valor) {
+    var texto = String(valor || "").normalize("NFC").replace(/[^\p{L}\p{N} .'_-]/gu, "").replace(/\s+/g, " ").trim().slice(0, 30).trim();
+    return nomeDaEquipe(texto) || texto;
+  }
   try {
     var parametros = new URLSearchParams(window.location.search);
     var origem = (parametros.get("ref") || parametros.get("utm_source") || "").trim() || "Direto";
+    /* ?equipe=Nome (ou o antigo ?user=Nome) marca este navegador como da equipe; ?equipe=sair desfaz. */
+    var marcacao = parametros.has("equipe") ? parametros.get("equipe") : parametros.get("user");
+    if (marcacao !== null) {
+      gravarLocal(CHAVE_INTERNO, marcacao.trim().toLowerCase() === "sair" ? "" : nomeInterno(marcacao));
+      parametros.delete("equipe");
+      parametros.delete("user");
+      var restante = parametros.toString();
+      window.history.replaceState(window.history.state, "", window.location.pathname + (restante ? "?" + restante : "") + window.location.hash);
+    }
+    var equipe = nomeInterno(lerLocal(CHAVE_INTERNO));
+    var toque = "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
+    var dispositivo = toque && window.innerWidth < 1024 ? "Mobile" : "Desktop";
+    var hoje = hojeLocal();
+    var visitas = {};
+    try {
+      visitas = JSON.parse(lerLocal(CHAVE_VISITA) || "{}") || {};
+    } catch (corrompido) {
+      visitas = {};
+    }
+    if (typeof visitas !== "object" || Array.isArray(visitas)) visitas = {};
+    var ultima = visitas[dispositivo];
+    /* Mudar a marcação de equipe no mesmo dia gera um novo registro, já com a identificação certa. */
+    if (ultima && ultima.dia === hoje && (ultima.equipe || "") === equipe) return;
     var sessao = "";
     try {
       sessao = window.sessionStorage.getItem("gigaeletro_sessao") || "";
@@ -29,19 +77,16 @@ document.addEventListener("DOMContentLoaded", function () {
     } catch (bloqueado) {
       sessao = sessao || novaSessao();
     }
-    var quem = nomeDaEquipe(parametros.get("user"));
-    try {
-      if (quem) window.sessionStorage.setItem("giga_user", quem);
-      else quem = nomeDaEquipe(window.sessionStorage.getItem("giga_user"));
-    } catch (semAcesso) {}
-    var toque = "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
-    var dispositivo = toque && window.innerWidth < 1024 ? "Mobile" : "Desktop";
     fetch("/api/registrar-acesso", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ origem: origem, sessao: sessao, quem: quem || "Cliente Externo", dispositivo: dispositivo }),
+      body: JSON.stringify({ origem: origem, sessao: sessao, equipe: equipe, dispositivo: dispositivo }),
       credentials: "same-origin",
       keepalive: true
+    }).then(function (resposta) {
+      if (!resposta.ok) return;
+      visitas[dispositivo] = { dia: hoje, equipe: equipe };
+      gravarLocal(CHAVE_VISITA, JSON.stringify(visitas));
     }).catch(function () {});
   } catch (falha) {}
 });

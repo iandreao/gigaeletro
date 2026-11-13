@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=18">
+  <link rel="stylesheet" href="css/admin.css?v=19">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -183,21 +183,29 @@
       </div>
       <p class="dash-numero trafego-resumo"><strong data-trafego-unicos>0</strong> <span data-trafego-resumo>usuário(s) único(s)</span></p>
       <div class="trafego-barra">
+        <label class="trafego-filtro">Tipo de tráfego
+          <select data-trafego-tipo aria-label="Filtrar por tipo de tráfego">
+            <option value="">Todos</option>
+            <option value="Externo">Externo (clientes)</option>
+            <option value="Interno">Interno (equipe)</option>
+          </select>
+        </label>
         <label class="trafego-filtro">Quem acessou
           <select data-trafego-quem aria-label="Filtrar por quem acessou">
             <option value="">Todos</option>
-            <option value="Cliente Externo">Cliente Externo</option>
-            <option value="Aceliani">Aceliani</option>
-            <option value="Julio">Julio</option>
-            <option value="Ivalino">Ivalino</option>
-            <option value="Caixa">Caixa</option>
-            <option value="Balcão 01">Balcão 01</option>
-            <option value="Balcão 02">Balcão 02</option>
-            <option value="Balcão 03">Balcão 03</option>
+          </select>
+        </label>
+        <label class="trafego-filtro">Dispositivo
+          <select data-trafego-dispositivo aria-label="Filtrar por dispositivo">
+            <option value="">Todos</option>
+            <option value="Desktop">Desktop</option>
+            <option value="Mobile">Mobile</option>
           </select>
         </label>
         <span class="trafego-filtro-resultado" data-trafego-filtro-resultado></span>
+        <button class="btn btn-line trafego-limpar" type="button" data-trafego-limpar>Limpar Histórico</button>
       </div>
+      <p class="trafego-divisao" data-trafego-divisao hidden></p>
       <p class="gestor-busca-aviso" data-trafego-aviso hidden></p>
       <p class="gestor-vazio" data-trafego-vazio hidden>Nenhum acesso registrado no período para este filtro.</p>
       <div class="gestor-tabela-box" data-trafego aria-busy="true">
@@ -205,6 +213,7 @@
           <thead>
             <tr>
               <th>Horário Exato</th>
+              <th>Tipo</th>
               <th>Quem Acessou</th>
               <th>Dispositivo</th>
             </tr>
@@ -223,6 +232,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=40"></script>
+  <script src="js/admin.js?v=41"></script>
 </body>
 </html>

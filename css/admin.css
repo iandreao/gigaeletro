@@ -353,6 +353,32 @@ body.gestor .dash-topo h1 { margin: 0; }
   font-weight: 700;
 }
 .trafego-filtro-resultado { padding-bottom: 0.55rem; color: var(--muted); font-size: 0.78rem; font-weight: 700; }
+.trafego-barra .trafego-limpar {
+  width: auto;
+  min-height: 36px;
+  margin: 0 0 0 auto;
+  padding: 0 0.9rem;
+  border-color: #fca5a5;
+  color: #b91c1c;
+  font-size: 0.8rem;
+}
+.trafego-barra .trafego-limpar:hover { background: #fef2f2; }
+.trafego-barra .trafego-limpar:disabled { opacity: 0.55; cursor: wait; }
+.trafego-divisao { flex: none; display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0 0 0.6rem; }
+.trafego-divisao[hidden] { display: none; }
+.trafego-tag {
+  display: inline-block;
+  padding: 0.12rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+.trafego-tag-externo { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
+.trafego-tag-interno { border-color: #fde68a; background: #fffbeb; color: #b45309; }
+.trafego-tag-desktop { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.trafego-tag-mobile { border-color: #e9d5ff; background: #faf5ff; color: #7e22ce; }
 @media (max-width: 760px) {
   .dash-grid { grid-template-columns: minmax(0, 1fr); }
   .dash-serie { height: 140px; }
