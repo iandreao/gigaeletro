@@ -5,8 +5,10 @@ inteira numa transação: DELETE FROM produtos, leitura do arquivo e inserção
 em lote. Se a leitura falhar, o ROLLBACK devolve o catálogo anterior.
 
 No computador o banco é data/gigaeletro.db. Na Vercel o disco do projeto é
-somente leitura, então o SQLite e a auditoria ficam em /tmp e o catálogo
-publicado (data/catalogo.json) continua sendo a fonte das 5476 linhas.
+somente leitura e o /tmp não é compartilhado entre instâncias: o SQLite só
+valida a planilha, e o catálogo processado é publicado no Blob
+(catalogo/catalogo.json). Enquanto nenhuma planilha foi publicada, vale o
+data/catalogo.json do deploy.
 """
 import base64
 import csv
@@ -52,6 +54,12 @@ PDF_LOCK = threading.Lock()
 PAINEL_LOCK = threading.Lock()
 PAINEL_BLOB = "orcamentos/painel.json"
 PAINEL_LIMITE = 2000
+# Na Vercel o /tmp é de uma instância só: o catálogo publicado pela área restrita fica no Blob.
+CATALOGO_BLOB = "catalogo/catalogo.json"
+# Cada instância reaproveita o catálogo baixado por esse prazo, para a home não baixar ~550 KB a cada visita.
+CATALOGO_CACHE_SEGUNDOS = 60
+CATALOGO_CACHE = {"conteudo": b"", "ate": 0.0}
+CATALOGO_CACHE_LOCK = threading.Lock()
 MEIOS_ENVIO = ("WhatsApp", "E-mail", "Comando de Voz")
 MEIO_ENVIO_PADRAO = "WhatsApp"
 # Mesmo CPF/CNPJ, itens e meio de envio nesse prazo é o mesmo envio repetido (duplo clique, reenvio da rede).
@@ -359,6 +367,8 @@ def substituir_catalogo(nome, conteudo, banco=None, catalogo=None):
             conn.close()
         produtos = listar_produtos(banco)
         publicar_json(produtos, catalogo)
+        if vivo:
+            publicar_catalogo_blob(produtos)
         resumo = {
             "ok": True,
             "quantidade": len(produtos),
@@ -386,7 +396,43 @@ def ler_planilha(nome, conteudo):
     return objetos_da_matriz(matriz)
 
 
+def publicar_catalogo_blob(produtos):
+    if not token_blob():
+        return
+    conteudo = json.dumps(produtos, ensure_ascii=False).encode("utf-8")
+    if not enviar_json_blob(CATALOGO_BLOB, conteudo):
+        raise OSError("blob")
+    with CATALOGO_CACHE_LOCK:
+        CATALOGO_CACHE.update(conteudo=conteudo, ate=time.time() + CATALOGO_CACHE_SEGUNDOS)
+
+
+def catalogo_publicado():
+    """JSON pronto do catálogo do site quando há Blob; None no computador, onde vale a tabela produtos."""
+    if not token_blob():
+        return None
+    agora = time.time()
+    with CATALOGO_CACHE_LOCK:
+        if CATALOGO_CACHE["conteudo"] and CATALOGO_CACHE["ate"] > agora:
+            return CATALOGO_CACHE["conteudo"]
+    conteudo = baixar_blob(CATALOGO_BLOB, consistente=True)
+    if conteudo is None:
+        # Blob fora do ar: fica o último catálogo que esta instância conhece.
+        return CATALOGO_CACHE["conteudo"] or FONTE_CATALOGO.read_bytes()
+    if not conteudo:
+        # Nenhuma planilha publicada ainda: vale o catálogo do deploy.
+        conteudo = FONTE_CATALOGO.read_bytes()
+    with CATALOGO_CACHE_LOCK:
+        CATALOGO_CACHE.update(conteudo=conteudo, ate=agora + CATALOGO_CACHE_SEGUNDOS)
+    return conteudo
+
+
 def decodificar(conteudo):
+    # Excel salva CSV em UTF-8 (com ou sem BOM) ou Windows-1252; "Texto Unicode" sai em UTF-16.
+    if conteudo[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        try:
+            return conteudo.decode("utf-16")
+        except UnicodeDecodeError:
+            pass
     for codec in ("utf-8-sig", "cp1252", "latin-1"):
         try:
             return conteudo.decode(codec)
@@ -401,9 +447,20 @@ def csv_para_matriz(texto):
         raise PlanilhaInvalida(
             "A planilha terminou no meio de um campo. O catálogo anterior foi mantido."
         )
-    amostra = "\n".join(texto.split("\n")[:20])
-    delimitador = ";" if amostra.count(";") > amostra.count(",") else ","
-    return [list(linha) for linha in csv.reader(io.StringIO(texto), delimiter=delimitador)]
+    return [list(linha) for linha in csv.reader(io.StringIO(texto), delimiter=delimitador_csv(texto))]
+
+
+def delimitador_csv(texto):
+    """";" do Excel em português, "," em inglês ou tabulação, decidido pela linha do cabeçalho:
+    as vírgulas decimais das linhas de preço não pesam na escolha."""
+    candidatos = (";", ",", "\t")
+    linhas = texto.split("\n")[:30]
+    for linha in linhas:
+        compacta = compactar(linha)
+        if "codigo" in compacta and ("prvenda" in compacta or "preco" in compacta):
+            return max(candidatos, key=lambda separador: len(next(csv.reader([linha], delimiter=separador), [])))
+    amostra = "\n".join(linhas)
+    return max(candidatos, key=amostra.count)
 
 
 def aspas_abertas(texto):
@@ -623,7 +680,10 @@ def ler_formulario(content_type, corpo):
 
 
 def escrever_json(saida, dados, status=200, extra=None):
-    corpo = json.dumps(dados, ensure_ascii=False).encode("utf-8")
+    escrever_json_pronto(saida, json.dumps(dados, ensure_ascii=False).encode("utf-8"), status, extra)
+
+
+def escrever_json_pronto(saida, corpo, status=200, extra=None):
     saida.send_response(status)
     saida.send_header("Content-Type", "application/json; charset=utf-8")
     saida.send_header("Content-Length", str(len(corpo)))
@@ -648,9 +708,14 @@ def ler_corpo(entrada):
 
 def responder_catalogo(saida):
     try:
-        escrever_json(saida, listar_produtos())
+        conteudo = catalogo_publicado()
+        if conteudo is None:
+            escrever_json(saida, listar_produtos())
+            return
     except Exception:
         escrever_json(saida, {"ok": False, "erro": "Não foi possível ler o catálogo."}, 500)
+        return
+    escrever_json_pronto(saida, conteudo)
 
 
 def responder_sessao(saida):
@@ -2776,7 +2841,10 @@ def responder_upload(saida):
         escrever_json(saida, {"ok": False, "erro": "Sessão do painel expirada. Entre novamente na Área Restrita."}, 401)
         return
     if corpo is None:
-        escrever_json(saida, {"ok": False, "erro": "A planilha passou do tamanho aceito."}, 400)
+        escrever_json(saida, {"ok": False, "erro": "A planilha passou do tamanho aceito. O catálogo anterior foi mantido."}, 413)
+        return
+    if em_vercel() and not token_blob():
+        escrever_json(saida, {"ok": False, "erro": "Armazenamento do catálogo (BLOB_READ_WRITE_TOKEN) não configurado no servidor. O catálogo anterior foi mantido."}, 503)
         return
     try:
         _senha, nome, arquivo = ler_formulario(saida.headers.get("Content-Type", ""), corpo or b"")
@@ -2791,8 +2859,13 @@ def responder_upload(saida):
     except PlanilhaInvalida as erro:
         escrever_json(saida, {"ok": False, "erro": str(erro)}, 400)
         return
-    except Exception:
-        escrever_json(saida, {"ok": False, "erro": "A leitura falhou e o catálogo anterior foi mantido."}, 400)
+    except OSError as erro:
+        print("catalogo: planilha lida, publicação falhou (%s)" % erro, file=sys.stderr, flush=True)
+        escrever_json(saida, {"ok": False, "erro": "A planilha foi lida, mas não foi possível publicar o catálogo no site. Tente novamente; o catálogo anterior continua no ar."}, 502)
+        return
+    except Exception as erro:
+        print("catalogo: falha inesperada (%s: %s)" % (type(erro).__name__, erro), file=sys.stderr, flush=True)
+        escrever_json(saida, {"ok": False, "erro": "Erro inesperado ao processar a planilha. O catálogo anterior foi mantido."}, 500)
         return
     escrever_json(saida, resumo)
 

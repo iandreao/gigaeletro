@@ -118,47 +118,91 @@
     });
   }
 
+  var TEXTO_PROCESSAR = "Processar e Atualizar Estoque no Site";
+  /* A Vercel recusa corpo acima de 4,5 MB antes de chegar ao servidor, com uma página que não é JSON. */
+  var LIMITE_PLANILHA = 4 * 1024 * 1024;
+  var PRAZO_PLANILHA = 90000;
+  var processandoPlanilha = false;
+
+  function avisoEstoque(texto, tipo) {
+    if (!status) return;
+    status.textContent = texto || "";
+    status.hidden = !texto;
+    status.classList.toggle("aviso-ok", tipo === "ok");
+    status.classList.toggle("aviso-erro", tipo === "erro");
+  }
+
+  function falhaHttpEstoque(codigo) {
+    if (codigo === 413) return "A planilha é grande demais para o envio. Salve em CSV só com as colunas Código, Nome, Estoque e PrVenda e tente de novo.";
+    if (codigo === 504) return "O servidor demorou demais para processar a planilha. O catálogo anterior foi mantido; tente novamente.";
+    return "O servidor não conseguiu processar a planilha (erro " + codigo + "). O catálogo anterior foi mantido.";
+  }
+
   prepararDrop(document.querySelector("[data-drop-admin]"), input, function (file) {
+    if (processandoPlanilha) return;
     planilhaEscolhida = file;
     if (nomeArquivo) {
       nomeArquivo.hidden = !file;
       nomeArquivo.textContent = file ? "Arquivo selecionado: " + file.name : "";
     }
     if (processar) processar.disabled = !file;
-    if (status) status.hidden = true;
+    avisoEstoque("");
   });
 
   if (processar) {
     processar.addEventListener("click", function () {
-      if (!planilhaEscolhida) return;
-      processar.disabled = true;
-      if (status) {
-        status.hidden = false;
-        status.textContent = "Limpando o catálogo e lendo a planilha…";
+      if (processandoPlanilha) return;
+      if (!planilhaEscolhida) {
+        avisoEstoque("Selecione a planilha CSV antes de processar.", "erro");
+        return;
       }
+      if (planilhaEscolhida.size > LIMITE_PLANILHA) {
+        avisoEstoque("A planilha tem " + (planilhaEscolhida.size / 1048576).toFixed(1).replace(".", ",") + " MB e o limite de envio é 4 MB. Salve em CSV só com as colunas Código, Nome, Estoque e PrVenda.", "erro");
+        return;
+      }
+      processandoPlanilha = true;
+      processar.disabled = true;
+      processar.textContent = "Processando...";
+      limparAuditoria();
+      avisoEstoque("Enviando e processando " + planilhaEscolhida.name + "…");
       var dados = new FormData();
       dados.append("arquivo", planilhaEscolhida, planilhaEscolhida.name);
-      fetch("/api/catalogo", { method: "POST", credentials: "same-origin", body: dados }).then(function (resposta) {
-        if (resposta.status === 401) {
-          mostrarLogin();
-          throw new Error("Sessão do painel expirada. Entre novamente na Área Restrita.");
-        }
-        return resposta.json().then(function (corpo) {
-          if (!resposta.ok || !corpo.ok) {
-            throw new Error(corpo.erro || "A leitura falhou e o catálogo anterior foi mantido.");
+      var controle = window.AbortController ? new AbortController() : null;
+      var prazo = controle ? window.setTimeout(function () { controle.abort(); }, PRAZO_PLANILHA) : 0;
+      fetch("/api/catalogo", {
+        method: "POST",
+        credentials: "same-origin",
+        body: dados,
+        signal: controle ? controle.signal : undefined
+      }).then(function (resposta) {
+        /* Páginas de erro da plataforma (413, 504) não são JSON: o aviso sai do código HTTP. */
+        return resposta.text().then(function (texto) {
+          var corpo = null;
+          try { corpo = JSON.parse(texto); } catch (semJson) { corpo = null; }
+          if (resposta.status === 401) {
+            mostrarLogin();
+            throw new Error("Sessão do painel expirada. Entre novamente na Área Restrita.");
           }
+          if (!corpo || typeof corpo !== "object") throw new Error(falhaHttpEstoque(resposta.status));
+          if (!resposta.ok || !corpo.ok) throw new Error(corpo.erro || falhaHttpEstoque(resposta.status));
           return corpo;
         });
+      }, function (falha) {
+        throw new Error(falha && falha.name === "AbortError"
+          ? "O servidor não respondeu em 90 segundos. Confira se o catálogo foi atualizado antes de tentar de novo."
+          : "Sem conexão com o servidor. Confira a internet e tente novamente. O catálogo anterior foi mantido.");
       }).then(function (corpo) {
-        if (status) status.hidden = true;
         mostrarAuditoria(corpo);
+        avisoEstoque("Estoque atualizado no site: " + (corpo.inseridos || 0) + " produtos publicados.", "ok");
         limparPlanilhaEscolhida();
       }).catch(function (falha) {
-        if (status) {
-          status.hidden = false;
-          status.textContent = falha && falha.message ? falha.message : "A leitura falhou e o catálogo anterior foi mantido.";
-        }
-        limparPlanilhaEscolhida();
+        /* A planilha continua escolhida para tentar de novo. */
+        avisoEstoque(falha && falha.message ? falha.message : "A leitura falhou e o catálogo anterior foi mantido.", "erro");
+      }).then(function () {
+        window.clearTimeout(prazo);
+        processandoPlanilha = false;
+        processar.textContent = TEXTO_PROCESSAR;
+        processar.disabled = !planilhaEscolhida;
       });
     });
   }

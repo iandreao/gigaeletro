@@ -379,6 +379,8 @@ body.gestor .dash-topo h1 { margin: 0; }
 .trafego-tag-interno { border-color: #fde68a; background: #fffbeb; color: #b45309; }
 .trafego-tag-desktop { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
 .trafego-tag-mobile { border-color: #e9d5ff; background: #faf5ff; color: #7e22ce; }
+[data-admin-status].aviso-ok { color: #15803d; }
+[data-admin-status].aviso-erro { color: #b91c1c; }
 @media (max-width: 760px) {
   .dash-grid { grid-template-columns: minmax(0, 1fr); }
   .dash-serie { height: 140px; }
