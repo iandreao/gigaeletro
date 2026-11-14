@@ -54,6 +54,10 @@ PAINEL_BLOB = "orcamentos/painel.json"
 PAINEL_LIMITE = 2000
 MEIOS_ENVIO = ("WhatsApp", "E-mail", "Comando de Voz")
 MEIO_ENVIO_PADRAO = "WhatsApp"
+# Mesmo CPF/CNPJ, itens e meio de envio nesse prazo é o mesmo envio repetido (duplo clique, reenvio da rede).
+PAINEL_REPETIDO = 10
+# A lista de voz confirmada entra no painel na hora; se o cliente a enviar depois, o envio assume esse registro.
+PAINEL_VOZ_JANELA = 30 * 60
 METRICAS_LOCK = threading.Lock()
 METRICAS_BLOB = "orcamentos/metricas.json"
 METRICAS_LIMITE = 5000
@@ -1450,6 +1454,13 @@ def remover_orcamento_painel(identificador):
             gravar_painel(restante)
 
 
+def devolver_orcamento_painel(original):
+    identificador = str(original.get("id") or "")
+    with PAINEL_LOCK:
+        lista = ler_painel()
+        gravar_painel([original if str(item.get("id") or "") == identificador else item for item in lista])
+
+
 def status_atendimento(valor):
     texto = str(valor or "").strip()
     if texto in ("Pendente", "Analisado", "Respondido"):
@@ -1533,7 +1544,8 @@ def registrar_intencoes(corpo):
     registro = incluir_orcamento_painel(pedido, meio_envio_da_rota("Comando de Voz", corpo))
     if not registro:
         return None
-    registro["pdfId"] = pedido["pdfId"]
+    if not registro.get("pdfId"):
+        registro["pdfId"] = pedido["pdfId"]
     return registro
 
 
@@ -1570,7 +1582,47 @@ def meio_envio_da_rota(rota, corpo=None):
     return rota
 
 
+def assinatura_itens(itens):
+    """Itens comparáveis entre a lista de voz e o envio: o código voz- e a ordem mudam ao passar pelo quadro."""
+    return sorted(
+        (" ".join(limpar_nome_intencao(item.get("produto")).casefold().split()), int(item.get("qtd") or 1), round(float(item.get("preco") or 0), 2))
+        for item in itens
+        if isinstance(item, dict)
+    )
+
+
+def segundos_desde(data, agora):
+    try:
+        return (agora - datetime.fromisoformat(str(data))).total_seconds()
+    except (TypeError, ValueError):
+        return None
+
+
+def orcamento_anterior(lista, registro):
+    """(registro já gravado, motivo): "repetido" para o mesmo envio de novo; "voz" para a lista de voz que este envio assume."""
+    agora = agora_painel()
+    assinatura = assinatura_itens(registro["itens"])
+    for item in lista:
+        if item.get("excluido") or str(item.get("documento") or "") != registro["documento"]:
+            continue
+        idade = segundos_desde(item.get("data"), agora)
+        if idade is None or idade > PAINEL_VOZ_JANELA:
+            continue
+        try:
+            if assinatura_itens(item.get("itens") or []) != assinatura:
+                continue
+        except (TypeError, ValueError):
+            continue
+        meio = item.get("meio_envio")
+        if meio == registro["meio_envio"] and idade <= PAINEL_REPETIDO:
+            return item, "repetido"
+        if meio == "Comando de Voz" and registro["meio_envio"] != "Comando de Voz":
+            return item, "voz"
+    return None, ""
+
+
 def incluir_orcamento_painel(corpo, meio_envio):
+    """O registro devolvido traz "repetido" quando o envio já estava gravado e "voz_anterior" quando assumiu a lista de voz."""
     if not isinstance(corpo, dict):
         return None
     if meio_envio not in MEIOS_ENVIO:
@@ -1603,8 +1655,21 @@ def incluir_orcamento_painel(corpo, meio_envio):
     }
     with PAINEL_LOCK:
         lista = ler_painel()
+        anterior, motivo = orcamento_anterior(lista, registro)
+        if motivo == "repetido":
+            print("painel: envio repetido ignorado (%s)" % anterior.get("id"), file=sys.stderr, flush=True)
+            return dict(anterior, repetido=True)
+        if motivo == "voz":
+            # Mesmo id, status e vendedor da lista de voz; canal, data, cliente e PDF passam a ser os do envio.
+            lista = [item for item in lista if item is not anterior]
+            registro["id"] = str(anterior.get("id") or registro["id"])
+            registro["status"] = anterior.get("status") or registro["status"]
+            registro["vendedor"] = anterior.get("vendedor") or ""
+            registro["pdfId"] = registro["pdfId"] or str(anterior.get("pdfId") or "")
         lista.insert(0, registro)
         gravar_painel(lista[:PAINEL_LIMITE])
+    if motivo == "voz":
+        return dict(registro, voz_anterior=anterior)
     return registro
 
 
@@ -2230,6 +2295,10 @@ def responder_enviar_orcamento_email(saida):
     if not registro:
         escrever_json(saida, {"ok": False, "erro": "Não foi possível registrar o orçamento. Tente novamente ou use o WhatsApp."}, 500)
         return
+    if registro.get("repetido"):
+        # O primeiro pedido já gravou e está mandando este e-mail.
+        escrever_json(saida, {"ok": True, "id": registro["id"], "pdfId": str(registro.get("pdfId") or "")})
+        return
     texto, corpo = mensagem_orcamento_email(nome)
     payload = {
         "from": remetente_email(),
@@ -2268,7 +2337,11 @@ def responder_enviar_orcamento_email(saida):
 def desfazer_orcamento_email(registro):
     # O cliente vai tentar de novo ou usar o WhatsApp; manter o registro duplicaria o orçamento no painel.
     try:
-        remover_orcamento_painel(registro["id"])
+        if registro.get("voz_anterior"):
+            # O envio tinha assumido a lista de voz: ela volta como estava, em vez de sumir do painel.
+            devolver_orcamento_painel(registro["voz_anterior"])
+        else:
+            remover_orcamento_painel(registro["id"])
     except OSError as erro:
         print("email: orçamento %s ficou no painel sem o e-mail (%s)" % (registro["id"], erro), file=sys.stderr, flush=True)
 
@@ -2600,7 +2673,8 @@ def responder_orcamentos(saida):
     if not registro:
         escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
         return
-    registrar_metrica(registro)
+    if not registro.get("repetido"):
+        registrar_metrica(registro)
     escrever_json(saida, {"ok": True, "id": registro["id"]})
 
 

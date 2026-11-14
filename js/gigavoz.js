@@ -18,6 +18,7 @@
   var listaEl = null;
   var campoNovo = null;
   var confirmarLista = null;
+  var enviandoLista = false;
   var intencoes = [];
   var prefixoFala = "";
   var escrevendo = false;
@@ -303,6 +304,7 @@
     escolhaTradicional = false;
     pararEscuta();
     if (gravador) gravador.remove();
+    enviandoLista = false;
     criarGravador();
     limparIntencoes();
     limparTranscricao();
@@ -1132,23 +1134,26 @@
   }
 
   function soltarConfirmar() {
+    enviandoLista = false;
     if (!confirmarLista) return;
-    delete confirmarLista.dataset.gvEnviando;
     confirmarLista.textContent = "Confirmar e Enviar Lista";
     confirmarLista.disabled = !intencoes.length;
   }
 
   function confirmarEnvio() {
-    if (!intencoes.length || !gravador || !confirmarLista) return;
-    if (confirmarLista.dataset.gvEnviando === "1") return;
+    /* A trava vem antes de tudo: clique duplo ou toque repetido não grava a mesma lista duas vezes. */
+    if (enviandoLista || !intencoes.length || !gravador || !confirmarLista) return;
+    enviandoLista = true;
+    confirmarLista.disabled = true;
+    confirmarLista.textContent = "Enviando...";
     var cliente = lerFormularioAmarelo();
     var pacote = intencoes.map(function (item) {
       return { qtd: item.qtd || 1, texto: item.texto, rotulo: rotulo(item) };
     }).filter(function (item) { return item.rotulo; });
-    if (!pacote.length) return;
-    confirmarLista.dataset.gvEnviando = "1";
-    confirmarLista.disabled = true;
-    confirmarLista.textContent = "Enviando...";
+    if (!pacote.length) {
+      soltarConfirmar();
+      return;
+    }
     /* O quadro da direita recebe os itens na hora; o PDF de intenções segue em paralelo. */
     document.dispatchEvent(new CustomEvent("gv-itens-orcamento", { detail: pacote }));
     fetch("/api/orcamentos", {
@@ -1166,7 +1171,10 @@
           return { codigo: "", produto: item.rotulo, qtd: item.qtd || 1, preco: 0 };
         })
       })
-    }).catch(function () { /* o orçamento da direita permanece mesmo se o PDF de intenções falhar */ });
+    }).catch(function () {
+      /* Só a falha de rede solta a trava; o orçamento da direita permanece mesmo sem o PDF de intenções. */
+      soltarConfirmar();
+    });
     pararEscuta();
     limparIntencoes();
     gravador.hidden = true;

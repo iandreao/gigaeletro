@@ -830,6 +830,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function soltarBotaoEnvio() {
+    envioEmCurso = false;
     if (enviar) enviar.textContent = "Enviar por WhatsApp";
     liberarEnvio();
   }
@@ -861,20 +862,24 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function enviarWhatsApp() {
     if (envioEmCurso || envioEmailEmCurso) return;
+    /* A trava vem antes de tudo: clique duplo não grava o mesmo orçamento duas vezes. */
+    envioEmCurso = true;
+    if (enviar) {
+      enviar.disabled = true;
+      enviar.textContent = "Processando...";
+    }
     setCatalogo(false);
     /* Enviar por WhatsApp só segue com o formulário amarelo completo e válido. */
     var pendente = primeiroCampoIncompleto();
     if (pendente || !formularioPreenchido()) {
+      soltarBotaoEnvio();
       alert("Favor preencher os dados do cliente");
       if (!pendente && formCliente) pendente = formCliente.querySelector("input[required]");
       if (pendente) pendente.focus();
       return;
     }
-    if (enviar) {
-      enviar.disabled = true;
-      enviar.textContent = "Processando...";
-    }
     if (honeypotPreenchido()) {
+      envioEmCurso = false;
       limparDepoisDoEnvio();
       return;
     }
@@ -891,10 +896,6 @@ document.addEventListener("DOMContentLoaded", function () {
       avisoEnvio.style.display = "none";
       avisoEnvio.hidden = true;
       if (String(avisoEnvio.textContent || "").indexOf("Adicione ao menos um produto") !== -1) avisoEnvio.textContent = "";
-    }
-    if (enviar && formularioPreenchido() && (carrinhoValido() || listaVozNaTela)) {
-      enviar.disabled = false;
-      enviar.removeAttribute("disabled");
     }
     var cliente = lerCliente();
     var erro = validarCliente(cliente);
@@ -919,8 +920,6 @@ document.addEventListener("DOMContentLoaded", function () {
     dados.append("email", cliente.email);
     dados.append("cep", cliente.cep);
     dados.append("arquivo", arquivo, "Pedido-de-Orcamento-Gigaeletro.pdf");
-    envioEmCurso = true;
-    if (enviar) enviar.disabled = true;
     if (avisoEnvio) avisoEnvio.hidden = true;
     var textoSemPdf = textoOrcamento(cliente, "");
     fetch("/api/orcamento-pdf", { method: "POST", body: dados }).then(function (resposta) {
