@@ -79,7 +79,7 @@ ACESSOS_CORPO_MAX = 4096
 RE_MOBILE = re.compile(r"Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobi", re.IGNORECASE)
 RE_ROBO = re.compile(r"bot|crawl|spider|slurp", re.IGNORECASE)
 RE_SESSAO = re.compile(r"[A-Za-z0-9-]{8,64}")
-CAMPOS_AUDITORIA = ("data_hora", "quem_acessou", "dispositivo", "id_sessao")
+CAMPOS_AUDITORIA = ("data_hora", "quem_acessou", "dispositivo", "id_sessao", "id_visitante")
 NOMES_DISPOSITIVO = ("Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03")
 CLIENTE_EXTERNO = "Cliente Externo"
 RESEND_URL = "https://api.resend.com/emails"
@@ -2128,47 +2128,141 @@ def classificar_quem(valor):
     return CLIENTE_EXTERNO
 
 
+def tipo_acesso(quem):
+    return "Externo" if classificar_quem(quem) == CLIENTE_EXTERNO else "Interno"
+
+
+def visitante_acesso(dados, saida):
+    """ID estável do navegador; sem ele, IP anonimizado + User-Agent viram um fallback do dia."""
+    visitante = sessao_acesso((dados or {}).get("visitante") or (dados or {}).get("visitor_id"))
+    if visitante:
+        return visitante
+    base = anonimizar_ip(ip_do_cliente(saida)) + "|" + (saida.headers.get("User-Agent") or "")[:160]
+    return "ip-" + hashlib.sha256(base.encode("utf-8")).hexdigest()[:24]
+
+
+def chave_acesso_dia(registro):
+    visitante = str(registro.get("id_visitante") or registro.get("id_sessao") or "").strip()
+    if not visitante:
+        visitante = "anon-" + hashlib.sha256(
+            (str(registro.get("ip_anonimizado") or "") + "|" + str(registro.get("dispositivo") or "")).encode("utf-8")
+        ).hexdigest()[:16]
+    return tipo_acesso(registro.get("quem_acessou")) + ":" + visitante
+
+
 def conectar_acessos():
     conn = conectar()
     conn.execute(
         "CREATE TABLE IF NOT EXISTS acessos_log ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, "
         "data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-        "ip_anonimizado TEXT, id_sessao TEXT, quem_acessou TEXT, dispositivo TEXT, origem TEXT)"
+        "ip_anonimizado TEXT, id_sessao TEXT, id_visitante TEXT, quem_acessou TEXT, dispositivo TEXT, origem TEXT)"
     )
     existentes = {linha[1] for linha in conn.execute("PRAGMA table_info(acessos_log)")}
-    for coluna in ("id_sessao", "quem_acessou"):
+    for coluna in ("id_sessao", "id_visitante", "quem_acessou"):
         if coluna not in existentes:
             conn.execute("ALTER TABLE acessos_log ADD COLUMN %s TEXT" % coluna)
     return conn
 
 
 def gravar_acesso_local(registro):
+    """Um registro por visitante + tipo + dia: se já existir, só atualiza o horário e os dados do acesso."""
+    dia = registro["data_hora"][:10]
+    tipo = tipo_acesso(registro["quem_acessou"])
     conn = conectar_acessos()
     try:
-        conn.execute(
-            "INSERT INTO acessos_log (data_hora, ip_anonimizado, id_sessao, quem_acessou, dispositivo, origem) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                registro["data_hora"], registro["ip_anonimizado"], registro["id_sessao"],
-                registro["quem_acessou"], registro["dispositivo"], registro["origem"],
-            ),
-        )
+        if tipo == "Externo":
+            existente = conn.execute(
+                "SELECT id FROM acessos_log WHERE substr(data_hora, 1, 10) = ? AND id_visitante = ? AND quem_acessou = ? "
+                "ORDER BY id DESC LIMIT 1",
+                (dia, registro["id_visitante"], CLIENTE_EXTERNO),
+            ).fetchone()
+        else:
+            existente = conn.execute(
+                "SELECT id FROM acessos_log WHERE substr(data_hora, 1, 10) = ? AND id_visitante = ? AND quem_acessou != ? "
+                "ORDER BY id DESC LIMIT 1",
+                (dia, registro["id_visitante"], CLIENTE_EXTERNO),
+            ).fetchone()
+        if existente:
+            conn.execute(
+                "UPDATE acessos_log SET data_hora = ?, ip_anonimizado = ?, id_sessao = ?, quem_acessou = ?, "
+                "dispositivo = ?, origem = ? WHERE id = ?",
+                (
+                    registro["data_hora"], registro["ip_anonimizado"], registro["id_sessao"],
+                    registro["quem_acessou"], registro["dispositivo"], registro["origem"], existente["id"],
+                ),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO acessos_log (data_hora, ip_anonimizado, id_sessao, id_visitante, quem_acessou, dispositivo, origem) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    registro["data_hora"], registro["ip_anonimizado"], registro["id_sessao"], registro["id_visitante"],
+                    registro["quem_acessou"], registro["dispositivo"], registro["origem"],
+                ),
+            )
         conn.commit()
     finally:
         conn.close()
 
 
+def registro_acesso_de_json(item):
+    try:
+        dados = json.loads(item) if isinstance(item, str) else item
+    except (TypeError, ValueError):
+        return None
+    return dados if isinstance(dados, dict) else None
+
+
+def migrar_log_acessos_para_hash(dia):
+    """Listas antigas viram hash com 1 campo por visitante+tipo; a leitura e a gravação passam a usar o hash."""
+    chave = ACESSOS_CHAVE + "log:" + dia
+    tipo = redis_pipeline([["TYPE", chave]])[0]
+    if tipo in (None, "none", "hash"):
+        return chave, tipo if tipo not in (None, "none") else "none"
+    if tipo != "list":
+        return chave, tipo
+    itens = redis_pipeline([["LRANGE", chave, 0, -1]])[0] or []
+    mapa = {}
+    visitantes = set()
+    for item in reversed(itens):
+        dados = registro_acesso_de_json(item)
+        if not dados:
+            continue
+        if not dados.get("id_visitante"):
+            dados["id_visitante"] = str(dados.get("id_sessao") or "")
+        campo = chave_acesso_dia(dados)
+        mapa[campo] = json.dumps(dados, ensure_ascii=False)
+        if dados.get("id_visitante"):
+            visitantes.add(dados["id_visitante"])
+    comandos = [["DEL", chave]]
+    if mapa:
+        achatado = []
+        for campo, valor in mapa.items():
+            achatado += [campo, valor]
+        comandos.append(["HSET", chave] + achatado)
+        comandos.append(["EXPIRE", chave, ACESSOS_EXPIRA])
+    if visitantes:
+        sessoes = ACESSOS_CHAVE + "visitantes:" + dia
+        comandos += [["SADD", sessoes] + list(visitantes), ["EXPIRE", sessoes, ACESSOS_EXPIRA]]
+    redis_pipeline(comandos)
+    return chave, "hash"
+
+
 def registrar_acesso(registro):
     if endereco_redis():
         dia = registro["data_hora"][:10]
-        lista = ACESSOS_CHAVE + "log:" + dia
+        chave, _tipo = migrar_log_acessos_para_hash(dia)
+        campo = chave_acesso_dia(registro)
         comandos = [
-            ["LPUSH", lista, json.dumps(registro, ensure_ascii=False)],
-            ["LTRIM", lista, 0, ACESSOS_POR_DIA - 1],
-            ["EXPIRE", lista, ACESSOS_EXPIRA],
+            ["HSET", chave, campo, json.dumps(registro, ensure_ascii=False)],
+            ["EXPIRE", chave, ACESSOS_EXPIRA],
         ]
-        if registro["id_sessao"]:
+        if registro.get("id_visitante"):
+            visitantes = ACESSOS_CHAVE + "visitantes:" + dia
+            comandos += [["SADD", visitantes, registro["id_visitante"]], ["EXPIRE", visitantes, ACESSOS_EXPIRA]]
+        # Sessões antigas continuam recebendo o id, para o painel antigo ainda contar quem já estava no Redis.
+        if registro.get("id_sessao"):
             sessoes = ACESSOS_CHAVE + "sessoes:" + dia
             comandos += [["SADD", sessoes, registro["id_sessao"]], ["EXPIRE", sessoes, ACESSOS_EXPIRA]]
         redis_pipeline(comandos)
@@ -2193,6 +2287,7 @@ def responder_registrar_acesso(saida):
                 "data_hora": agora_painel().strftime("%Y-%m-%d %H:%M:%S"),
                 "ip_anonimizado": anonimizar_ip(ip_do_cliente(saida)),
                 "id_sessao": sessao_acesso(dados.get("sessao")),
+                "id_visitante": visitante_acesso(dados, saida),
                 "quem_acessou": quem_acessou(dados.get("equipe"), dados.get("quem")),
                 "dispositivo": dispositivo_acesso(agente, dados.get("dispositivo")),
                 "origem": origem_acesso(dados.get("origem")),
@@ -2415,62 +2510,78 @@ def linha_auditoria(dados):
     linha = {campo: str(dados.get(campo) or "") for campo in CAMPOS_AUDITORIA}
     linha["quem_acessou"] = classificar_quem(linha["quem_acessou"])
     linha["tipo"] = "Externo" if linha["quem_acessou"] == CLIENTE_EXTERNO else "Interno"
+    if not linha["id_visitante"] and linha["id_sessao"]:
+        linha["id_visitante"] = linha["id_sessao"]
     return linha
 
 
-def ler_logs_redis(leituras):
+def deduplicar_linhas_acesso(linhas):
+    """Mantém só o acesso mais recente de cada visitante + tipo + dia (listas antigas do Redis)."""
+    vistos = {}
+    for dados in linhas:
+        if not isinstance(dados, dict):
+            continue
+        atual = dict(dados)
+        if not atual.get("id_visitante"):
+            atual["id_visitante"] = str(atual.get("id_sessao") or "")
+        chave = str(atual.get("data_hora") or "")[:10] + "|" + chave_acesso_dia(atual)
+        anterior = vistos.get(chave)
+        if anterior is None or str(atual.get("data_hora") or "") >= str(anterior.get("data_hora") or ""):
+            vistos[chave] = atual
+    return list(vistos.values())
+
+
+def ler_logs_redis(comandos):
     linhas = []
-    for bloco in redis_pipeline(leituras) if leituras else []:
-        for item in bloco or []:
-            try:
-                dados = json.loads(item)
-            except (TypeError, ValueError):
-                continue
-            if isinstance(dados, dict):
+    for bloco in redis_pipeline(comandos) if comandos else []:
+        itens = bloco if isinstance(bloco, list) else ([bloco] if bloco else [])
+        for item in itens:
+            dados = registro_acesso_de_json(item)
+            if dados:
                 linhas.append(dados)
     return linhas
 
 
 def auditoria_redis(datas):
+    for dia in datas:
+        migrar_log_acessos_para_hash(dia)
     chaves = [ACESSOS_CHAVE + "log:" + dia for dia in datas]
     temporaria = ACESSOS_CHAVE + "tmp:" + secrets.token_hex(8)
+    uniao = [ACESSOS_CHAVE + "visitantes:" + dia for dia in datas] + [ACESSOS_CHAVE + "sessoes:" + dia for dia in datas]
     respostas = redis_pipeline(
-        [["LLEN", chave] for chave in chaves]
+        [["HLEN", chave] for chave in chaves]
         + [
-            ["SUNIONSTORE", temporaria] + [ACESSOS_CHAVE + "sessoes:" + dia for dia in datas],
+            ["SUNIONSTORE", temporaria] + uniao,
             ["SCARD", temporaria],
             ["DEL", temporaria],
         ]
     )
     tamanhos = [int(valor or 0) for valor in respostas[:len(datas)]]
     unicas = int(respostas[len(datas) + 1] or 0)
-    leituras = []
-    restante = ACESSOS_LISTA
-    for chave, tamanho in zip(chaves, tamanhos):
-        if restante <= 0:
-            break
-        if tamanho:
-            quantos = min(tamanho, restante)
-            leituras.append(["LRANGE", chave, 0, quantos - 1])
-            restante -= quantos
-    return [linha_auditoria(dados) for dados in ler_logs_redis(leituras)], sum(tamanhos), unicas
+    leituras = [["HVALS", chave] for chave, tamanho in zip(chaves, tamanhos) if tamanho]
+    bruto = deduplicar_linhas_acesso(ler_logs_redis(leituras))
+    bruto.sort(key=lambda item: str(item.get("data_hora") or ""), reverse=True)
+    return [linha_auditoria(dados) for dados in bruto[:ACESSOS_LISTA]], sum(tamanhos), unicas
 
 
 def auditoria_sqlite(datas):
     conn = conectar_acessos()
     try:
         linhas = conn.execute(
-            "SELECT data_hora, quem_acessou, dispositivo, id_sessao FROM acessos_log "
+            "SELECT data_hora, quem_acessou, dispositivo, id_sessao, id_visitante FROM acessos_log "
             "WHERE data_hora >= ? ORDER BY data_hora DESC, id DESC LIMIT ?",
-            (datas[-1], ACESSOS_LISTA),
+            (datas[-1], ACESSOS_LISTA * 3),
         ).fetchall()
         total, unicas = conn.execute(
-            "SELECT COUNT(*), COUNT(DISTINCT NULLIF(id_sessao, '')) FROM acessos_log WHERE data_hora >= ?",
+            "SELECT COUNT(*), COUNT(DISTINCT COALESCE(NULLIF(id_visitante, ''), NULLIF(id_sessao, ''))) "
+            "FROM acessos_log WHERE data_hora >= ?",
             (datas[-1],),
         ).fetchone()
     finally:
         conn.close()
-    return [linha_auditoria(dict(linha)) for linha in linhas], int(total or 0), int(unicas or 0)
+    bruto = deduplicar_linhas_acesso([dict(linha) for linha in linhas])
+    bruto.sort(key=lambda item: str(item.get("data_hora") or ""), reverse=True)
+    return [linha_auditoria(dados) for dados in bruto[:ACESSOS_LISTA]], int(total or 0), int(unicas or 0)
 
 
 def auditoria_acessos(dias=ACESSOS_DIAS):
@@ -2518,13 +2629,17 @@ def responder_metricas_acesso(saida):
 
 
 def limpar_acessos():
-    """Apaga o rastreamento: no Redis, as listas e sessões de cada dia do prazo de expiração; localmente, a tabela."""
+    """Apaga o rastreamento: no Redis, logs/visitantes/sessões de cada dia do prazo; localmente, a tabela."""
     if endereco_redis():
         hoje = agora_painel().date()
         chaves = []
         for atras in range(-1, ACESSOS_EXPIRA // (24 * 60 * 60) + 2):
             dia = (hoje - timedelta(days=atras)).isoformat()
-            chaves += [ACESSOS_CHAVE + "log:" + dia, ACESSOS_CHAVE + "sessoes:" + dia]
+            chaves += [
+                ACESSOS_CHAVE + "log:" + dia,
+                ACESSOS_CHAVE + "sessoes:" + dia,
+                ACESSOS_CHAVE + "visitantes:" + dia,
+            ]
         redis_pipeline([["DEL"] + chaves[inicio:inicio + 200] for inicio in range(0, len(chaves), 200)])
         return
     if em_vercel():

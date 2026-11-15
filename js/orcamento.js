@@ -1,9 +1,11 @@
 /* Telemetria de acessos: isolada do orçamento e silenciosa mesmo se a rota falhar.
-   Cada navegador registra no máximo uma visita por dia em cada dispositivo (Desktop ou Mobile). */
+   1 registro por visitante + tipo (Externo/Interno) + dia; o servidor reforça a mesma regra. */
 document.addEventListener("DOMContentLoaded", function () {
   var EQUIPE = ["Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03"];
   var CHAVE_INTERNO = "gigaeletro_interno";
   var CHAVE_VISITA = "gigaeletro_visita";
+  var CHAVE_VISITANTE = "ge_visitor_id";
+  var CHAVE_ENVIO = "ge_acesso_envio";
   function lerLocal(chave) {
     try {
       return window.localStorage.getItem(chave) || "";
@@ -25,6 +27,13 @@ document.addEventListener("DOMContentLoaded", function () {
     if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID();
     return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
   }
+  function idVisitante() {
+    var atual = String(lerLocal(CHAVE_VISITANTE) || "").trim();
+    if (/^[A-Za-z0-9-]{8,64}$/.test(atual)) return atual;
+    atual = novaSessao();
+    gravarLocal(CHAVE_VISITANTE, atual);
+    return atual;
+  }
   /* Aceita julio, Balcao01 ou Balcão 01 e devolve o nome oficial da equipe. */
   function nomeDaEquipe(valor) {
     var chave = function (texto) {
@@ -42,6 +51,9 @@ document.addEventListener("DOMContentLoaded", function () {
     return nomeDaEquipe(texto) || texto;
   }
   try {
+    /* Trava em memória: scripts duplicados ou DOMContentLoaded repetido não disparam duas vezes. */
+    if (window.__geAcessoEnviado) return;
+    window.__geAcessoEnviado = true;
     var parametros = new URLSearchParams(window.location.search);
     var origem = (parametros.get("ref") || parametros.get("utm_source") || "").trim() || "Direto";
     /* ?equipe=Nome (ou o antigo ?user=Nome) marca este navegador como da equipe; ?equipe=sair desfaz. */
@@ -54,9 +66,15 @@ document.addEventListener("DOMContentLoaded", function () {
       window.history.replaceState(window.history.state, "", window.location.pathname + (restante ? "?" + restante : "") + window.location.hash);
     }
     var equipe = nomeInterno(lerLocal(CHAVE_INTERNO));
+    var tipo = equipe ? "Interno" : "Externo";
     var toque = "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
     var dispositivo = toque && window.innerWidth < 1024 ? "Mobile" : "Desktop";
     var hoje = hojeLocal();
+    var chaveDia = hoje + "|" + tipo;
+    try {
+      if (window.sessionStorage.getItem(CHAVE_ENVIO) === chaveDia) return;
+      window.sessionStorage.setItem(CHAVE_ENVIO, chaveDia);
+    } catch (semSessao) {}
     var visitas = {};
     try {
       visitas = JSON.parse(lerLocal(CHAVE_VISITA) || "{}") || {};
@@ -64,9 +82,10 @@ document.addEventListener("DOMContentLoaded", function () {
       visitas = {};
     }
     if (typeof visitas !== "object" || Array.isArray(visitas)) visitas = {};
-    var ultima = visitas[dispositivo];
-    /* Mudar a marcação de equipe no mesmo dia gera um novo registro, já com a identificação certa. */
-    if (ultima && ultima.dia === hoje && (ultima.equipe || "") === equipe) return;
+    var ultima = visitas[tipo] || visitas[dispositivo];
+    /* Mudar Externo ↔ Interno no mesmo dia gera um registro do novo tipo. */
+    if (ultima && ultima.dia === hoje && (ultima.tipo || "") === tipo) return;
+    var visitante = idVisitante();
     var sessao = "";
     try {
       sessao = window.sessionStorage.getItem("gigaeletro_sessao") || "";
@@ -77,18 +96,25 @@ document.addEventListener("DOMContentLoaded", function () {
     } catch (bloqueado) {
       sessao = sessao || novaSessao();
     }
+    /* A trava diária vem antes do fetch: duas abas abertas no mesmo segundo não duplicam o POST. */
+    visitas[tipo] = { dia: hoje, tipo: tipo, equipe: equipe };
+    gravarLocal(CHAVE_VISITA, JSON.stringify(visitas));
     fetch("/api/registrar-acesso", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ origem: origem, sessao: sessao, equipe: equipe, dispositivo: dispositivo }),
+      body: JSON.stringify({
+        origem: origem,
+        sessao: sessao,
+        visitante: visitante,
+        equipe: equipe,
+        dispositivo: dispositivo
+      }),
       credentials: "same-origin",
       keepalive: true
-    }).then(function (resposta) {
-      if (!resposta.ok) return;
-      visitas[dispositivo] = { dia: hoje, equipe: equipe };
-      gravarLocal(CHAVE_VISITA, JSON.stringify(visitas));
     }).catch(function () {});
-  } catch (falha) {}
+  } catch (falha) {
+    window.__geAcessoEnviado = false;
+  }
 });
 
 (function () {
