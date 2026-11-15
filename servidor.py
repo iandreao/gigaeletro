@@ -2357,12 +2357,52 @@ def pdf_do_payload(valor):
     return conteudo
 
 
-def mensagem_orcamento_email(nome):
+def data_validade_orcamento(base=None):
+    """Emissão + 15 dias, no fuso do painel (America/Sao_Paulo)."""
+    momento = base or agora_painel()
+    if not hasattr(momento, "date"):
+        momento = agora_painel()
+    validade = momento.date() + timedelta(days=15)
+    return validade.strftime("%d/%m/%Y")
+
+
+def pedido_por_voz(pedido):
+    """Comando de Voz: campo metodo/meio_envio ou maioria dos itens sem código e sem preço."""
+    if not isinstance(pedido, dict):
+        return False
+    metodo = str(pedido.get("metodo") or "").strip().lower()
+    if metodo in ("gigavoz", "voz", "comando de voz", "intencoes"):
+        return True
+    if str(pedido.get("meio_envio") or "").strip() == "Comando de Voz":
+        return True
+    if str(pedido.get("tipo") or "").strip().lower() == "intencoes":
+        return True
+    itens = pedido.get("itens") if isinstance(pedido.get("itens"), list) else []
+    if not itens:
+        return False
+    voz = sum(1 for item in itens if isinstance(item, dict) and item_de_voz(item))
+    return voz * 2 > len(itens)
+
+
+def nota_orcamento(por_voz=False, base=None):
+    if por_voz:
+        return (
+            "Este orçamento foi gerado por comando de voz, o preço dos itens listados, "
+            "o estoque e o frete, serão informados no WhatsApp ou no E-mail."
+        )
+    return (
+        "O preço dos itens listados vale até %s. O estoque e o frete serão informados no WhatsApp ou no E-mail."
+        % data_validade_orcamento(base)
+    )
+
+
+def mensagem_orcamento_email(nome, pedido=None):
     saudacao = "Olá, %s!" % nome if nome else "Olá!"
+    nota = nota_orcamento(pedido_por_voz(pedido))
     texto = (
         saudacao + "\n\n"
         "Segue em anexo o seu pedido de orçamento da Gigaeletro.\n"
-        "Os preços deste orçamento valem por 15 dias. O estoque e o frete serão informados no WhatsApp ou no E-mail.\n\n"
+        + nota + "\n\n"
         "Gigaeletro Material Elétrico\n"
         "https://gigaeletro.com.br"
     )
@@ -2370,8 +2410,11 @@ def mensagem_orcamento_email(nome):
         '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#1a1a1a">'
         "<p>" + html.escape(saudacao) + "</p>"
         "<p>Segue em anexo o seu pedido de orçamento da <strong>Gigaeletro</strong>.</p>"
-        "<p>Os preços deste orçamento valem por 15 dias. O estoque e o frete serão informados no "
-        '<a href="https://wa.me/5527998235652">WhatsApp</a> ou no E-mail.</p>'
+        "<p>" + html.escape(nota).replace(
+            "WhatsApp",
+            '<a href="https://wa.me/5527998235652">WhatsApp</a>',
+            1,
+        ) + "</p>"
         '<p style="margin-top:24px">Gigaeletro Material Elétrico<br>'
         '<a href="https://gigaeletro.com.br">gigaeletro.com.br</a></p>'
         "</div>"
@@ -2459,7 +2502,7 @@ def responder_enviar_orcamento_email(saida):
         # O primeiro pedido já gravou e está mandando este e-mail.
         escrever_json(saida, {"ok": True, "id": registro["id"], "pdfId": str(registro.get("pdfId") or "")})
         return
-    texto, corpo = mensagem_orcamento_email(nome)
+    texto, corpo = mensagem_orcamento_email(nome, pedido)
     payload = {
         "from": remetente_email(),
         "to": [destino],

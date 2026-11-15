@@ -113,6 +113,10 @@
     var botao = document.getElementById("btnTipoOrcamento");
     if (!botao) return;
     botao.setAttribute("aria-pressed", modoGigaVozAberto() ? "true" : "false");
+    /* O rodapé de validade do orçamento acompanha Tradicional vs Comando de Voz. */
+    document.dispatchEvent(new CustomEvent("gv-tipo-orcamento", {
+      detail: { voz: modoGigaVozAberto() }
+    }));
   }
 
   function fecharCatalogoAberto() {

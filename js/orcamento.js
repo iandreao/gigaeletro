@@ -1078,29 +1078,31 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function dadosPainel(cliente, pdfId, meioEnvio) {
+    var itens = selecionados.map(function (item) {
+      return {
+        codigo: item.codigo,
+        produto: item.produto,
+        qtd: item.qtd,
+        preco: item.preco
+      };
+    }).concat(itensVoz().map(function (item) {
+      return {
+        codigo: "",
+        produto: String((item && (item.rotulo || item.texto)) || "").trim(),
+        qtd: item && item.qtd ? item.qtd : 1,
+        preco: 0
+      };
+    }).filter(function (item) { return item.produto; }));
     return {
       meio_envio: meioEnvio,
+      metodo: orcamentoPorVoz(itens) ? "gigavoz" : "tradicional",
       nome: cliente.nome,
       documento: apenasDigitos(cliente.documento),
       telefone: apenasDigitos(cliente.celular),
       pdfId: pdfId || "",
       tipo: cliente.tipo,
       cliente: copiarCliente(cliente),
-      itens: selecionados.map(function (item) {
-        return {
-          codigo: item.codigo,
-          produto: item.produto,
-          qtd: item.qtd,
-          preco: item.preco
-        };
-      }).concat(itensVoz().map(function (item) {
-        return {
-          codigo: "",
-          produto: String((item && (item.rotulo || item.texto)) || "").trim(),
-          qtd: item && item.qtd ? item.qtd : 1,
-          preco: 0
-        };
-      }).filter(function (item) { return item.produto; }))
+      itens: itens
     };
   }
 
@@ -1873,7 +1875,7 @@ document.addEventListener("DOMContentLoaded", function () {
     function desenharRodape() {
       var larguraTotal = 58;
       var xTotal = margem + util - larguraTotal;
-      var nota = "Nota: " + textoValidade(dataCriacao);
+      var nota = textoAvisoOrcamento({ pdf: true, base: dataCriacao });
       traco();
       doc.rect(margem, yRodape, util - larguraTotal, alturaRodape);
       doc.rect(xTotal, yRodape, larguraTotal, alturaRodape);
@@ -2450,14 +2452,38 @@ document.addEventListener("DOMContentLoaded", function () {
     return dia + "/" + mes + "/" + validade.getFullYear();
   }
 
+  function orcamentoPorVoz(itens) {
+    var lista = Array.isArray(itens) ? itens : selecionados;
+    if ((lista || []).some(itemVoz)) return true;
+    if (!Array.isArray(itens) && vozInclusa()) return true;
+    var botao = document.getElementById("btnTipoOrcamento");
+    return !!(botao && botao.getAttribute("aria-pressed") === "true");
+  }
+
+  function textoAvisoOrcamento(opcoes) {
+    var cfg = opcoes || {};
+    var porVoz = cfg.voz != null ? !!cfg.voz : orcamentoPorVoz(cfg.itens);
+    if (porVoz) {
+      return cfg.pdf
+        ? "Nota: Este orçamento foi gerado por comando de voz, o preço dos itens listados, o estoque e o frete, serão informados no WhatsApp ou no E-mail."
+        : "O preço dos itens solicitados, o estoque e o frete serão informados no WhatsApp ou no E-mail.";
+    }
+    var data = dataValidade(cfg.base);
+    return cfg.pdf
+      ? "Nota: O preço dos itens listados vale até " + data + ". O estoque e o frete serão informados no WhatsApp ou no E-mail."
+      : "O preço dos itens vale até " + data + ". O estoque e o frete serão informados no WhatsApp ou no E-mail.";
+  }
+
   function textoValidade(base) {
-    return "Os preços deste orçamento valem até " + dataValidade(base) + ". O estoque e o frete serão informados no WhatsApp ou no E-mail.";
+    return textoAvisoOrcamento({ base: base });
   }
 
   function atualizarValidadeTela() {
     var aviso = document.querySelector("[data-validade]");
-    if (aviso) aviso.textContent = textoValidade();
+    if (aviso) aviso.textContent = textoAvisoOrcamento();
   }
+
+  document.addEventListener("gv-tipo-orcamento", atualizarValidadeTela);
 
   function normalizar(valor) {
     return String(valor || "")

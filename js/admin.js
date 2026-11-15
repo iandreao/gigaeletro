@@ -480,6 +480,36 @@
     if (fundo) fundo.hidden = true;
   }
 
+  function orcamentoPorVozAdmin(item) {
+    if (!item) return false;
+    if (String(item.meio_envio || "") === "Comando de Voz") return true;
+    if (String(item.metodo || "").toLowerCase() === "gigavoz") return true;
+    var itens = Array.isArray(item.itens) ? item.itens : [];
+    if (!itens.length) return false;
+    var voz = itens.filter(function (produto) {
+      var codigo = String((produto && produto.codigo) || "").trim().toLowerCase();
+      var preco = Number(produto && produto.preco);
+      return codigo.indexOf("voz-") === 0 || (!codigo && !(preco > 0));
+    }).length;
+    return voz * 2 > itens.length;
+  }
+
+  function dataValidadeAdmin(iso) {
+    var base = iso ? new Date(iso) : new Date();
+    if (isNaN(base.getTime())) base = new Date();
+    var validade = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 12);
+    validade.setDate(validade.getDate() + 15);
+    function dois(n) { return String(n).padStart(2, "0"); }
+    return dois(validade.getDate()) + "/" + dois(validade.getMonth() + 1) + "/" + validade.getFullYear();
+  }
+
+  function notaOrcamentoAdmin(item) {
+    if (orcamentoPorVozAdmin(item)) {
+      return "Nota: Este orçamento foi gerado por comando de voz, o preço dos itens listados, o estoque e o frete, serão informados no WhatsApp ou no E-mail.";
+    }
+    return "Nota: O preço dos itens listados vale até " + dataValidadeAdmin(item && item.data) + ". O estoque e o frete serão informados no WhatsApp ou no E-mail.";
+  }
+
   function imprimirOrcamento(item) {
     if (!item) return;
     var janela = window.open("", "orcamento-gigaeletro");
@@ -487,13 +517,14 @@
     janela.document.open();
     janela.document.write(
       "<!DOCTYPE html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>Orçamento Gigaeletro</title>" +
-      "<style>body{font-family:Manrope,Segoe UI,sans-serif;color:#111;margin:24px;font-size:12px}h1{font-size:18px;margin:0 0 8px}p{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ddd;padding:4px 6px;text-align:left}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}tfoot td{font-weight:800}</style>" +
+      "<style>body{font-family:Manrope,Segoe UI,sans-serif;color:#111;margin:24px;font-size:12px}h1{font-size:18px;margin:0 0 8px}p{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ddd;padding:4px 6px;text-align:left}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}tfoot td{font-weight:800}.nota{margin-top:16px;font-weight:700;max-width:42rem}</style>" +
       "</head><body><h1>Gigaeletro</h1>" +
       "<p>" + escapar(dataVisivel(item.data)) + "</p>" +
       "<p>" + escapar(item.nome) + "</p>" +
       "<p>" + escapar(documentoVisivel(String(item.documento || ""))) + "</p>" +
       "<p>" + escapar(item.telefone) + "</p>" +
       tabelaItens(item) +
+      '<p class="nota">' + escapar(notaOrcamentoAdmin(item)) + "</p>" +
       "</body></html>"
     );
     janela.document.close();
