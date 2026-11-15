@@ -16,6 +16,8 @@
 .gestor-filtros .gestor-lixeira[aria-pressed="true"]:hover { background: var(--yellow); border-color: var(--yellow); }
 .gestor-acoes button[data-restaurar-orcamento] {
   width: auto;
+  min-width: 30px;
+  height: 30px;
   gap: 0.3rem;
   padding: 0 0.5rem;
   color: #15803d;
@@ -37,10 +39,12 @@
   min-width: 100%;
   table-layout: auto;
 }
-.gestor-tabela th,
-.gestor-tabela td {
-  padding: 10px 14px;
+body.gestor .gestor-tabela th,
+body.gestor .gestor-tabela td {
+  padding: 5px 12px;
+  line-height: 1.2;
   white-space: nowrap;
+  vertical-align: middle;
 }
 .gestor-tabela th.acoes,
 .gestor-tabela td.acoes,
@@ -55,15 +59,35 @@
 }
 .gestor-tabela select.gestor-status,
 .gestor-tabela select.gestor-vendedor {
+  box-sizing: border-box;
   width: 8.4rem;
-  min-height: 28px;
-  padding: 0 0.3rem;
+  height: 30px;
+  min-height: 30px;
+  padding: 2px 24px 2px 8px;
   border: 1px solid var(--gray-200);
   border-radius: 0.4rem;
   background: var(--white);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
+  line-height: 1.2;
+}
+body.gestor .gestor-tabela .gestor-acoes {
+  align-items: center;
+  gap: 0.25rem;
+}
+body.gestor .gestor-tabela .gestor-acoes button {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  padding: 0;
+}
+body.gestor .gestor-tabela .gestor-acoes button[data-restaurar-orcamento] {
+  width: auto;
+}
+body.gestor .gestor-tabela .gestor-acoes svg {
+  width: 15px;
+  height: 15px;
 }
 .gestor-tabela select.gestor-status-pendente { background: #fef9c3; }
 .gestor-tabela select.gestor-status-analisado { background: #dbeafe; }
@@ -214,8 +238,10 @@ body.gestor .admin-page .drop-texto {
   }
   body.gestor .gestor-tabela th,
   body.gestor .gestor-tabela td {
-    padding: 10px 14px;
+    padding: 5px 12px;
+    line-height: 1.2;
     white-space: nowrap;
+    vertical-align: middle;
   }
 }
 
