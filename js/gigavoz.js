@@ -40,14 +40,14 @@
         '<div class="gv-etapa" data-gv-etapa="escolha">' +
           '<h2 class="gv-titulo" id="gv-titulo">Olá, seja muito bem-vindo! É um grande prazer atendê-lo — escolha o Tipo de Orçamento que preferir.</h2>' +
           '<div class="gv-cards">' +
-            '<button class="gv-card" type="button" data-gv-acao="catalogo">' +
-              '<span class="gv-card-selo">Tradicional</span>' +
-              '<span class="gv-card-titulo">Consulta Catálogo de Produtos</span>' +
-            "</button>" +
-            '<button class="gv-card" type="button" data-gv-acao="voz">' +
-              '<span class="gv-card-selo">Comando de voz</span>' +
-              '<span class="gv-card-titulo">Fale os Produtos que Deseja</span>' +
-            "</button>" +
+            '<div class="gv-card">' +
+              '<button class="gv-card-btn" type="button" data-gv-acao="catalogo">TRADICIONAL</button>' +
+              '<p class="gv-card-texto">Consultar o Catálogo de Produtos</p>' +
+            "</div>" +
+            '<div class="gv-card">' +
+              '<button class="gv-card-btn" type="button" data-gv-acao="voz">COMANDO DE VOZ</button>' +
+              '<p class="gv-card-texto">Diga a quantidade e o produto - Ex.: um alicate, uma furadeira, oito lâmpadas).</p>' +
+            "</div>" +
           "</div>" +
         "</div>" +
       "</div>";
