@@ -758,6 +758,7 @@
   }
 
   function renderResumo() {
+    /* A validade só atualiza o texto se já estiver visível; o estado inicial permanece oculto. */
     atualizarValidadeTela();
     if (resumoVazio) resumoVazio.hidden = carrinhoValido();
     var abrirCatalogo = document.querySelector(".hero-acao [data-abrir-catalogo]");
@@ -1321,6 +1322,7 @@
     if (fisico) fisico.checked = true;
     limparCamposCliente();
     zerarQuadroOrcamento();
+    ocultarValidadeTela();
     orcamentoSendoEditadoId = "";
     orcamentoSendoEditadoDocumento = "";
     if (enviar) enviar.textContent = "Enviar por WhatsApp";
@@ -2493,12 +2495,44 @@
     return textoAvisoOrcamento({ base: base });
   }
 
-  function atualizarValidadeTela() {
+  function ocultarValidadeTela() {
     var aviso = document.querySelector("[data-validade]");
-    if (aviso) aviso.textContent = textoAvisoOrcamento();
+    if (!aviso) return;
+    aviso.hidden = true;
+    aviso.style.display = "none";
   }
 
-  document.addEventListener("gv-tipo-orcamento", atualizarValidadeTela);
+  function atualizarValidadeTela(opcoes) {
+    var aviso = document.querySelector("[data-validade]");
+    if (!aviso) return;
+    var cfg = opcoes || {};
+    if (cfg.ocultar) {
+      ocultarValidadeTela();
+      return;
+    }
+    var textoOpcoes = cfg.voz != null ? { voz: !!cfg.voz } : undefined;
+    if (cfg.exibir) {
+      aviso.textContent = textoAvisoOrcamento(textoOpcoes);
+      aviso.hidden = false;
+      aviso.style.removeProperty("display");
+      return;
+    }
+    /* Sem exibir explícito: só refresca o texto se a mensagem já estiver na tela. */
+    if (!aviso.hidden) aviso.textContent = textoAvisoOrcamento(textoOpcoes);
+  }
+
+  document.addEventListener("gv-tipo-orcamento", function (evento) {
+    var detalhe = (evento && evento.detail) || {};
+    if (detalhe.exibir === true) {
+      atualizarValidadeTela({ exibir: true, voz: detalhe.voz });
+      return;
+    }
+    if (detalhe.exibir === false) {
+      ocultarValidadeTela();
+      return;
+    }
+    atualizarValidadeTela(detalhe.voz != null ? { voz: detalhe.voz } : undefined);
+  });
 
   function normalizar(valor) {
     return String(valor || "")

@@ -100,7 +100,7 @@
     raiz = criarTela();
     document.body.appendChild(raiz);
     alinharEscolha();
-    refletirTipoOrcamento();
+    refletirTipoOrcamento({ exibir: false });
   }
 
   function modoGigaVozAberto() {
@@ -109,14 +109,15 @@
     return !!(gravador && !gravador.hidden);
   }
 
-  function refletirTipoOrcamento() {
+  function refletirTipoOrcamento(opcoes) {
     var botao = document.getElementById("btnTipoOrcamento");
     if (!botao) return;
     botao.setAttribute("aria-pressed", modoGigaVozAberto() ? "true" : "false");
-    /* O rodapé de validade do orçamento acompanha Tradicional vs Comando de Voz. */
-    document.dispatchEvent(new CustomEvent("gv-tipo-orcamento", {
-      detail: { voz: modoGigaVozAberto() }
-    }));
+    /* exibir true/false controla o rodapé de validade; sem exibir só atualiza o texto se já estiver visível. */
+    var cfg = opcoes || {};
+    var detalhe = { voz: modoGigaVozAberto() };
+    if (cfg.exibir === true || cfg.exibir === false) detalhe.exibir = cfg.exibir;
+    document.dispatchEvent(new CustomEvent("gv-tipo-orcamento", { detail: detalhe }));
   }
 
   function fecharCatalogoAberto() {
@@ -180,7 +181,7 @@
       raiz.remove();
       raiz = null;
     }
-    refletirTipoOrcamento();
+    refletirTipoOrcamento({ exibir: false });
   }
 
   function alternarTipoOrcamento(evento) {
@@ -197,7 +198,7 @@
     liberarCatalogo();
     raiz.remove();
     raiz = null;
-    refletirTipoOrcamento();
+    refletirTipoOrcamento({ exibir: true });
     /* Com os dados já completos, o próximo passo é o catálogo; senão, o preenchimento. */
     var proximo = formularioAmareloPronto()
       ? botoesCatalogo()[0]
@@ -318,7 +319,7 @@
     gravador.hidden = false;
     modoIntencoes = true;
     travarCatalogo();
-    refletirTipoOrcamento();
+    refletirTipoOrcamento({ exibir: true });
     botaoMic.focus();
   }
 
@@ -1193,13 +1194,14 @@
     limparTranscricao();
     limparIntencoes();
     modoIntencoes = false;
+    escolhaTradicional = false;
     if (gravador) gravador.hidden = true;
     if (raiz && document.body.contains(raiz)) {
       raiz.remove();
       raiz = null;
     }
     liberarCatalogo();
-    refletirTipoOrcamento();
+    refletirTipoOrcamento({ exibir: false });
   }
 
   function aoLimparOrcamento() {
