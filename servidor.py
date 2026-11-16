@@ -2142,12 +2142,18 @@ def visitante_acesso(dados, saida):
 
 
 def chave_acesso_dia(registro):
-    visitante = str(registro.get("id_visitante") or registro.get("id_sessao") or "").strip()
+    """Campo único do Hash Redis: tipo + visitante (fallback estável por IP+dispositivo)."""
+    visitante = str(registro.get("id_visitante") or "").strip()
     if not visitante:
         visitante = "anon-" + hashlib.sha256(
             (str(registro.get("ip_anonimizado") or "") + "|" + str(registro.get("dispositivo") or "")).encode("utf-8")
         ).hexdigest()[:16]
     return tipo_acesso(registro.get("quem_acessou")) + ":" + visitante
+
+
+def chave_hash_acessos(dia):
+    """Hash dedicado do dia: HSET é atômico e não disputa com a lista legada log:YYYY-MM-DD."""
+    return ACESSOS_CHAVE + "dia:" + dia
 
 
 def conectar_acessos():
@@ -2214,58 +2220,49 @@ def registro_acesso_de_json(item):
     return dados if isinstance(dados, dict) else None
 
 
-def migrar_log_acessos_para_hash(dia):
-    """Listas antigas viram hash com 1 campo por visitante+tipo; a leitura e a gravação passam a usar o hash."""
-    chave = ACESSOS_CHAVE + "log:" + dia
-    tipo = redis_pipeline([["TYPE", chave]])[0]
-    if tipo in (None, "none", "hash"):
-        return chave, tipo if tipo not in (None, "none") else "none"
-    if tipo != "list":
-        return chave, tipo
-    itens = redis_pipeline([["LRANGE", chave, 0, -1]])[0] or []
-    mapa = {}
-    visitantes = set()
-    for item in reversed(itens):
-        dados = registro_acesso_de_json(item)
-        if not dados:
-            continue
-        if not dados.get("id_visitante"):
-            dados["id_visitante"] = str(dados.get("id_sessao") or "")
-        campo = chave_acesso_dia(dados)
-        mapa[campo] = json.dumps(dados, ensure_ascii=False)
-        if dados.get("id_visitante"):
-            visitantes.add(dados["id_visitante"])
-    comandos = [["DEL", chave]]
-    if mapa:
-        achatado = []
-        for campo, valor in mapa.items():
-            achatado += [campo, valor]
-        comandos.append(["HSET", chave] + achatado)
-        comandos.append(["EXPIRE", chave, ACESSOS_EXPIRA])
-    if visitantes:
-        sessoes = ACESSOS_CHAVE + "visitantes:" + dia
-        comandos += [["SADD", sessoes] + list(visitantes), ["EXPIRE", sessoes, ACESSOS_EXPIRA]]
-    redis_pipeline(comandos)
-    return chave, "hash"
+def normalizar_registro_acesso(dados):
+    if not isinstance(dados, dict):
+        return None
+    atual = dict(dados)
+    if not str(atual.get("id_visitante") or "").strip():
+        atual["id_visitante"] = str(atual.get("id_sessao") or "").strip()
+    return atual
+
+
+def ler_acessos_do_dia_redis(dia):
+    """Lê o hash novo (dia:) e o legado (log: lista ou hash), sem migrar no caminho quente da gravação."""
+    chave_nova = chave_hash_acessos(dia)
+    chave_legada = ACESSOS_CHAVE + "log:" + dia
+    tipo_nova, tipo_legada = redis_pipeline([["TYPE", chave_nova], ["TYPE", chave_legada]])
+    comandos = []
+    if tipo_nova == "hash":
+        comandos.append(["HVALS", chave_nova])
+    if tipo_legada == "hash":
+        comandos.append(["HVALS", chave_legada])
+    elif tipo_legada == "list":
+        comandos.append(["LRANGE", chave_legada, 0, -1])
+    if not comandos:
+        return []
+    linhas = []
+    for bloco in redis_pipeline(comandos) or []:
+        itens = bloco if isinstance(bloco, list) else ([bloco] if bloco else [])
+        for item in itens:
+            dados = normalizar_registro_acesso(registro_acesso_de_json(item))
+            if dados:
+                linhas.append(dados)
+    return linhas
 
 
 def registrar_acesso(registro):
     if endereco_redis():
         dia = registro["data_hora"][:10]
-        chave, _tipo = migrar_log_acessos_para_hash(dia)
+        chave = chave_hash_acessos(dia)
         campo = chave_acesso_dia(registro)
-        comandos = [
+        # HSET no hash do dia é atômico: duas requisições no mesmo ms atualizam o mesmo campo.
+        redis_pipeline([
             ["HSET", chave, campo, json.dumps(registro, ensure_ascii=False)],
             ["EXPIRE", chave, ACESSOS_EXPIRA],
-        ]
-        if registro.get("id_visitante"):
-            visitantes = ACESSOS_CHAVE + "visitantes:" + dia
-            comandos += [["SADD", visitantes, registro["id_visitante"]], ["EXPIRE", visitantes, ACESSOS_EXPIRA]]
-        # Sessões antigas continuam recebendo o id, para o painel antigo ainda contar quem já estava no Redis.
-        if registro.get("id_sessao"):
-            sessoes = ACESSOS_CHAVE + "sessoes:" + dia
-            comandos += [["SADD", sessoes, registro["id_sessao"]], ["EXPIRE", sessoes, ACESSOS_EXPIRA]]
-        redis_pipeline(comandos)
+        ])
         return
     # O SQLite da Vercel fica em /tmp e some a cada instância: lá só o Redis guarda acessos.
     if em_vercel():
@@ -2559,72 +2556,66 @@ def linha_auditoria(dados):
 
 
 def deduplicar_linhas_acesso(linhas):
-    """Mantém só o acesso mais recente de cada visitante + tipo + dia (listas antigas do Redis)."""
-    vistos = {}
+    """1 registro por visitante+tipo+dia; clones no mesmo segundo (IDs diferentes) também viram um só."""
+    por_visitante = {}
     for dados in linhas:
-        if not isinstance(dados, dict):
+        atual = normalizar_registro_acesso(dados)
+        if not atual:
             continue
-        atual = dict(dados)
-        if not atual.get("id_visitante"):
-            atual["id_visitante"] = str(atual.get("id_sessao") or "")
         chave = str(atual.get("data_hora") or "")[:10] + "|" + chave_acesso_dia(atual)
-        anterior = vistos.get(chave)
+        anterior = por_visitante.get(chave)
         if anterior is None or str(atual.get("data_hora") or "") >= str(anterior.get("data_hora") or ""):
-            vistos[chave] = atual
-    return list(vistos.values())
+            por_visitante[chave] = atual
+    por_exibicao = {}
+    for atual in por_visitante.values():
+        clone = "|".join((
+            str(atual.get("data_hora") or "")[:10],
+            tipo_acesso(atual.get("quem_acessou")),
+            str(atual.get("data_hora") or ""),
+            str(atual.get("dispositivo") or ""),
+            classificar_quem(atual.get("quem_acessou")),
+            str(atual.get("ip_anonimizado") or ""),
+        ))
+        anterior = por_exibicao.get(clone)
+        if anterior is None or str(atual.get("id_visitante") or "") >= str(anterior.get("id_visitante") or ""):
+            por_exibicao[clone] = atual
+    return list(por_exibicao.values())
 
 
-def ler_logs_redis(comandos):
-    linhas = []
-    for bloco in redis_pipeline(comandos) if comandos else []:
-        itens = bloco if isinstance(bloco, list) else ([bloco] if bloco else [])
-        for item in itens:
-            dados = registro_acesso_de_json(item)
-            if dados:
-                linhas.append(dados)
-    return linhas
+def contar_acessos_unicos(linhas):
+    """Únicos a partir dos registros já deduplicados: sempre únicos <= acessos."""
+    visitantes = {
+        str(item.get("id_visitante") or item.get("id_sessao") or "").strip()
+        for item in linhas
+        if str(item.get("id_visitante") or item.get("id_sessao") or "").strip()
+    }
+    return len(linhas), len(visitantes)
 
 
 def auditoria_redis(datas):
+    bruto = []
     for dia in datas:
-        migrar_log_acessos_para_hash(dia)
-    chaves = [ACESSOS_CHAVE + "log:" + dia for dia in datas]
-    temporaria = ACESSOS_CHAVE + "tmp:" + secrets.token_hex(8)
-    uniao = [ACESSOS_CHAVE + "visitantes:" + dia for dia in datas] + [ACESSOS_CHAVE + "sessoes:" + dia for dia in datas]
-    respostas = redis_pipeline(
-        [["HLEN", chave] for chave in chaves]
-        + [
-            ["SUNIONSTORE", temporaria] + uniao,
-            ["SCARD", temporaria],
-            ["DEL", temporaria],
-        ]
-    )
-    tamanhos = [int(valor or 0) for valor in respostas[:len(datas)]]
-    unicas = int(respostas[len(datas) + 1] or 0)
-    leituras = [["HVALS", chave] for chave, tamanho in zip(chaves, tamanhos) if tamanho]
-    bruto = deduplicar_linhas_acesso(ler_logs_redis(leituras))
+        bruto.extend(ler_acessos_do_dia_redis(dia))
+    bruto = deduplicar_linhas_acesso(bruto)
     bruto.sort(key=lambda item: str(item.get("data_hora") or ""), reverse=True)
-    return [linha_auditoria(dados) for dados in bruto[:ACESSOS_LISTA]], sum(tamanhos), unicas
+    total, unicas = contar_acessos_unicos(bruto)
+    return [linha_auditoria(dados) for dados in bruto[:ACESSOS_LISTA]], total, unicas
 
 
 def auditoria_sqlite(datas):
     conn = conectar_acessos()
     try:
         linhas = conn.execute(
-            "SELECT data_hora, quem_acessou, dispositivo, id_sessao, id_visitante FROM acessos_log "
-            "WHERE data_hora >= ? ORDER BY data_hora DESC, id DESC LIMIT ?",
-            (datas[-1], ACESSOS_LISTA * 3),
-        ).fetchall()
-        total, unicas = conn.execute(
-            "SELECT COUNT(*), COUNT(DISTINCT COALESCE(NULLIF(id_visitante, ''), NULLIF(id_sessao, ''))) "
-            "FROM acessos_log WHERE data_hora >= ?",
+            "SELECT data_hora, quem_acessou, dispositivo, id_sessao, id_visitante, ip_anonimizado FROM acessos_log "
+            "WHERE data_hora >= ? ORDER BY data_hora DESC, id DESC",
             (datas[-1],),
-        ).fetchone()
+        ).fetchall()
     finally:
         conn.close()
     bruto = deduplicar_linhas_acesso([dict(linha) for linha in linhas])
     bruto.sort(key=lambda item: str(item.get("data_hora") or ""), reverse=True)
-    return [linha_auditoria(dados) for dados in bruto[:ACESSOS_LISTA]], int(total or 0), int(unicas or 0)
+    total, unicas = contar_acessos_unicos(bruto)
+    return [linha_auditoria(dados) for dados in bruto[:ACESSOS_LISTA]], total, unicas
 
 
 def auditoria_acessos(dias=ACESSOS_DIAS):
@@ -2672,13 +2663,14 @@ def responder_metricas_acesso(saida):
 
 
 def limpar_acessos():
-    """Apaga o rastreamento: no Redis, logs/visitantes/sessões de cada dia do prazo; localmente, a tabela."""
+    """Apaga o rastreamento: hashes novos, logs legados e índices de cada dia; localmente, a tabela."""
     if endereco_redis():
         hoje = agora_painel().date()
         chaves = []
         for atras in range(-1, ACESSOS_EXPIRA // (24 * 60 * 60) + 2):
             dia = (hoje - timedelta(days=atras)).isoformat()
             chaves += [
+                chave_hash_acessos(dia),
                 ACESSOS_CHAVE + "log:" + dia,
                 ACESSOS_CHAVE + "sessoes:" + dia,
                 ACESSOS_CHAVE + "visitantes:" + dia,

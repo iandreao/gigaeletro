@@ -1004,8 +1004,21 @@
     var registros = dados.registros || [];
     var dias = Number(dados.periodoDias || 0);
     var total = Number(dados.totalAcessos || 0);
+    var unicosServidor = Number(dados.sessoesUnicas || 0);
+    /* Segurança: únicos nunca passam dos acessos, mesmo com cache antigo no navegador. */
+    var unicos = Math.min(unicosServidor, total);
+    if (!unicos && registros.length) {
+      var ids = {};
+      registros.forEach(function (linha) {
+        var id = String(linha.id_visitante || linha.id_sessao || "").trim();
+        if (id) ids[id] = true;
+      });
+      unicos = Object.keys(ids).length;
+      total = Math.max(total, registros.length);
+      unicos = Math.min(unicos, total);
+    }
     trafegoCabecalho = {
-      unicos: String(dados.sessoesUnicas || 0),
+      unicos: String(unicos),
       periodo: dias === 1 ? "hoje" : (dias ? "nos últimos " + dias + " dias" : "em todo o período"),
       desativado: dados.armazenamento === "nenhum",
       cortado: total > registros.length ? registros.length : 0,

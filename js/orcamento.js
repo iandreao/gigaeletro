@@ -1,11 +1,12 @@
-/* Telemetria de acessos: isolada do orçamento e silenciosa mesmo se a rota falhar.
-   1 registro por visitante + tipo (Externo/Interno) + dia; o servidor reforça a mesma regra. */
-document.addEventListener("DOMContentLoaded", function () {
+/* Telemetria de acessos: um único ponto de entrada no site.
+   Trava em memória + chave diária no localStorage antes do fetch; o Redis reforça com HSET atômico. */
+(function () {
+  if (typeof window.registrarAcessoGigaeletro === "function") return;
+
   var EQUIPE = ["Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03"];
   var CHAVE_INTERNO = "gigaeletro_interno";
-  var CHAVE_VISITA = "gigaeletro_visita";
   var CHAVE_VISITANTE = "ge_visitor_id";
-  var CHAVE_ENVIO = "ge_acesso_envio";
+
   function lerLocal(chave) {
     try {
       return window.localStorage.getItem(chave) || "";
@@ -13,20 +14,24 @@ document.addEventListener("DOMContentLoaded", function () {
       return "";
     }
   }
+
   function gravarLocal(chave, valor) {
     try {
       if (valor) window.localStorage.setItem(chave, valor);
       else window.localStorage.removeItem(chave);
     } catch (semArmazenamento) {}
   }
+
   function hojeLocal() {
     var agora = new Date();
     return agora.getFullYear() + "-" + String(agora.getMonth() + 1).padStart(2, "0") + "-" + String(agora.getDate()).padStart(2, "0");
   }
+
   function novaSessao() {
     if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID();
     return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
   }
+
   function idVisitante() {
     var atual = String(lerLocal(CHAVE_VISITANTE) || "").trim();
     if (/^[A-Za-z0-9-]{8,64}$/.test(atual)) return atual;
@@ -34,7 +39,7 @@ document.addEventListener("DOMContentLoaded", function () {
     gravarLocal(CHAVE_VISITANTE, atual);
     return atual;
   }
-  /* Aceita julio, Balcao01 ou Balcão 01 e devolve o nome oficial da equipe. */
+
   function nomeDaEquipe(valor) {
     var chave = function (texto) {
       return String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "").toLowerCase();
@@ -45,77 +50,87 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     return "";
   }
-  /* Mesmas regras do servidor: letras, números, espaço e . ' - _, até 30 caracteres. */
+
   function nomeInterno(valor) {
     var texto = String(valor || "").normalize("NFC").replace(/[^\p{L}\p{N} .'_-]/gu, "").replace(/\s+/g, " ").trim().slice(0, 30).trim();
     return nomeDaEquipe(texto) || texto;
   }
-  try {
-    /* Trava em memória: scripts duplicados ou DOMContentLoaded repetido não disparam duas vezes. */
-    if (window.__geAcessoEnviado) return;
-    window.__geAcessoEnviado = true;
-    var parametros = new URLSearchParams(window.location.search);
-    var origem = (parametros.get("ref") || parametros.get("utm_source") || "").trim() || "Direto";
-    /* ?equipe=Nome (ou o antigo ?user=Nome) marca este navegador como da equipe; ?equipe=sair desfaz. */
-    var marcacao = parametros.has("equipe") ? parametros.get("equipe") : parametros.get("user");
-    if (marcacao !== null) {
+
+  function sincronizarEquipeNaUrl() {
+    try {
+      var parametros = new URLSearchParams(window.location.search);
+      var marcacao = parametros.has("equipe") ? parametros.get("equipe") : parametros.get("user");
+      if (marcacao === null) return;
       gravarLocal(CHAVE_INTERNO, marcacao.trim().toLowerCase() === "sair" ? "" : nomeInterno(marcacao));
       parametros.delete("equipe");
       parametros.delete("user");
       var restante = parametros.toString();
       window.history.replaceState(window.history.state, "", window.location.pathname + (restante ? "?" + restante : "") + window.location.hash);
-    }
-    var equipe = nomeInterno(lerLocal(CHAVE_INTERNO));
-    var tipo = equipe ? "Interno" : "Externo";
-    var toque = "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
-    var dispositivo = toque && window.innerWidth < 1024 ? "Mobile" : "Desktop";
-    var hoje = hojeLocal();
-    var chaveDia = hoje + "|" + tipo;
-    try {
-      if (window.sessionStorage.getItem(CHAVE_ENVIO) === chaveDia) return;
-      window.sessionStorage.setItem(CHAVE_ENVIO, chaveDia);
-    } catch (semSessao) {}
-    var visitas = {};
-    try {
-      visitas = JSON.parse(lerLocal(CHAVE_VISITA) || "{}") || {};
-    } catch (corrompido) {
-      visitas = {};
-    }
-    if (typeof visitas !== "object" || Array.isArray(visitas)) visitas = {};
-    var ultima = visitas[tipo] || visitas[dispositivo];
-    /* Mudar Externo ↔ Interno no mesmo dia gera um registro do novo tipo. */
-    if (ultima && ultima.dia === hoje && (ultima.tipo || "") === tipo) return;
-    var visitante = idVisitante();
-    var sessao = "";
-    try {
-      sessao = window.sessionStorage.getItem("gigaeletro_sessao") || "";
-      if (!sessao) {
-        sessao = novaSessao();
-        window.sessionStorage.setItem("gigaeletro_sessao", sessao);
-      }
-    } catch (bloqueado) {
-      sessao = sessao || novaSessao();
-    }
-    /* A trava diária vem antes do fetch: duas abas abertas no mesmo segundo não duplicam o POST. */
-    visitas[tipo] = { dia: hoje, tipo: tipo, equipe: equipe };
-    gravarLocal(CHAVE_VISITA, JSON.stringify(visitas));
-    fetch("/api/registrar-acesso", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        origem: origem,
-        sessao: sessao,
-        visitante: visitante,
-        equipe: equipe,
-        dispositivo: dispositivo
-      }),
-      credentials: "same-origin",
-      keepalive: true
-    }).catch(function () {});
-  } catch (falha) {
-    window.__geAcessoEnviado = false;
+    } catch (semHistorico) {}
   }
-});
+
+  window.registrarAcessoGigaeletro = function (tipoInformado) {
+    /* A trava vem antes de qualquer leitura/fetch: load + DOMContentLoaded ou script duplo não disparam 2 POSTs. */
+    if (window.__geAcessoLock) return false;
+    window.__geAcessoLock = true;
+    try {
+      sincronizarEquipeNaUrl();
+      var equipe = nomeInterno(lerLocal(CHAVE_INTERNO));
+      var tipo = tipoInformado === "Interno" || tipoInformado === "Externo"
+        ? tipoInformado
+        : (equipe ? "Interno" : "Externo");
+      var hoje = hojeLocal();
+      var chaveDia = "ge_acesso_reg_" + hoje + "_" + tipo;
+      if (lerLocal(chaveDia)) return false;
+      gravarLocal(chaveDia, "1");
+      var toque = "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
+      var dispositivo = toque && window.innerWidth < 1024 ? "Mobile" : "Desktop";
+      var origem = "Direto";
+      try {
+        var parametros = new URLSearchParams(window.location.search);
+        origem = (parametros.get("ref") || parametros.get("utm_source") || "").trim() || "Direto";
+      } catch (semUrl) {}
+      var visitante = idVisitante();
+      var sessao = visitante;
+      try {
+        sessao = window.sessionStorage.getItem("gigaeletro_sessao") || "";
+        if (!sessao) {
+          sessao = visitante;
+          window.sessionStorage.setItem("gigaeletro_sessao", sessao);
+        }
+      } catch (bloqueado) {
+        sessao = visitante;
+      }
+      fetch("/api/registrar-acesso", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          origem: origem,
+          sessao: sessao,
+          visitante: visitante,
+          equipe: equipe,
+          dispositivo: dispositivo
+        }),
+        credentials: "same-origin",
+        keepalive: true
+      }).catch(function () {});
+      return true;
+    } catch (falha) {
+      window.__geAcessoLock = false;
+      return false;
+    }
+  };
+
+  function dispararQuandoPronto() {
+    window.registrarAcessoGigaeletro();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", dispararQuandoPronto, { once: true });
+  } else {
+    dispararQuandoPronto();
+  }
+})();
 
 (function () {
   var WHATSAPP = "5527998235652";
