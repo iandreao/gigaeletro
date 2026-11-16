@@ -46,7 +46,7 @@
             "</div>" +
             '<div class="gv-card">' +
               '<button class="gv-card-btn" type="button" data-gv-acao="voz">COMANDO DE VOZ</button>' +
-              '<p class="gv-card-texto">Diga a quantidade e o produto - Ex.: um alicate, uma furadeira, oito lâmpadas).</p>' +
+              '<p class="gv-card-texto">Diga as quantidades e os produtos desejados (Ex.: 1 alicate, 2 furadeiras, 8 lâmpadas).</p>' +
             "</div>" +
           "</div>" +
         "</div>" +

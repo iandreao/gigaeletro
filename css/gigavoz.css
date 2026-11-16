@@ -140,7 +140,7 @@
   justify-content: center;
   box-sizing: border-box;
   flex: 0 0 auto;
-  width: 13.5rem;
+  width: 14.5rem;
   max-width: 100%;
   margin: 0;
   padding: 0.45rem 1rem;
@@ -149,7 +149,7 @@
   background: #FFD400;
   color: #1a1a1a;
   font: inherit;
-  font-size: 0.72rem;
+  font-size: 0.95rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   line-height: 1.2;
@@ -233,9 +233,9 @@
   }
 
   .gv-card-btn {
-    width: 12.5rem;
+    width: 13.5rem;
     padding: 0.4rem 0.85rem;
-    font-size: 0.68rem;
+    font-size: 0.85rem;
   }
 
   .gv-card-texto {
