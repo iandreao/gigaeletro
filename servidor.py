@@ -2230,14 +2230,14 @@ def normalizar_registro_acesso(dados):
 
 
 def ler_acessos_do_dia_redis(dia):
-    """Lê o hash novo (dia:) e o legado (log: lista ou hash), sem migrar no caminho quente da gravação."""
+    """Hash dia: é a fonte da verdade; o legado log: só entra se o hash novo ainda não existir."""
     chave_nova = chave_hash_acessos(dia)
     chave_legada = ACESSOS_CHAVE + "log:" + dia
     tipo_nova, tipo_legada = redis_pipeline([["TYPE", chave_nova], ["TYPE", chave_legada]])
     comandos = []
     if tipo_nova == "hash":
         comandos.append(["HVALS", chave_nova])
-    if tipo_legada == "hash":
+    elif tipo_legada == "hash":
         comandos.append(["HVALS", chave_legada])
     elif tipo_legada == "list":
         comandos.append(["LRANGE", chave_legada, 0, -1])
@@ -2253,12 +2253,40 @@ def ler_acessos_do_dia_redis(dia):
     return linhas
 
 
+def chave_trava_acesso(dia, campo):
+    """SET NX diário por visitante+tipo: elimina a corrida de dois POSTs com o mesmo ID."""
+    return ACESSOS_CHAVE + "nx:" + dia + ":" + campo
+
+
+def chave_trava_corrida(registro):
+    """Janela curta por IP+dispositivo+tipo: colapsa o clone Desktop com dois UUIDs no mesmo segundo."""
+    dia = str(registro.get("data_hora") or "")[:10]
+    tipo = tipo_acesso(registro.get("quem_acessou"))
+    base = "|".join((
+        dia,
+        tipo,
+        str(registro.get("ip_anonimizado") or ""),
+        str(registro.get("dispositivo") or ""),
+    ))
+    return ACESSOS_CHAVE + "race:" + hashlib.sha256(base.encode("utf-8")).hexdigest()[:28]
+
+
 def registrar_acesso(registro):
     if endereco_redis():
         dia = registro["data_hora"][:10]
         chave = chave_hash_acessos(dia)
         campo = chave_acesso_dia(registro)
-        # HSET no hash do dia é atômico: duas requisições no mesmo ms atualizam o mesmo campo.
+        trava_dia = chave_trava_acesso(dia, campo)
+        trava_corrida = chave_trava_corrida(registro)
+        # NX do visitante (~1 dia) + NX da corrida (30 s). O 2º POST Desktop no mesmo segundo perde.
+        criado_dia, criado_corrida = redis_pipeline([
+            ["SET", trava_dia, registro["data_hora"], "EX", 90000, "NX"],
+            ["SET", trava_corrida, campo, "EX", 30, "NX"],
+        ])[:2]
+        if criado_dia is None:
+            return
+        if criado_corrida is None:
+            return
         redis_pipeline([
             ["HSET", chave, campo, json.dumps(registro, ensure_ascii=False)],
             ["EXPIRE", chave, ACESSOS_EXPIRA],
@@ -2555,8 +2583,18 @@ def linha_auditoria(dados):
     return linha
 
 
+def _epoch_acesso(valor):
+    texto = str(valor or "").strip()
+    for formato in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(texto[:19], formato).timestamp()
+        except ValueError:
+            continue
+    return 0
+
+
 def deduplicar_linhas_acesso(linhas):
-    """1 registro por visitante+tipo+dia; clones no mesmo segundo (IDs diferentes) também viram um só."""
+    """1 registro por visitante+tipo+dia; clones Desktop (IDs diferentes, mesmos ~30 s) viram um só."""
     por_visitante = {}
     for dados in linhas:
         atual = normalizar_registro_acesso(dados)
@@ -2566,20 +2604,32 @@ def deduplicar_linhas_acesso(linhas):
         anterior = por_visitante.get(chave)
         if anterior is None or str(atual.get("data_hora") or "") >= str(anterior.get("data_hora") or ""):
             por_visitante[chave] = atual
-    por_exibicao = {}
-    for atual in por_visitante.values():
-        clone = "|".join((
+    ordenados = sorted(por_visitante.values(), key=lambda item: str(item.get("data_hora") or ""))
+    por_exibicao = []
+    for atual in ordenados:
+        epoca = _epoch_acesso(atual.get("data_hora"))
+        tipo = tipo_acesso(atual.get("quem_acessou"))
+        digital = (
             str(atual.get("data_hora") or "")[:10],
-            tipo_acesso(atual.get("quem_acessou")),
-            str(atual.get("data_hora") or ""),
+            tipo,
             str(atual.get("dispositivo") or ""),
             classificar_quem(atual.get("quem_acessou")),
             str(atual.get("ip_anonimizado") or ""),
-        ))
-        anterior = por_exibicao.get(clone)
-        if anterior is None or str(atual.get("id_visitante") or "") >= str(anterior.get("id_visitante") or ""):
-            por_exibicao[clone] = atual
-    return list(por_exibicao.values())
+        )
+        clone = None
+        for indice, anterior in enumerate(por_exibicao):
+            if anterior["digital"] != digital:
+                continue
+            if abs(epoca - anterior["epoca"]) <= 30:
+                clone = indice
+                break
+        if clone is None:
+            por_exibicao.append({"digital": digital, "epoca": epoca, "registro": atual})
+            continue
+        anterior = por_exibicao[clone]
+        if epoca >= anterior["epoca"]:
+            por_exibicao[clone] = {"digital": digital, "epoca": epoca, "registro": atual}
+    return [item["registro"] for item in por_exibicao]
 
 
 def contar_acessos_unicos(linhas):

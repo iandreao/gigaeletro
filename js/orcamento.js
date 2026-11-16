@@ -1,5 +1,5 @@
 /* Telemetria de acessos: um único ponto de entrada no site.
-   Trava em memória + chave diária no localStorage antes do fetch; o Redis reforça com HSET atômico. */
+   1 POST por carregamento (__trafegoRegistrado) e 1 gravação por dia+tipo (localStorage CAS). */
 (function () {
   if (typeof window.registrarAcessoGigaeletro === "function") return;
 
@@ -22,6 +22,21 @@
     } catch (semArmazenamento) {}
   }
 
+  function lerSessao(chave) {
+    try {
+      return window.sessionStorage.getItem(chave) || "";
+    } catch (semArmazenamento) {
+      return "";
+    }
+  }
+
+  function gravarSessao(chave, valor) {
+    try {
+      if (valor) window.sessionStorage.setItem(chave, valor);
+      else window.sessionStorage.removeItem(chave);
+    } catch (semArmazenamento) {}
+  }
+
   function hojeLocal() {
     var agora = new Date();
     return agora.getFullYear() + "-" + String(agora.getMonth() + 1).padStart(2, "0") + "-" + String(agora.getDate()).padStart(2, "0");
@@ -33,11 +48,23 @@
   }
 
   function idVisitante() {
+    /* Releitura após gravar evita duas abas Desktop mintarem UUIDs diferentes no mesmo segundo. */
     var atual = String(lerLocal(CHAVE_VISITANTE) || "").trim();
     if (/^[A-Za-z0-9-]{8,64}$/.test(atual)) return atual;
     atual = novaSessao();
     gravarLocal(CHAVE_VISITANTE, atual);
-    return atual;
+    var confirmado = String(lerLocal(CHAVE_VISITANTE) || "").trim();
+    return /^[A-Za-z0-9-]{8,64}$/.test(confirmado) ? confirmado : atual;
+  }
+
+  function reservarDia(chaveDia) {
+    /* CAS no localStorage + espelho no sessionStorage: a segunda aba/prerender perde a reserva. */
+    if (lerLocal(chaveDia) || lerSessao(chaveDia)) return false;
+    var token = novaSessao();
+    gravarLocal(chaveDia, token);
+    gravarSessao(chaveDia, token);
+    var ganhador = lerLocal(chaveDia) || lerSessao(chaveDia);
+    return !ganhador || ganhador === token;
   }
 
   function nomeDaEquipe(valor) {
@@ -70,8 +97,9 @@
   }
 
   window.registrarAcessoGigaeletro = function (tipoInformado) {
-    /* A trava vem antes de qualquer leitura/fetch: load + DOMContentLoaded ou script duplo não disparam 2 POSTs. */
-    if (window.__geAcessoLock) return false;
+    /* Flag em memória: no máximo 1 disparo por carregamento (Desktop costuma repetir load/prerender). */
+    if (window.__trafegoRegistrado || window.__geAcessoLock) return false;
+    window.__trafegoRegistrado = true;
     window.__geAcessoLock = true;
     try {
       sincronizarEquipeNaUrl();
@@ -81,8 +109,7 @@
         : (equipe ? "Interno" : "Externo");
       var hoje = hojeLocal();
       var chaveDia = "ge_acesso_reg_" + hoje + "_" + tipo;
-      if (lerLocal(chaveDia)) return false;
-      gravarLocal(chaveDia, "1");
+      if (!reservarDia(chaveDia)) return false;
       var toque = "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
       var dispositivo = toque && window.innerWidth < 1024 ? "Mobile" : "Desktop";
       var origem = "Direto";
@@ -93,11 +120,8 @@
       var visitante = idVisitante();
       var sessao = visitante;
       try {
-        sessao = window.sessionStorage.getItem("gigaeletro_sessao") || "";
-        if (!sessao) {
-          sessao = visitante;
-          window.sessionStorage.setItem("gigaeletro_sessao", sessao);
-        }
+        sessao = lerSessao("gigaeletro_sessao") || visitante;
+        gravarSessao("gigaeletro_sessao", sessao);
       } catch (bloqueado) {
         sessao = visitante;
       }
@@ -111,11 +135,11 @@
           equipe: equipe,
           dispositivo: dispositivo
         }),
-        credentials: "same-origin",
-        keepalive: true
+        credentials: "same-origin"
       }).catch(function () {});
       return true;
     } catch (falha) {
+      window.__trafegoRegistrado = false;
       window.__geAcessoLock = false;
       return false;
     }
