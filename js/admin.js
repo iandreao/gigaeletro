@@ -1034,12 +1034,14 @@
       lista.innerHTML = registros.map(function (linha) {
         var tipo = linha.tipo === "Interno" ? "Interno" : "Externo";
         var dispositivo = linha.dispositivo === "Mobile" || linha.dispositivo === "Desktop" ? linha.dispositivo : "";
+        var localizacao = String(linha.localizacao || "").trim();
         return '<tr data-sessao="' + escapar(linha.id_visitante || linha.id_sessao || "") + '" data-tipo="' + tipo + '" data-quem="' +
           escapar(linha.quem_acessou || "") + '" data-dispositivo="' + dispositivo + '">' +
           "<td>" + escapar(horarioAcesso(linha.data_hora)) + "</td>" +
           '<td><span class="trafego-tag trafego-tag-' + tipo.toLowerCase() + '">' + tipo + "</span></td>" +
           '<td class="quem">' + escapar(linha.quem_acessou || "—") + "</td>" +
           "<td>" + (dispositivo ? '<span class="trafego-tag trafego-tag-' + dispositivo.toLowerCase() + '">' + dispositivo + "</span>" : "—") + "</td>" +
+          '<td class="localizacao">' + escapar(localizacao || "—") + "</td>" +
           "</tr>";
       }).join("");
     }

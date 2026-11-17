@@ -399,6 +399,12 @@ body.gestor .dash-topo h1 { margin: 0; }
 .trafego-resumo { flex: none; margin: 0.2rem 0 0.6rem; }
 .trafego-tabela td { white-space: nowrap; }
 .trafego-tabela td.quem { font-weight: 800; }
+.trafego-tabela td.localizacao {
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .trafego-barra { flex: none; display: flex; flex-wrap: wrap; align-items: end; gap: 0.5rem 1rem; margin-bottom: 0.6rem; }
 .trafego-filtro { display: grid; gap: 0.25rem; font-size: 0.78rem; font-weight: 800; }
 .trafego-filtro select {

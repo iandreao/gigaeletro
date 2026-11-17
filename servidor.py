@@ -79,7 +79,7 @@ ACESSOS_CORPO_MAX = 4096
 RE_MOBILE = re.compile(r"Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobi", re.IGNORECASE)
 RE_ROBO = re.compile(r"bot|crawl|spider|slurp", re.IGNORECASE)
 RE_SESSAO = re.compile(r"[A-Za-z0-9-]{8,64}")
-CAMPOS_AUDITORIA = ("data_hora", "quem_acessou", "dispositivo", "id_sessao", "id_visitante")
+CAMPOS_AUDITORIA = ("data_hora", "quem_acessou", "dispositivo", "localizacao", "id_sessao", "id_visitante")
 NOMES_DISPOSITIVO = ("Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03")
 CLIENTE_EXTERNO = "Cliente Externo"
 RESEND_URL = "https://api.resend.com/emails"
@@ -2067,6 +2067,47 @@ def dispositivo_acesso(agente, informado=""):
     return "Mobile" if RE_MOBILE.search(agente or "") else "Desktop"
 
 
+def cabecalho_acesso(saida, nome):
+    """Lê cabeçalho HTTP sem diferenciar maiúsculas (Vercel e BaseHTTPRequestHandler)."""
+    if not saida or not getattr(saida, "headers", None):
+        return ""
+    valor = saida.headers.get(nome) or saida.headers.get(nome.lower()) or saida.headers.get(nome.upper())
+    return str(valor or "").strip()
+
+
+def decodificar_cidade_vercel(valor):
+    """x-vercel-ip-city vem com acentos em percent-encoding (ex.: Venda%20Nova%20do%20Imigrante)."""
+    texto = str(valor or "").strip()
+    if not texto:
+        return ""
+    try:
+        texto = urllib.parse.unquote(texto)
+    except Exception:
+        pass
+    texto = re.sub(r"\s+", " ", texto).strip()
+    return texto[:80]
+
+
+def localizacao_acesso(saida):
+    """Monta Cidade/UF a partir dos cabeçalhos geográficos da Vercel."""
+    cidade = decodificar_cidade_vercel(cabecalho_acesso(saida, "x-vercel-ip-city"))
+    uf = re.sub(r"[^A-Za-z]", "", cabecalho_acesso(saida, "x-vercel-ip-country-region")).upper()[:8]
+    pais = re.sub(r"[^A-Za-z]", "", cabecalho_acesso(saida, "x-vercel-ip-country")).upper()[:8]
+    if cidade and uf:
+        return ("%s/%s" % (cidade, uf))[:90]
+    if cidade:
+        return cidade[:90]
+    if uf and pais:
+        return ("%s/%s" % (uf, pais))[:90]
+    if uf:
+        return uf
+    host = (cabecalho_acesso(saida, "Host") or "").split(":")[0].lower()
+    ip = ip_do_cliente(saida)
+    if host in ("localhost", "127.0.0.1", "::1") or ip in ("127.0.0.1", "::1", "localhost"):
+        return "Localhost"
+    return "Não identificada"
+
+
 def ip_do_cliente(saida):
     encaminhado = saida.headers.get("X-Forwarded-For") or saida.headers.get("X-Real-IP") or ""
     ip = encaminhado.split(",")[0].strip()
@@ -2165,7 +2206,7 @@ def conectar_acessos():
         "ip_anonimizado TEXT, id_sessao TEXT, id_visitante TEXT, quem_acessou TEXT, dispositivo TEXT, origem TEXT)"
     )
     existentes = {linha[1] for linha in conn.execute("PRAGMA table_info(acessos_log)")}
-    for coluna in ("id_sessao", "id_visitante", "quem_acessou"):
+    for coluna in ("id_sessao", "id_visitante", "quem_acessou", "dispositivo", "origem", "localizacao"):
         if coluna not in existentes:
             conn.execute("ALTER TABLE acessos_log ADD COLUMN %s TEXT" % coluna)
     return conn
@@ -2175,6 +2216,7 @@ def gravar_acesso_local(registro):
     """Um registro por visitante + tipo + dia: se já existir, só atualiza o horário e os dados do acesso."""
     dia = registro["data_hora"][:10]
     tipo = tipo_acesso(registro["quem_acessou"])
+    localizacao = str(registro.get("localizacao") or "Não identificada")[:90]
     conn = conectar_acessos()
     try:
         if tipo == "Externo":
@@ -2192,19 +2234,20 @@ def gravar_acesso_local(registro):
         if existente:
             conn.execute(
                 "UPDATE acessos_log SET data_hora = ?, ip_anonimizado = ?, id_sessao = ?, quem_acessou = ?, "
-                "dispositivo = ?, origem = ? WHERE id = ?",
+                "dispositivo = ?, origem = ?, localizacao = ? WHERE id = ?",
                 (
                     registro["data_hora"], registro["ip_anonimizado"], registro["id_sessao"],
-                    registro["quem_acessou"], registro["dispositivo"], registro["origem"], existente["id"],
+                    registro["quem_acessou"], registro["dispositivo"], registro["origem"],
+                    localizacao, existente["id"],
                 ),
             )
         else:
             conn.execute(
-                "INSERT INTO acessos_log (data_hora, ip_anonimizado, id_sessao, id_visitante, quem_acessou, dispositivo, origem) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO acessos_log (data_hora, ip_anonimizado, id_sessao, id_visitante, quem_acessou, dispositivo, origem, localizacao) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     registro["data_hora"], registro["ip_anonimizado"], registro["id_sessao"], registro["id_visitante"],
-                    registro["quem_acessou"], registro["dispositivo"], registro["origem"],
+                    registro["quem_acessou"], registro["dispositivo"], registro["origem"], localizacao,
                 ),
             )
         conn.commit()
@@ -2316,6 +2359,7 @@ def responder_registrar_acesso(saida):
                 "quem_acessou": quem_acessou(dados.get("equipe"), dados.get("quem")),
                 "dispositivo": dispositivo_acesso(agente, dados.get("dispositivo")),
                 "origem": origem_acesso(dados.get("origem")),
+                "localizacao": localizacao_acesso(saida),
             })
     except Exception as erro:
         print("acessos: falha ao registrar (%s)" % erro, file=sys.stderr, flush=True)
@@ -2580,6 +2624,8 @@ def linha_auditoria(dados):
     linha["tipo"] = "Externo" if linha["quem_acessou"] == CLIENTE_EXTERNO else "Interno"
     if not linha["id_visitante"] and linha["id_sessao"]:
         linha["id_visitante"] = linha["id_sessao"]
+    # Registros antigos sem geo: o painel mostra "—"; não inventa cidade.
+    linha["localizacao"] = str(dados.get("localizacao") or "").strip()
     return linha
 
 
@@ -2656,8 +2702,8 @@ def auditoria_sqlite(datas):
     conn = conectar_acessos()
     try:
         linhas = conn.execute(
-            "SELECT data_hora, quem_acessou, dispositivo, id_sessao, id_visitante, ip_anonimizado FROM acessos_log "
-            "WHERE data_hora >= ? ORDER BY data_hora DESC, id DESC",
+            "SELECT data_hora, quem_acessou, dispositivo, localizacao, id_sessao, id_visitante, ip_anonimizado "
+            "FROM acessos_log WHERE data_hora >= ? ORDER BY data_hora DESC, id DESC",
             (datas[-1],),
         ).fetchall()
     finally:
