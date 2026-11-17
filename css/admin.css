@@ -645,11 +645,11 @@ body.gestor .equipe-lista-tabela td:nth-child(2) {
   background: #f3f5f4;
   box-shadow: 0 1px 0 var(--gray-200, #e2e8f0);
 }
-.equipe-lista-tabela th.equipe-th-acao,
-.equipe-lista-tabela td.equipe-cel-acao {
+body.gestor .equipe-lista-tabela th.equipe-th-acao,
+body.gestor .equipe-lista-tabela td.equipe-cel-acao {
   width: 100px;
-  text-align: right;
-  vertical-align: middle;
+  text-align: center !important;
+  vertical-align: middle !important;
   white-space: nowrap;
 }
 .equipe-lista-tabela tbody tr[data-equipe-linha] {
@@ -767,10 +767,11 @@ body.gestor .equipe-acoes-tabela td {
 .equipe-historico-topo h2 { flex: 1 1 auto; margin: 0; }
 .equipe-historico-topo .trafego-filtro { margin: 0; }
 .equipe-historico-topo .btn { min-height: 36px; }
-.equipe-toggle {
+body.gestor .equipe-lista-tabela .equipe-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin: 0 auto;
   min-height: 0;
   height: auto;
   padding: 2px 8px;
