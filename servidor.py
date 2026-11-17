@@ -1114,7 +1114,8 @@ def resumo_equipe():
             "total_acessos": stats["acessos"],
             "acoes_executadas": stats["acoes"],
         })
-    return {"funcionarios": funcionarios, "resumo": resumo, "logs": logs[:300]}
+    # Devolve logs suficientes para o detalhamento de "Ações Executadas" no painel.
+    return {"funcionarios": funcionarios, "resumo": resumo, "logs": logs[:EQUIPE_LOGS_LIMITE]}
 
 
 def caminho_api(saida):

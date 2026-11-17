@@ -1460,17 +1460,90 @@
     atualizarBotoesEquipe();
   }
 
+  function logsAcoesFuncionario(nome) {
+    var alvo = String(nome || "").normalize("NFC");
+    return (equipeDados.logs || []).filter(function (item) {
+      return String(item.funcionario || "").normalize("NFC") === alvo
+        && String(item.acao || "") !== "Acessou a Área Restrita";
+    });
+  }
+
+  var tooltipEquipe = document.querySelector("[data-equipe-acoes-tooltip]");
+  var modalEquipeAcoes = document.querySelector("[data-equipe-acoes-modal]");
+  var modalEquipeTitulo = document.querySelector("[data-equipe-acoes-titulo]");
+  var modalEquipeCorpo = document.querySelector("[data-equipe-acoes-corpo]");
+  var tooltipEquipeTimer = 0;
+
+  function esconderTooltipEquipe() {
+    if (tooltipEquipeTimer) {
+      window.clearTimeout(tooltipEquipeTimer);
+      tooltipEquipeTimer = 0;
+    }
+    if (tooltipEquipe) tooltipEquipe.hidden = true;
+  }
+
+  function mostrarTooltipEquipe(ancora, nome) {
+    if (!tooltipEquipe || !ancora) return;
+    var logs = logsAcoesFuncionario(nome).slice(0, 5);
+    if (!logs.length) {
+      esconderTooltipEquipe();
+      return;
+    }
+    tooltipEquipe.innerHTML = "<strong>Últimas ações</strong><ul>" + logs.map(function (item) {
+      return "<li><span>" + escapar(item.horario) + "</span> " + escapar(item.acao) + "</li>";
+    }).join("") + "</ul>";
+    tooltipEquipe.hidden = false;
+    var ret = ancora.getBoundingClientRect();
+    var largura = tooltipEquipe.offsetWidth || 280;
+    var esquerda = Math.min(window.innerWidth - largura - 12, Math.max(8, ret.left + ret.width / 2 - largura / 2));
+    var topo = ret.bottom + 8;
+    if (topo + tooltipEquipe.offsetHeight > window.innerHeight - 8) {
+      topo = Math.max(8, ret.top - tooltipEquipe.offsetHeight - 8);
+    }
+    tooltipEquipe.style.left = esquerda + "px";
+    tooltipEquipe.style.top = topo + "px";
+  }
+
+  function fecharModalEquipeAcoes() {
+    esconderTooltipEquipe();
+    if (modalEquipeAcoes) modalEquipeAcoes.hidden = true;
+    document.querySelectorAll(".equipe-acoes-overlay").forEach(function (el) { el.hidden = true; });
+  }
+
+  function abrirModalEquipeAcoes(nome) {
+    if (!modalEquipeAcoes || !modalEquipeCorpo) return;
+    esconderTooltipEquipe();
+    var logs = logsAcoesFuncionario(nome);
+    if (modalEquipeTitulo) modalEquipeTitulo.textContent = "Ações Executadas — " + nome;
+    modalEquipeCorpo.innerHTML = logs.length
+      ? '<div class="equipe-acoes-modal-scroll"><table class="gestor-tabela equipe-tabela equipe-acoes-tabela"><thead><tr><th>Horário Exato</th><th>Opção / Ação Executada</th><th>Dispositivo</th></tr></thead><tbody>' +
+        logs.map(function (item) {
+          return "<tr><td>" + escapar(item.horario) + "</td><td>" + escapar(item.acao) + "</td><td>" + escapar(item.dispositivo || "—") + "</td></tr>";
+        }).join("") +
+        "</tbody></table></div>"
+      : '<p class="equipe-acoes-vazio">Nenhuma ação executada por este funcionário.</p>';
+    document.querySelectorAll(".equipe-acoes-overlay").forEach(function (el) { el.hidden = false; });
+    modalEquipeAcoes.hidden = false;
+  }
+
   function renderEquipeResumo(resumo) {
     var lista = document.querySelector("[data-equipe-resumo]");
     if (!lista) return;
     lista.innerHTML = (resumo || []).map(function (item) {
       var nunca = item.ultimo_acesso === "Nunca acessou";
+      var acoes = Number(item.acoes_executadas || 0);
+      var celAcoes = acoes > 0
+        ? '<td class="equipe-acoes-cel">' +
+            '<button type="button" class="equipe-acoes-badge" data-equipe-acoes-nome="' + escapar(item.nome) + '" title="Ver ações executadas por ' + escapar(item.nome) + '">' +
+              '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M8 3c-3.3 0-6 2.7-7.3 5C2 10.3 4.7 13 8 13s6-2.7 7.3-5C14 5.7 11.3 3 8 3zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/></svg>' +
+              '<span>' + acoes + "</span></button></td>"
+        : "<td>" + acoes + "</td>";
       return "<tr>" +
         "<td>" + escapar(item.nome) + "</td>" +
         "<td>" + escapar(item.status) + "</td>" +
         '<td class="' + (nunca ? "equipe-nunca" : "") + '">' + escapar(item.ultimo_acesso) + "</td>" +
         "<td>" + Number(item.total_acessos || 0) + "</td>" +
-        "<td>" + Number(item.acoes_executadas || 0) + "</td></tr>";
+        celAcoes + "</tr>";
     }).join("") || '<tr><td colspan="5">Sem dados de engajamento.</td></tr>';
   }
 
@@ -1588,6 +1661,16 @@
   }
 
   document.addEventListener("click", function (evento) {
+    var badgeAcoes = evento.target.closest("[data-equipe-acoes-nome]");
+    if (badgeAcoes) {
+      evento.preventDefault();
+      abrirModalEquipeAcoes(badgeAcoes.getAttribute("data-equipe-acoes-nome") || "");
+      return;
+    }
+    if (evento.target.closest("[data-equipe-acoes-fechar]")) {
+      fecharModalEquipeAcoes();
+      return;
+    }
     var botao = evento.target.closest("[data-equipe-toggle]");
     if (botao) {
       evento.stopPropagation();
@@ -1605,6 +1688,27 @@
     if (!linha) return;
     selecionarFuncionarioEquipe(linha.getAttribute("data-equipe-linha"), linha.getAttribute("data-nome"));
   });
+
+  document.addEventListener("mouseover", function (evento) {
+    var badge = evento.target.closest("[data-equipe-acoes-nome]");
+    if (!badge) return;
+    if (tooltipEquipeTimer) window.clearTimeout(tooltipEquipeTimer);
+    tooltipEquipeTimer = window.setTimeout(function () {
+      mostrarTooltipEquipe(badge, badge.getAttribute("data-equipe-acoes-nome") || "");
+    }, 120);
+  });
+
+  document.addEventListener("mouseout", function (evento) {
+    var badge = evento.target.closest("[data-equipe-acoes-nome]");
+    if (!badge) return;
+    var destino = evento.relatedTarget;
+    if (destino && (badge.contains(destino) || (tooltipEquipe && tooltipEquipe.contains(destino)))) return;
+    esconderTooltipEquipe();
+  });
+
+  if (tooltipEquipe) {
+    tooltipEquipe.addEventListener("mouseleave", esconderTooltipEquipe);
+  }
 
   atualizarBotoesEquipe();
 
@@ -1657,7 +1761,12 @@
     botao.addEventListener("click", fecharDetalhe);
   });
   document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") fecharDetalhe();
+    if (event.key !== "Escape") return;
+    if (modalEquipeAcoes && !modalEquipeAcoes.hidden) {
+      fecharModalEquipeAcoes();
+      return;
+    }
+    fecharDetalhe();
   });
 
   function prepararDrop(zona, campo, aoEscolher) {

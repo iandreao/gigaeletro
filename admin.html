@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=33">
+  <link rel="stylesheet" href="css/admin.css?v=34">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -311,6 +311,15 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=54"></script>
+  <div class="overlay equipe-acoes-overlay" data-equipe-acoes-fechar hidden></div>
+  <div class="modal equipe-acoes-modal" data-equipe-acoes-modal hidden role="dialog" aria-modal="true" aria-labelledby="titulo-equipe-acoes">
+    <div class="drawer-head">
+      <h2 id="titulo-equipe-acoes" data-equipe-acoes-titulo>Ações Executadas</h2>
+      <button type="button" data-equipe-acoes-fechar aria-label="Fechar">×</button>
+    </div>
+    <div class="equipe-acoes-modal-corpo" data-equipe-acoes-corpo></div>
+  </div>
+  <div class="equipe-acoes-tooltip" data-equipe-acoes-tooltip hidden></div>
+  <script src="js/admin.js?v=55"></script>
 </body>
 </html>
