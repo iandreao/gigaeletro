@@ -1023,6 +1023,69 @@
     return "https://wa.me/" + d + "?text=" + encodeURIComponent(mensagem);
   }
 
+  function leadContactado(linha) {
+    return linha && (linha.contactado === true || linha.contactado === 1 || linha.contactado === "1" || linha.contactado === "true");
+  }
+
+  function diaDoHorarioTrafego(valor) {
+    var partes = String(valor || "").trim().split(" ");
+    return partes[0] && /^\d{4}-\d{2}-\d{2}$/.test(partes[0]) ? partes[0] : "";
+  }
+
+  function htmlBotaoWhatsAppTrafego(linha, whats) {
+    if (!whats) return "—";
+    var id = String(linha.id_visitante || linha.id_sessao || "").trim();
+    var contactado = leadContactado(linha);
+    return '<a class="trafego-whatsapp' + (contactado ? " is-contactado" : "") +
+      '" href="' + escapar(whats) + '" target="_blank" rel="noopener noreferrer"' +
+      ' data-trafego-contactar="' + escapar(id) + '"' +
+      ' data-trafego-dia="' + escapar(diaDoHorarioTrafego(linha.data_hora)) + '"' +
+      ' data-contactado="' + (contactado ? "1" : "0") + '">' +
+      (contactado ? "Já contactado" : "WhatsApp") + "</a>";
+  }
+
+  function marcarBotaoContactado(botao) {
+    if (!botao) return;
+    botao.classList.add("is-contactado");
+    botao.setAttribute("data-contactado", "1");
+    botao.textContent = "Já contactado";
+  }
+
+  function salvarContactadoTrafego(botao) {
+    var id = botao && botao.getAttribute("data-trafego-contactar");
+    if (!id || botao.getAttribute("data-contactado") === "1") return;
+    marcarBotaoContactado(botao);
+    fetch("/api/admin/metricas-acesso", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        acao: "marcar_contactado",
+        id: id,
+        dia: botao.getAttribute("data-trafego-dia") || ""
+      })
+    }).then(function (resposta) {
+      if (resposta.status === 401) {
+        window.location.replace("/");
+        return null;
+      }
+      return resposta.json().catch(function () { return null; });
+    }).catch(function () {});
+  }
+
+  function ligarAcoesTrafego() {
+    var lista = document.querySelector("[data-trafego-lista]");
+    if (!lista || lista.dataset.trafegoAcao) return;
+    lista.dataset.trafegoAcao = "1";
+    lista.addEventListener("click", function (evento) {
+      var botao = evento.target.closest("[data-trafego-contactar]");
+      if (!botao || !lista.contains(botao)) return;
+      /* O link abre o WhatsApp; se ainda não estava marcado, grava contactado em segundo plano. */
+      if (botao.getAttribute("data-contactado") === "1") return;
+      salvarContactadoTrafego(botao);
+    });
+  }
+
   function renderTrafego(dados) {
     var lista = document.querySelector("[data-trafego-lista]");
     var vazio = document.querySelector("[data-trafego-vazio]");
@@ -1062,11 +1125,10 @@
           '<td class="trafego-col-dispositivo">' +
             (dispositivo ? '<span class="trafego-tag trafego-tag-' + dispositivo.toLowerCase() + '">' + dispositivo + "</span>" : "—") +
           "</td>" +
-          '<td class="trafego-col-acao trafego-acao">' +
-            (whats ? '<a class="trafego-whatsapp" href="' + escapar(whats) + '" target="_blank" rel="noopener noreferrer">WhatsApp</a>' : "—") +
-          "</td></tr>";
+          '<td class="trafego-col-acao trafego-acao">' + htmlBotaoWhatsAppTrafego(linha, whats) + "</td></tr>";
       }).join("");
     }
+    ligarAcoesTrafego();
     aplicarFiltroTrafego();
   }
 

@@ -79,7 +79,10 @@ ACESSOS_CORPO_MAX = 4096
 RE_MOBILE = re.compile(r"Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobi", re.IGNORECASE)
 RE_ROBO = re.compile(r"bot|crawl|spider|slurp", re.IGNORECASE)
 RE_SESSAO = re.compile(r"[A-Za-z0-9-]{8,64}")
-CAMPOS_AUDITORIA = ("data_hora", "nome", "telefone", "email", "cep", "dispositivo", "id_sessao", "id_visitante")
+CAMPOS_AUDITORIA = (
+    "data_hora", "nome", "telefone", "email", "cep", "dispositivo",
+    "contactado", "contactado_em", "id_sessao", "id_visitante",
+)
 NOMES_DISPOSITIVO = ("Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03")
 CLIENTE_EXTERNO = "Cliente Externo"
 RESEND_URL = "https://api.resend.com/emails"
@@ -2146,6 +2149,10 @@ def eh_lead_trafego(dados):
     return bool(chave_lead_contato(dados.get("telefone"), dados.get("email")))
 
 
+def lead_contactado(valor):
+    return valor in (True, 1, "1", "true", "True", "sim", "Sim")
+
+
 def fundir_lead(atual, novo):
     """Atualiza horário e preenche campos vazios sem apagar o que o cliente já informou."""
     mesclado = dict(atual or {})
@@ -2155,6 +2162,16 @@ def fundir_lead(atual, novo):
             mesclado[campo] = atual[campo]
     if novo.get("data_hora"):
         mesclado["data_hora"] = novo["data_hora"]
+    # Upsert do formulário não desfaz o "Já contactado" marcado pela equipe.
+    if lead_contactado((atual or {}).get("contactado")) or lead_contactado((novo or {}).get("contactado")):
+        mesclado["contactado"] = True
+        mesclado["contactado_em"] = (
+            str((novo or {}).get("contactado_em") or "").strip()
+            or str((atual or {}).get("contactado_em") or "").strip()
+        )
+    else:
+        mesclado["contactado"] = False
+        mesclado["contactado_em"] = str(mesclado.get("contactado_em") or "").strip()
     return mesclado
 
 
@@ -2167,7 +2184,10 @@ def conectar_acessos():
         "ip_anonimizado TEXT, id_sessao TEXT, id_visitante TEXT, quem_acessou TEXT, dispositivo TEXT, origem TEXT)"
     )
     existentes = {linha[1] for linha in conn.execute("PRAGMA table_info(acessos_log)")}
-    for coluna in ("id_sessao", "id_visitante", "quem_acessou", "dispositivo", "origem", "nome", "telefone", "email", "cep"):
+    for coluna in (
+        "id_sessao", "id_visitante", "quem_acessou", "dispositivo", "origem",
+        "nome", "telefone", "email", "cep", "contactado", "contactado_em",
+    ):
         if coluna not in existentes:
             conn.execute("ALTER TABLE acessos_log ADD COLUMN %s TEXT" % coluna)
     return conn
@@ -2182,7 +2202,7 @@ def gravar_acesso_local(registro):
     conn = conectar_acessos()
     try:
         existente = conn.execute(
-            "SELECT id, nome, telefone, email, cep, dispositivo FROM acessos_log "
+            "SELECT id, nome, telefone, email, cep, dispositivo, contactado, contactado_em FROM acessos_log "
             "WHERE substr(data_hora, 1, 10) = ? AND id_visitante = ? ORDER BY id DESC LIMIT 1",
             (dia, campo),
         ).fetchone()
@@ -2191,21 +2211,25 @@ def gravar_acesso_local(registro):
             mesclado = fundir_lead(atual, registro)
             conn.execute(
                 "UPDATE acessos_log SET data_hora = ?, id_sessao = ?, nome = ?, telefone = ?, email = ?, "
-                "cep = ?, dispositivo = ?, ip_anonimizado = ? WHERE id = ?",
+                "cep = ?, dispositivo = ?, ip_anonimizado = ?, contactado = ?, contactado_em = ? WHERE id = ?",
                 (
                     mesclado["data_hora"], campo, mesclado.get("nome") or "", mesclado.get("telefone") or "",
                     mesclado.get("email") or "", mesclado.get("cep") or "", mesclado.get("dispositivo") or "",
-                    mesclado.get("ip_anonimizado") or "", existente["id"],
+                    mesclado.get("ip_anonimizado") or "",
+                    "1" if lead_contactado(mesclado.get("contactado")) else "0",
+                    mesclado.get("contactado_em") or "", existente["id"],
                 ),
             )
         else:
             conn.execute(
-                "INSERT INTO acessos_log (data_hora, ip_anonimizado, id_sessao, id_visitante, nome, telefone, email, cep, dispositivo) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO acessos_log (data_hora, ip_anonimizado, id_sessao, id_visitante, nome, telefone, email, cep, dispositivo, contactado, contactado_em) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     registro["data_hora"], registro.get("ip_anonimizado") or "", campo, campo,
                     registro.get("nome") or "", registro.get("telefone") or "", registro.get("email") or "",
                     registro.get("cep") or "", registro.get("dispositivo") or "",
+                    "1" if lead_contactado(registro.get("contactado")) else "0",
+                    registro.get("contactado_em") or "",
                 ),
             )
         conn.commit()
@@ -2334,6 +2358,8 @@ def responder_registrar_acesso(saida):
                 "email": email,
                 "cep": cep_lead(dados.get("cep")),
                 "dispositivo": dispositivo_acesso(agente, dados.get("dispositivo")),
+                "contactado": False,
+                "contactado_em": "",
             }
             registro["id_visitante"] = chave_acesso_dia(registro)
             registro["id_sessao"] = registro["id_visitante"]
@@ -2606,6 +2632,8 @@ def linha_auditoria(dados):
     linha["email"] = email_lead(linha.get("email"))
     linha["cep"] = cep_lead(linha.get("cep"))
     linha["nome"] = nome_lead(linha.get("nome"))
+    linha["contactado"] = lead_contactado(dados.get("contactado"))
+    linha["contactado_em"] = str(dados.get("contactado_em") or "").strip()
     return linha
 
 
@@ -2648,7 +2676,8 @@ def auditoria_sqlite(datas):
     conn = conectar_acessos()
     try:
         linhas = conn.execute(
-            "SELECT data_hora, nome, telefone, email, cep, dispositivo, id_sessao, id_visitante, ip_anonimizado "
+            "SELECT data_hora, nome, telefone, email, cep, dispositivo, contactado, contactado_em, "
+            "id_sessao, id_visitante, ip_anonimizado "
             "FROM acessos_log WHERE data_hora >= ? ORDER BY data_hora DESC, id DESC",
             (datas[-1],),
         ).fetchall()
@@ -2729,8 +2758,53 @@ def limpar_acessos():
         conn.close()
 
 
+def marcar_lead_contactado(identificador, dia=""):
+    """Marca o lead do dia como contactado (WhatsApp aberto pela equipe)."""
+    campo = str(identificador or "").strip()
+    if not campo.startswith(("tel:", "mail:")):
+        campo = chave_lead_contato(identificador, identificador)
+    if not campo:
+        return False
+    dia = str(dia or "").strip()[:10] or agora_painel().strftime("%Y-%m-%d")
+    agora = agora_painel().strftime("%Y-%m-%d %H:%M:%S")
+    if endereco_redis():
+        chave = chave_hash_acessos(dia)
+        atual_bruto = redis_pipeline([["HGET", chave, campo]])[0]
+        atual = registro_acesso_de_json(atual_bruto) if atual_bruto else None
+        if not isinstance(atual, dict):
+            return False
+        atual["contactado"] = True
+        atual["contactado_em"] = agora
+        atual["id_visitante"] = campo
+        atual["id_sessao"] = campo
+        redis_pipeline([
+            ["HSET", chave, campo, json.dumps(atual, ensure_ascii=False)],
+            ["EXPIRE", chave, ACESSOS_EXPIRA],
+        ])
+        return True
+    if em_vercel():
+        return False
+    conn = conectar_acessos()
+    try:
+        existente = conn.execute(
+            "SELECT id FROM acessos_log WHERE substr(data_hora, 1, 10) = ? AND id_visitante = ? "
+            "ORDER BY id DESC LIMIT 1",
+            (dia, campo),
+        ).fetchone()
+        if not existente:
+            return False
+        conn.execute(
+            "UPDATE acessos_log SET contactado = ?, contactado_em = ? WHERE id = ?",
+            ("1", agora, existente["id"]),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
 def responder_limpar_acessos(saida):
-    """POST /api/admin/metricas-acesso com acao "limpar_trafego": zera o histórico do Rastreamento de Tráfego."""
+    """POST /api/admin/metricas-acesso: limpar_trafego ou marcar_contactado."""
     corpo = ler_corpo(saida)
     if not token_valido(cookie_de(saida.headers.get("Cookie"))):
         escrever_json(saida, {"ok": False, "erro": "Sessão do painel expirada. Entre novamente na Área Restrita."}, 401)
@@ -2739,7 +2813,25 @@ def responder_limpar_acessos(saida):
         dados = json.loads((corpo or b"").decode("utf-8") or "{}")
     except (UnicodeDecodeError, json.JSONDecodeError):
         dados = None
-    if not isinstance(dados, dict) or dados.get("acao") != "limpar_trafego":
+    if not isinstance(dados, dict):
+        escrever_json(saida, {"ok": False, "erro": "Ação inválida."}, 400)
+        return
+    acao = str(dados.get("acao") or "").strip()
+    if acao == "marcar_contactado":
+        identificador = str(dados.get("id") or dados.get("id_visitante") or dados.get("chave") or "").strip()
+        dia = str(dados.get("dia") or "").strip()[:10]
+        try:
+            ok = marcar_lead_contactado(identificador, dia)
+        except Exception as erro:
+            print("acessos: falha ao marcar contactado (%s)" % erro, file=sys.stderr, flush=True)
+            escrever_json(saida, {"ok": False, "erro": "Não foi possível marcar o contato."}, 500)
+            return
+        if not ok:
+            escrever_json(saida, {"ok": False, "erro": "Registro de tráfego não encontrado."}, 404)
+            return
+        escrever_json(saida, {"ok": True, "contactado": True})
+        return
+    if acao != "limpar_trafego":
         escrever_json(saida, {"ok": False, "erro": "Ação inválida."}, 400)
         return
     try:

@@ -438,8 +438,18 @@ body.gestor .dash-topo h1 { margin: 0; }
   font-weight: 800;
   line-height: 1.2;
   text-decoration: none;
+  white-space: nowrap;
 }
 .trafego-whatsapp:hover { background: #15803d; color: #fff; }
+.trafego-whatsapp.is-contactado {
+  background: #eef2f0;
+  border: 1px solid #94a3a0;
+  color: #3f5f4a;
+}
+.trafego-whatsapp.is-contactado:hover {
+  background: #e2ebe5;
+  color: #2f4a38;
+}
 .trafego-barra { flex: none; display: flex; flex-wrap: wrap; align-items: end; gap: 0.5rem 1rem; margin-bottom: 0.6rem; }
 .trafego-filtro { display: grid; gap: 0.25rem; font-size: 0.78rem; font-weight: 800; }
 .trafego-filtro select {

@@ -1,4 +1,4 @@
-"""GET e POST (limpar_trafego) /api/admin/metricas-acesso na Vercel."""
+"""GET e POST (limpar_trafego / marcar_contactado) /api/admin/metricas-acesso na Vercel."""
 import sys
 from pathlib import Path
 
