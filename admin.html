@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=27">
+  <link rel="stylesheet" href="css/admin.css?v=29">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -27,12 +27,16 @@
   </header>
   <div data-area-restrita hidden>
     <div class="wrap gestor-nav-wrap">
-      <p class="kicker">Área restrita</p>
+      <div class="gestor-kicker-linha">
+        <p class="kicker">Área restrita</p>
+        <p class="gestor-operador" data-gestor-operador hidden></p>
+      </div>
       <nav class="gestor-abas" id="menu-gestor" aria-label="Área restrita">
         <button type="button" data-aba="estoque" aria-selected="false">Atualizar Estoque</button>
         <button type="button" data-aba="orcamentos" aria-selected="true">Orçamentos Recebidos</button>
         <button type="button" data-aba="dashboard" aria-selected="false">Painel Comercial</button>
         <button type="button" data-aba="trafego" aria-selected="false">Rastreamento de Tráfego</button>
+        <button type="button" data-aba="equipe" aria-selected="false">Acessos Equipe</button>
         <button class="btn btn-line gestor-sair" type="button" data-sair>Sair</button>
       </nav>
     </div>
@@ -76,6 +80,12 @@
       <button class="gestor-login-fechar" type="button" data-fechar-login aria-label="Fechar a Área Restrita e voltar ao início" title="Fechar">&times;</button>
       <h1>Acesso a Área Restrita</h1>
       <p class="gestor-login-destaque">Acesso exclusivo para o Gestor da Gigaeletro</p>
+      <label>Quem está acessando?
+        <select id="admin-funcionario-select" name="funcionario" required aria-label="Quem está acessando?">
+          <option value="">Selecione</option>
+          <option value="Administrador">Administrador</option>
+        </select>
+      </label>
       <label>Informe a Senha do Administrador
         <input type="password" name="senha" value="" autocomplete="new-password" required>
       </label>
@@ -213,6 +223,72 @@
         </table>
       </div>
     </div>
+    <div class="wrap gestor-pagina equipe" data-visao="equipe" hidden>
+      <h1>Acessos Equipe</h1>
+      <section class="equipe-bloco">
+        <h2>Cadastro de Funcionários</h2>
+        <form class="equipe-cadastro" data-equipe-cadastro>
+          <label>Nome do Funcionário
+            <input type="text" name="nome" maxlength="60" autocomplete="off" required placeholder="Ex.: João">
+          </label>
+          <button class="btn btn-preto" type="submit">Cadastrar</button>
+        </form>
+        <p class="gestor-busca-aviso" data-equipe-cadastro-aviso hidden></p>
+        <div class="gestor-tabela-box">
+          <table class="gestor-tabela equipe-tabela">
+            <thead>
+              <tr>
+                <th>Funcionário</th>
+                <th>Status</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+            <tbody data-equipe-lista></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="equipe-bloco">
+        <h2>Resumo de Engajamento da Equipe</h2>
+        <div class="gestor-tabela-box">
+          <table class="gestor-tabela equipe-tabela">
+            <thead>
+              <tr>
+                <th>Funcionário</th>
+                <th>Status</th>
+                <th>Último Acesso</th>
+                <th>Total de Acessos</th>
+                <th>Ações Executadas</th>
+              </tr>
+            </thead>
+            <tbody data-equipe-resumo></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="equipe-bloco">
+        <div class="equipe-historico-topo">
+          <h2>Histórico de Opções Executadas</h2>
+          <label class="trafego-filtro">Funcionário
+            <select data-equipe-filtro-funcionario aria-label="Filtrar histórico por funcionário">
+              <option value="">Todos</option>
+            </select>
+          </label>
+          <button class="btn btn-line" type="button" data-equipe-limpar-logs>Limpar Logs</button>
+        </div>
+        <div class="gestor-tabela-box">
+          <table class="gestor-tabela equipe-tabela equipe-historico">
+            <thead>
+              <tr>
+                <th>Horário Exato</th>
+                <th>Funcionário</th>
+                <th>Opção / Ação Executada</th>
+                <th>Dispositivo</th>
+              </tr>
+            </thead>
+            <tbody data-equipe-logs></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
     </div>
   </main>
   <div class="overlay" data-fechar-detalhe hidden></div>
@@ -223,6 +299,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=49"></script>
+  <script src="js/admin.js?v=51"></script>
 </body>
 </html>

@@ -76,6 +76,11 @@ ACESSOS_LISTA = 500
 ACESSOS_DIAS = 30
 ACESSOS_EXPIRA = 400 * 24 * 60 * 60
 ACESSOS_CORPO_MAX = 4096
+EQUIPE_CHAVE = "equipe:{giga}:"
+EQUIPE_FUNCIONARIOS = EQUIPE_CHAVE + "funcionarios"
+EQUIPE_LOGS = EQUIPE_CHAVE + "logs"
+EQUIPE_LOGS_LIMITE = 2000
+EQUIPE_ADMIN = "Administrador"
 RE_MOBILE = re.compile(r"Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobi", re.IGNORECASE)
 RE_ROBO = re.compile(r"bot|crawl|spider|slurp", re.IGNORECASE)
 RE_SESSAO = re.compile(r"[A-Za-z0-9-]{8,64}")
@@ -721,11 +726,276 @@ def responder_catalogo(saida):
     escrever_json_pronto(saida, conteudo)
 
 
+def nome_funcionario(valor):
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFC", str(valor or ""))).strip()[:60]
+
+
+def dispositivo_equipe(informado="", agente=""):
+    if informado in ("Mobile", "Desktop"):
+        return informado
+    return "Mobile" if RE_MOBILE.search(agente or "") else "Desktop"
+
+
+def conectar_equipe():
+    conn = conectar()
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS equipe_funcionarios ("
+        "id TEXT PRIMARY KEY, nome TEXT NOT NULL, ativo INTEGER NOT NULL DEFAULT 1, criado_em TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS equipe_logs ("
+        "id TEXT PRIMARY KEY, horario TEXT NOT NULL, funcionario TEXT NOT NULL, "
+        "acao TEXT NOT NULL, dispositivo TEXT)"
+    )
+    return conn
+
+
+def listar_funcionarios_equipe(somente_ativos=False):
+    if endereco_redis():
+        bruto = redis_pipeline([["HVALS", EQUIPE_FUNCIONARIOS]])[0] or []
+        itens = []
+        for item in bruto if isinstance(bruto, list) else []:
+            try:
+                dados = json.loads(item) if isinstance(item, str) else item
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if isinstance(dados, dict) and dados.get("id") and dados.get("nome"):
+                itens.append({
+                    "id": str(dados["id"]),
+                    "nome": nome_funcionario(dados["nome"]),
+                    "ativo": bool(dados.get("ativo", True)),
+                })
+    elif em_vercel():
+        itens = []
+    else:
+        conn = conectar_equipe()
+        try:
+            linhas = conn.execute(
+                "SELECT id, nome, ativo FROM equipe_funcionarios ORDER BY nome COLLATE NOCASE"
+            ).fetchall()
+        finally:
+            conn.close()
+        itens = [{"id": str(l["id"]), "nome": nome_funcionario(l["nome"]), "ativo": bool(l["ativo"])} for l in linhas]
+    itens.sort(key=lambda item: item["nome"].casefold())
+    if somente_ativos:
+        itens = [item for item in itens if item["ativo"]]
+    return itens
+
+
+def funcionario_permitido(nome):
+    nome = nome_funcionario(nome)
+    if not nome:
+        return ""
+    if nome.casefold() == EQUIPE_ADMIN.casefold():
+        return EQUIPE_ADMIN
+    for item in listar_funcionarios_equipe(somente_ativos=True):
+        if item["nome"].casefold() == nome.casefold():
+            return item["nome"]
+    return ""
+
+
+def cadastrar_funcionario_equipe(nome):
+    nome = nome_funcionario(nome)
+    if not nome or nome.casefold() == EQUIPE_ADMIN.casefold():
+        return None, "Informe um nome válido de funcionário."
+    for item in listar_funcionarios_equipe():
+        if item["nome"].casefold() == nome.casefold():
+            return None, "Este funcionário já está cadastrado."
+    registro = {
+        "id": secrets.token_hex(8),
+        "nome": nome,
+        "ativo": True,
+        "criado_em": agora_painel().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    if endereco_redis():
+        redis_pipeline([["HSET", EQUIPE_FUNCIONARIOS, registro["id"], json.dumps(registro, ensure_ascii=False)]])
+        return registro, ""
+    if em_vercel():
+        return None, "Cadastro indisponível: falta REDIS_URL."
+    conn = conectar_equipe()
+    try:
+        conn.execute(
+            "INSERT INTO equipe_funcionarios (id, nome, ativo, criado_em) VALUES (?, ?, 1, ?)",
+            (registro["id"], registro["nome"], registro["criado_em"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return registro, ""
+
+
+def alternar_funcionario_equipe(identificador, ativo=None):
+    identificador = str(identificador or "").strip()
+    if not identificador:
+        return None, "Funcionário inválido."
+    if endereco_redis():
+        bruto = redis_pipeline([["HGET", EQUIPE_FUNCIONARIOS, identificador]])[0]
+        if not bruto:
+            return None, "Funcionário não encontrado."
+        try:
+            dados = json.loads(bruto) if isinstance(bruto, str) else bruto
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return None, "Funcionário inválido."
+        if not isinstance(dados, dict):
+            return None, "Funcionário inválido."
+        dados["ativo"] = bool(ativo) if ativo is not None else (not bool(dados.get("ativo", True)))
+        redis_pipeline([["HSET", EQUIPE_FUNCIONARIOS, identificador, json.dumps(dados, ensure_ascii=False)]])
+        return {"id": identificador, "nome": nome_funcionario(dados.get("nome")), "ativo": bool(dados["ativo"])}, ""
+    if em_vercel():
+        return None, "Alteração indisponível: falta REDIS_URL."
+    conn = conectar_equipe()
+    try:
+        linha = conn.execute("SELECT id, nome, ativo FROM equipe_funcionarios WHERE id = ?", (identificador,)).fetchone()
+        if not linha:
+            return None, "Funcionário não encontrado."
+        novo = int(ativo) if ativo is not None else (0 if linha["ativo"] else 1)
+        conn.execute("UPDATE equipe_funcionarios SET ativo = ? WHERE id = ?", (novo, identificador))
+        conn.commit()
+        return {"id": identificador, "nome": nome_funcionario(linha["nome"]), "ativo": bool(novo)}, ""
+    finally:
+        conn.close()
+
+
+def gravar_log_equipe(funcionario, acao, dispositivo="Desktop"):
+    funcionario = funcionario_permitido(funcionario) or nome_funcionario(funcionario) or EQUIPE_ADMIN
+    acao = re.sub(r"\s+", " ", unicodedata.normalize("NFC", str(acao or ""))).strip()[:160]
+    if not acao:
+        return None
+    registro = {
+        "id": secrets.token_hex(8),
+        "horario": agora_painel().strftime("%d/%m/%Y %H:%M:%S"),
+        "funcionario": funcionario,
+        "acao": acao,
+        "dispositivo": dispositivo_equipe(dispositivo),
+    }
+    if endereco_redis():
+        redis_pipeline([
+            ["LPUSH", EQUIPE_LOGS, json.dumps(registro, ensure_ascii=False)],
+            ["LTRIM", EQUIPE_LOGS, 0, EQUIPE_LOGS_LIMITE - 1],
+        ])
+        return registro
+    if em_vercel():
+        return None
+    conn = conectar_equipe()
+    try:
+        conn.execute(
+            "INSERT INTO equipe_logs (id, horario, funcionario, acao, dispositivo) VALUES (?, ?, ?, ?, ?)",
+            (registro["id"], registro["horario"], registro["funcionario"], registro["acao"], registro["dispositivo"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return registro
+
+
+def listar_logs_equipe(limite=300, funcionario=""):
+    limite = max(1, min(int(limite or 300), EQUIPE_LOGS_LIMITE))
+    filtro = nome_funcionario(funcionario)
+    if endereco_redis():
+        bruto = redis_pipeline([["LRANGE", EQUIPE_LOGS, 0, limite - 1]])[0] or []
+        logs = []
+        for item in bruto if isinstance(bruto, list) else []:
+            try:
+                dados = json.loads(item) if isinstance(item, str) else item
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if not isinstance(dados, dict):
+                continue
+            if filtro and nome_funcionario(dados.get("funcionario")).casefold() != filtro.casefold():
+                continue
+            logs.append({
+                "id": str(dados.get("id") or ""),
+                "horario": str(dados.get("horario") or ""),
+                "funcionario": nome_funcionario(dados.get("funcionario")),
+                "acao": str(dados.get("acao") or ""),
+                "dispositivo": dispositivo_equipe(dados.get("dispositivo")),
+            })
+        return logs[:limite]
+    if em_vercel():
+        return []
+    conn = conectar_equipe()
+    try:
+        if filtro:
+            linhas = conn.execute(
+                "SELECT id, horario, funcionario, acao, dispositivo FROM equipe_logs "
+                "WHERE lower(funcionario) = lower(?) ORDER BY horario DESC LIMIT ?",
+                (filtro, limite),
+            ).fetchall()
+        else:
+            linhas = conn.execute(
+                "SELECT id, horario, funcionario, acao, dispositivo FROM equipe_logs "
+                "ORDER BY horario DESC LIMIT ?",
+                (limite,),
+            ).fetchall()
+    finally:
+        conn.close()
+    return [{
+        "id": str(l["id"]),
+        "horario": str(l["horario"] or ""),
+        "funcionario": nome_funcionario(l["funcionario"]),
+        "acao": str(l["acao"] or ""),
+        "dispositivo": dispositivo_equipe(l["dispositivo"]),
+    } for l in linhas]
+
+
+def limpar_logs_equipe():
+    if endereco_redis():
+        redis_pipeline([["DEL", EQUIPE_LOGS]])
+        return
+    if em_vercel():
+        return
+    conn = conectar_equipe()
+    try:
+        conn.execute("DELETE FROM equipe_logs")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def resumo_equipe():
+    funcionarios = listar_funcionarios_equipe()
+    # Sempre inclui Administrador no resumo, mesmo sem cadastro explícito.
+    nomes = {item["nome"].casefold(): item for item in funcionarios}
+    if EQUIPE_ADMIN.casefold() not in nomes:
+        funcionarios = [{"id": "admin", "nome": EQUIPE_ADMIN, "ativo": True}] + funcionarios
+    logs = listar_logs_equipe(EQUIPE_LOGS_LIMITE)
+    por_nome = {}
+    for log in logs:
+        chave = log["funcionario"].casefold()
+        item = por_nome.setdefault(chave, {"acessos": 0, "acoes": 0, "ultimo": ""})
+        if log["acao"] == "Acessou a Área Restrita":
+            item["acessos"] += 1
+        else:
+            item["acoes"] += 1
+        if not item["ultimo"]:
+            item["ultimo"] = log["horario"]
+    resumo = []
+    for item in funcionarios:
+        stats = por_nome.get(item["nome"].casefold(), {"acessos": 0, "acoes": 0, "ultimo": ""})
+        resumo.append({
+            "id": item["id"],
+            "nome": item["nome"],
+            "ativo": bool(item["ativo"]),
+            "status": "Ativo" if item["ativo"] else "Inativo",
+            "ultimo_acesso": stats["ultimo"] or "Nunca acessou",
+            "total_acessos": stats["acessos"],
+            "acoes_executadas": stats["acoes"],
+        })
+    return {"funcionarios": funcionarios, "resumo": resumo, "logs": logs[:300]}
+
+
+def caminho_api(saida):
+    return (saida.path or "").split("?", 1)[0].rstrip("/") or "/"
+
+
 def responder_sessao(saida):
     escrever_json(saida, {"ok": token_valido(cookie_de(saida.headers.get("Cookie")))})
 
 
 def responder_auditoria(saida):
+    if caminho_api(saida).startswith("/api/equipe") or parametro_consulta(saida.path, "equipe"):
+        responder_equipe_get(saida)
+        return
     if not token_valido(cookie_de(saida.headers.get("Cookie"))):
         escrever_json(saida, {"ok": False}, 401)
         return
@@ -733,6 +1003,94 @@ def responder_auditoria(saida):
     dados["catalogo"] = contar_produtos()
     dados["ok"] = True
     escrever_json(saida, dados)
+
+
+def responder_equipe_get(saida):
+    caminho = caminho_api(saida)
+    recurso = parametro_consulta(saida.path, "equipe")
+    if caminho.endswith("/funcionarios") or recurso == "funcionarios":
+        if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+            # Login: só nomes ativos, sem dados sensíveis.
+            ativos = listar_funcionarios_equipe(somente_ativos=True)
+            nomes = [item["nome"] for item in ativos]
+            if EQUIPE_ADMIN not in nomes:
+                nomes = [EQUIPE_ADMIN] + nomes
+            escrever_json(saida, {"ok": True, "funcionarios": nomes})
+            return
+        escrever_json(saida, {"ok": True, "funcionarios": listar_funcionarios_equipe()})
+        return
+    if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+        escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
+        return
+    dados = resumo_equipe()
+    dados["ok"] = True
+    escrever_json(saida, dados)
+
+
+def responder_equipe_post(saida):
+    caminho = caminho_api(saida)
+    recurso = parametro_consulta(saida.path, "equipe")
+    corpo = ler_corpo(saida)
+    try:
+        dados = json.loads((corpo or b"").decode("utf-8") or "{}")
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        dados = {}
+    if not isinstance(dados, dict):
+        dados = {}
+    acao = str(dados.get("acao") or "").strip()
+    # Na Vercel o rewrite chega como /api/auditoria?equipe=log|funcionarios|resumo.
+    eh_log = caminho.endswith("/log") or recurso == "log" or acao == "registrar_log"
+    eh_funcionarios = caminho.endswith("/funcionarios") or recurso == "funcionarios" or acao in (
+        "cadastrar_funcionario",
+        "alternar_funcionario",
+    )
+    eh_resumo = caminho.endswith("/resumo") or recurso == "resumo" or acao == "limpar_logs"
+    if eh_log:
+        if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+            escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
+            return
+        agente = saida.headers.get("User-Agent") or ""
+        # No POST /log o campo "acao" é a descrição da opção executada.
+        texto = dados.get("acao_texto") or dados.get("descricao") or dados.get("log")
+        if not texto and acao != "registrar_log":
+            texto = dados.get("acao")
+        registro = gravar_log_equipe(
+            dados.get("funcionario") or dados.get("operador"),
+            texto,
+            dispositivo_equipe(dados.get("dispositivo"), agente),
+        )
+        if not registro:
+            escrever_json(saida, {"ok": False, "erro": "Não foi possível registrar a ação."}, 400)
+            return
+        escrever_json(saida, {"ok": True, "log": registro})
+        return
+    if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+        escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
+        return
+    if eh_funcionarios:
+        if acao == "alternar_funcionario" or dados.get("id"):
+            registro, erro = alternar_funcionario_equipe(dados.get("id"), dados.get("ativo"))
+            if erro:
+                escrever_json(saida, {"ok": False, "erro": erro}, 400)
+                return
+            escrever_json(saida, {"ok": True, "funcionario": registro})
+            return
+        registro, erro = cadastrar_funcionario_equipe(dados.get("nome"))
+        if erro:
+            escrever_json(saida, {"ok": False, "erro": erro}, 400)
+            return
+        escrever_json(saida, {"ok": True, "funcionario": registro})
+        return
+    if eh_resumo:
+        if acao == "limpar_logs" or dados.get("limpar"):
+            limpar_logs_equipe()
+            escrever_json(saida, {"ok": True})
+            return
+        dados_resumo = resumo_equipe()
+        dados_resumo["ok"] = True
+        escrever_json(saida, dados_resumo)
+        return
+    escrever_json(saida, {"ok": False, "erro": "Ação inválida."}, 400)
 
 
 def responder_login(saida):
@@ -751,7 +1109,20 @@ def responder_login(saida):
     if not isinstance(dados, dict) or not senha_confere(dados.get("senha")):
         escrever_json(saida, {"ok": False, "erro": "Senha incorreta"}, 403)
         return
-    escrever_json(saida, {"ok": True}, extra=[("Set-Cookie", cabecalho_cookie(emitir_token()))])
+    operador = funcionario_permitido(dados.get("funcionario") or dados.get("operador") or EQUIPE_ADMIN)
+    if not operador:
+        escrever_json(saida, {"ok": False, "erro": "Selecione quem está acessando."}, 400)
+        return
+    agente = saida.headers.get("User-Agent") or ""
+    try:
+        gravar_log_equipe(operador, "Acessou a Área Restrita", dispositivo_equipe(dados.get("dispositivo"), agente))
+    except Exception as erro:
+        print("equipe: falha ao registrar acesso (%s)" % erro, file=sys.stderr, flush=True)
+    escrever_json(
+        saida,
+        {"ok": True, "funcionario": operador},
+        extra=[("Set-Cookie", cabecalho_cookie(emitir_token()))],
+    )
 
 
 def responder_logout(saida):
@@ -3172,8 +3543,11 @@ class Handler(SimpleHTTPRequestHandler):
         if caminho == "/api/sessao":
             responder_sessao(self)
             return
-        if caminho == "/api/auditoria":
-            responder_auditoria(self)
+        if caminho == "/api/auditoria" or caminho.startswith("/api/equipe/"):
+            if caminho.startswith("/api/equipe/"):
+                responder_equipe_get(self)
+            else:
+                responder_auditoria(self)
             return
         if caminho == "/api/orcamentos":
             responder_orcamentos(self)
@@ -3221,6 +3595,12 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if caminho == "/api/enviar-orcamento-email":
             responder_enviar_orcamento_email(self)
+            return
+        if caminho.startswith("/api/equipe/"):
+            responder_equipe_post(self)
+            return
+        if caminho == "/api/auditoria":
+            responder_equipe_post(self)
             return
         if caminho != "/api/catalogo":
             self.send_error(404)

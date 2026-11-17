@@ -1,4 +1,4 @@
-"""GET /api/sessao na Vercel."""
+"""GET /api/sessao e GET /api/equipe/funcionarios (via rewrite) na Vercel."""
 import sys
 from pathlib import Path
 

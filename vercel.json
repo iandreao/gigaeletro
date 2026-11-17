@@ -29,6 +29,9 @@
       "headers": { "Location": "https://gigaeletro.com.br/$1" }
     },
     { "src": "/api/pdf/([A-Za-z0-9-]+)", "dest": "/api/ver-pdf.py?id=$1" },
+    { "src": "/api/equipe/funcionarios", "dest": "/api/auditoria.py?equipe=funcionarios" },
+    { "src": "/api/equipe/log", "dest": "/api/auditoria.py?equipe=log" },
+    { "src": "/api/equipe/resumo", "dest": "/api/auditoria.py?equipe=resumo" },
     { "src": "/api/(.*)", "dest": "/api/$1.py" },
     { "src": "/admin-estoque", "dest": "/admin.html" },
     { "handle": "filesystem" }

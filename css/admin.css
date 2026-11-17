@@ -491,6 +491,92 @@ body.gestor .dash-topo h1 { margin: 0; }
 .trafego-tag-mobile { border-color: #e9d5ff; background: #faf5ff; color: #7e22ce; }
 [data-admin-status].aviso-ok { color: #15803d; }
 [data-admin-status].aviso-erro { color: #b91c1c; }
+
+.gestor-kicker-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+}
+.gestor-operador {
+  margin: 0;
+  color: var(--muted, #64748b);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.gestor-operador button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #0f766e;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.gestor-login #admin-funcionario-select {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 0.35rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 0.55rem;
+  background: var(--white);
+  font: inherit;
+  font-weight: 700;
+}
+.gestor-pagina.equipe h1 { margin-bottom: 0.75rem; }
+.equipe-bloco {
+  margin: 0 0 1.1rem;
+  padding: 0.85rem 0.9rem 0.95rem;
+  border: 1px solid var(--gray-200, #e2e8f0);
+  border-radius: 0.75rem;
+  background: #fafbfa;
+}
+.equipe-bloco h2 {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+.equipe-cadastro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.55rem 0.75rem;
+  margin-bottom: 0.7rem;
+}
+.equipe-cadastro label {
+  flex: 1 1 14rem;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.equipe-cadastro input {
+  min-height: 36px;
+  padding: 0 0.65rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 0.5rem;
+  background: var(--white);
+  font: inherit;
+  font-weight: 700;
+}
+.equipe-cadastro .btn { min-height: 36px; }
+.equipe-tabela { font-size: 0.82rem; }
+.equipe-nunca { color: #b45309; font-weight: 800; }
+.equipe-historico-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.55rem 0.85rem;
+  margin-bottom: 0.65rem;
+}
+.equipe-historico-topo h2 { flex: 1 1 auto; margin: 0; }
+.equipe-historico-topo .trafego-filtro { margin: 0; }
+.equipe-historico-topo .btn { min-height: 36px; }
+.equipe-toggle { min-height: 28px; padding: 0 0.65rem; font-size: 0.75rem; }
 @media (max-width: 760px) {
   .dash-grid { grid-template-columns: minmax(0, 1fr); }
   .dash-serie { height: 140px; }

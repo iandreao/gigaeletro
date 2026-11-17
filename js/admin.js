@@ -1,5 +1,7 @@
 (function () {
   var SESSAO = "gigaeletro-admin";
+  var OPERADOR = "gigaeletro_operador";
+  var ultimaAbaLog = "";
 
   var formSenha = document.querySelector("[data-admin-senha]");
   var painel = document.querySelector("[data-admin-arquivo]");
@@ -13,10 +15,54 @@
   var loginAdmin = document.querySelector("[data-login-admin]");
   var erroLogin = document.querySelector("[data-login-erro]");
   var campoSenha = loginAdmin ? loginAdmin.elements.senha : null;
+  var campoFuncionario = document.getElementById("admin-funcionario-select");
   var botaoEntrar = loginAdmin ? loginAdmin.querySelector("[data-entrar]") : null;
+  var operadorEl = document.querySelector("[data-gestor-operador]");
+
+  function dispositivoPainel() {
+    var toque = "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
+    return toque && window.innerWidth < 1024 ? "Mobile" : "Desktop";
+  }
+
+  function lerOperador() {
+    try { return String(sessionStorage.getItem(OPERADOR) || "").trim(); } catch (erro) { return ""; }
+  }
+
+  function gravarOperador(nome) {
+    try {
+      if (nome) sessionStorage.setItem(OPERADOR, nome);
+      else sessionStorage.removeItem(OPERADOR);
+    } catch (erro) {}
+  }
+
+  function exibirOperador() {
+    var nome = lerOperador();
+    if (!operadorEl) return;
+    if (!nome) {
+      operadorEl.hidden = true;
+      operadorEl.textContent = "";
+      return;
+    }
+    operadorEl.hidden = false;
+    operadorEl.innerHTML = "Operador: <strong>" + escapar(nome) + '</strong> | <button type="button" data-trocar-operador>Trocar</button>';
+  }
+
+  function registrarAcaoEquipe(acao) {
+    var nome = lerOperador();
+    var texto = String(acao || "").trim();
+    if (!nome || !texto) return;
+    fetch("/api/equipe/log", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ funcionario: nome, acao: texto, dispositivo: dispositivoPainel() })
+    }).catch(function () {});
+  }
 
   function atualizarEntrar() {
-    if (botaoEntrar) botaoEntrar.disabled = !campoSenha || campoSenha.value.length === 0;
+    var temSenha = !!(campoSenha && campoSenha.value.length > 0);
+    var temFuncionario = !!(campoFuncionario && campoFuncionario.value);
+    if (botaoEntrar) botaoEntrar.disabled = !(temSenha && temFuncionario);
   }
 
   function limparCampoSenha() {
@@ -24,8 +70,39 @@
     atualizarEntrar();
   }
 
+  function popularSelectFuncionarios(nomes) {
+    if (!campoFuncionario) return;
+    var atual = campoFuncionario.value;
+    var lista = [];
+    (Array.isArray(nomes) ? nomes : []).forEach(function (item) {
+      var nome = typeof item === "string" ? item : (item && item.nome ? item.nome : "");
+      nome = String(nome || "").trim();
+      if (!nome) return;
+      if (item && typeof item === "object" && item.ativo === false) return;
+      if (lista.indexOf(nome) < 0) lista.push(nome);
+    });
+    if (!lista.length) lista = ["Administrador"];
+    if (lista.indexOf("Administrador") < 0) lista.unshift("Administrador");
+    campoFuncionario.innerHTML = '<option value="">Selecione</option>' + lista.map(function (nome) {
+      return '<option value="' + escapar(nome) + '">' + escapar(nome) + "</option>";
+    }).join("");
+    if (atual && lista.indexOf(atual) >= 0) campoFuncionario.value = atual;
+    atualizarEntrar();
+  }
+
+  function carregarFuncionariosLogin() {
+    fetch("/api/equipe/funcionarios", { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
+      return resposta.json().catch(function () { return null; });
+    }).then(function (corpo) {
+      popularSelectFuncionarios(corpo && corpo.funcionarios ? corpo.funcionarios : ["Administrador"]);
+    }).catch(function () {
+      popularSelectFuncionarios(["Administrador"]);
+    });
+  }
+
   /* O dispositivo é compartilhado: a senha nunca pode aparecer preenchida pelo navegador. */
   limparCampoSenha();
+  carregarFuncionariosLogin();
   document.addEventListener("DOMContentLoaded", limparCampoSenha);
   window.addEventListener("load", limparCampoSenha);
   /* Voltar/avançar no histórico restaura a página do cache com o campo preenchido. */
@@ -37,6 +114,9 @@
       if (erroLogin && campoSenha.value.length > 0) erroLogin.hidden = true;
     });
   }
+  if (campoFuncionario) {
+    campoFuncionario.addEventListener("change", atualizarEntrar);
+  }
 
   function avisoLogin(texto) {
     if (!erroLogin) return;
@@ -47,8 +127,10 @@
   function mostrarLogin() {
     document.querySelectorAll("[data-area-restrita]").forEach(function (area) { area.hidden = true; });
     limparCampoSenha();
+    carregarFuncionariosLogin();
     if (loginAdmin) loginAdmin.hidden = false;
-    if (campoSenha) campoSenha.focus();
+    if (campoFuncionario) campoFuncionario.focus();
+    else if (campoSenha) campoSenha.focus();
   }
 
   var fecharLogin = document.querySelector("[data-fechar-login]");
@@ -66,6 +148,10 @@
       mostrarLogin();
       return;
     }
+    if (!lerOperador()) {
+      mostrarLogin();
+      return;
+    }
     if (loginAdmin) loginAdmin.hidden = true;
     mostrarPainel();
   }).catch(function () {
@@ -75,14 +161,20 @@
   if (loginAdmin) {
     loginAdmin.addEventListener("submit", function (event) {
       event.preventDefault();
-      var senha = String(new FormData(loginAdmin).get("senha") || "").trim();
+      var dadosLogin = new FormData(loginAdmin);
+      var senha = String(dadosLogin.get("senha") || "").trim();
+      var funcionario = String(dadosLogin.get("funcionario") || "").trim();
       limparCampoSenha();
       if (erroLogin) erroLogin.hidden = true;
+      if (!funcionario) {
+        avisoLogin("Selecione quem está acessando.");
+        return;
+      }
       fetch("/api/login", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ senha: senha })
+        body: JSON.stringify({ senha: senha, funcionario: funcionario, dispositivo: dispositivoPainel() })
       }).then(function (resposta) {
         return resposta.json().catch(function () { return null; }).then(function (corpo) {
           return { status: resposta.status, corpo: corpo };
@@ -92,10 +184,11 @@
         if (!corpo || !corpo.ok) {
           limparCampoSenha();
           /* 503 é falta de configuração no servidor, não senha errada. */
-          avisoLogin(resultado.status === 503 && corpo && corpo.erro ? corpo.erro : "Senha Inválida");
+          avisoLogin(resultado.status === 503 && corpo && corpo.erro ? corpo.erro : (corpo && corpo.erro ? corpo.erro : "Senha Inválida"));
           if (campoSenha) campoSenha.focus();
           return;
         }
+        gravarOperador(corpo.funcionario || funcionario);
         loginAdmin.hidden = true;
         mostrarPainel();
       }).catch(function () {
@@ -112,11 +205,20 @@
       limparAuditoria();
       sessionStorage.removeItem(SESSAO);
       sessionStorage.removeItem("gigaeletro-auditoria");
+      gravarOperador("");
       fetch("/api/logout", { method: "POST", credentials: "same-origin" }).finally(function () {
         window.location.replace("/");
       });
     });
   }
+
+  document.addEventListener("click", function (evento) {
+    if (!evento.target.closest("[data-trocar-operador]")) return;
+    gravarOperador("");
+    fetch("/api/logout", { method: "POST", credentials: "same-origin" }).finally(function () {
+      mostrarLogin();
+    });
+  });
 
   var TEXTO_PROCESSAR = "Processar e Atualizar Estoque no Site";
   /* A Vercel recusa corpo acima de 4,5 MB antes de chegar ao servidor, com uma página que não é JSON. */
@@ -194,6 +296,7 @@
       }).then(function (corpo) {
         mostrarAuditoria(corpo);
         avisoEstoque("Estoque atualizado no site: " + (corpo.inseridos || 0) + " produtos publicados.", "ok");
+        registrarAcaoEquipe("Atualizou Estoque");
         limparPlanilhaEscolhida();
       }).catch(function (falha) {
         /* A planilha continua escolhida para tentar de novo. */
@@ -221,28 +324,42 @@
      Um nome já marcado por ?equipe= é mais específico e fica mantido. */
   function marcarInterno() {
     try {
-      if (!window.localStorage.getItem("gigaeletro_interno")) window.localStorage.setItem("gigaeletro_interno", "Admin");
+      var operador = lerOperador() || "Admin";
+      if (!window.localStorage.getItem("gigaeletro_interno")) window.localStorage.setItem("gigaeletro_interno", operador);
     } catch (semArmazenamento) {}
   }
 
+  var ACOES_ABA = {
+    estoque: "Abriu Atualizar Estoque",
+    orcamentos: "Abriu Orçamentos Recebidos",
+    dashboard: "Abriu Painel Comercial",
+    trafego: "Abriu Rastreamento de Tráfego",
+    equipe: "Abriu Acessos Equipe"
+  };
+
   function mostrarPainel() {
     marcarInterno();
+    exibirOperador();
     if (formSenha) formSenha.hidden = true;
     document.querySelectorAll("[data-area-restrita]").forEach(function (area) { area.hidden = false; });
-    mostrarAba("orcamentos");
+    mostrarAba("orcamentos", true);
     limparAuditoria();
     preencherDataHoje();
     carregarOrcamentos();
     carregarDashboard();
   }
 
-  function mostrarAba(nome) {
+  function mostrarAba(nome, silencioso) {
     document.querySelectorAll("[data-visao]").forEach(function (painelVisao) {
       painelVisao.hidden = painelVisao.getAttribute("data-visao") !== nome;
     });
     document.querySelectorAll("[data-aba]").forEach(function (botao) {
       botao.setAttribute("aria-selected", botao.getAttribute("data-aba") === nome ? "true" : "false");
     });
+    if (!silencioso && ACOES_ABA[nome] && ultimaAbaLog !== nome) {
+      ultimaAbaLog = nome;
+      registrarAcaoEquipe(ACOES_ABA[nome]);
+    }
   }
 
   function fecharMenuGestor() {
@@ -254,10 +371,12 @@
 
   document.querySelectorAll("[data-aba]").forEach(function (botao) {
     botao.addEventListener("click", function () {
-      mostrarAba(botao.getAttribute("data-aba"));
+      var aba = botao.getAttribute("data-aba");
+      mostrarAba(aba);
       fecharMenuGestor();
-      if (botao.getAttribute("data-aba") === "dashboard") carregarDashboard();
-      if (botao.getAttribute("data-aba") === "trafego") carregarTrafego();
+      if (aba === "dashboard") carregarDashboard();
+      if (aba === "trafego") carregarTrafego();
+      if (aba === "equipe") carregarAcessosEquipe();
     });
   });
 
@@ -593,6 +712,7 @@
       }
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
         if (!resposta.ok || !publicado || !publicado.ok) throw new Error("gravar");
+        if (campo === "status") registrarAcaoEquipe("Alterou Status do Orçamento");
         return publicado;
       });
     }).catch(function () {
@@ -838,6 +958,7 @@
     if (!item || !item.id) return;
     var nome = String(item.nome || "este cliente");
     if (!window.confirm("Mover o orçamento de " + nome + " para a Lixeira?\nEle deixa de contar no Painel Comercial e pode ser restaurado depois.")) return;
+    registrarAcaoEquipe("Excluiu Orçamento");
     alterarOrcamento(item, {
       url: "/api/orcamentos?id=" + encodeURIComponent(item.id),
       method: "DELETE"
@@ -846,6 +967,7 @@
 
   function restaurarOrcamento(item) {
     if (!item || !item.id) return;
+    registrarAcaoEquipe("Restaurou Orçamento");
     alterarOrcamento(item, {
       url: "/api/orcamentos",
       method: "POST",
@@ -1055,6 +1177,7 @@
     var id = botao && botao.getAttribute("data-trafego-contactar");
     if (!id || botao.getAttribute("data-contactado") === "1") return;
     marcarBotaoContactado(botao);
+    registrarAcaoEquipe("Contactou Lead no WhatsApp");
     fetch("/api/admin/metricas-acesso", {
       method: "POST",
       credentials: "same-origin",
@@ -1244,6 +1367,7 @@
             return;
           }
           avisoTrafego("");
+          registrarAcaoEquipe("Limpou Histórico de Tráfego");
           carregarTrafego();
         });
       }).catch(function () {
@@ -1251,6 +1375,159 @@
       }).finally(function () {
         limparTrafego.disabled = false;
       });
+    });
+  }
+
+  var equipePedido = 0;
+  var equipeDados = { funcionarios: [], resumo: [], logs: [] };
+
+  function avisoEquipeCadastro(texto) {
+    var aviso = document.querySelector("[data-equipe-cadastro-aviso]");
+    if (!aviso) return;
+    aviso.hidden = !texto;
+    aviso.textContent = texto || "";
+  }
+
+  function renderEquipeCadastro(funcionarios) {
+    var lista = document.querySelector("[data-equipe-lista]");
+    if (!lista) return;
+    var itens = (funcionarios || []).filter(function (item) { return item.id !== "admin"; });
+    lista.innerHTML = itens.length ? itens.map(function (item) {
+      return "<tr>" +
+        "<td>" + escapar(item.nome) + "</td>" +
+        "<td>" + (item.ativo ? '<span class="trafego-tag trafego-tag-externo">Ativo</span>' : '<span class="trafego-tag">Inativo</span>') + "</td>" +
+        '<td><button class="btn btn-line equipe-toggle" type="button" data-equipe-toggle="' + escapar(item.id) + '" data-ativo="' + (item.ativo ? "1" : "0") + '">' +
+          (item.ativo ? "Desativar" : "Ativar") + "</button></td></tr>";
+    }).join("") : '<tr><td colspan="3">Nenhum funcionário cadastrado além de Administrador.</td></tr>';
+  }
+
+  function renderEquipeResumo(resumo) {
+    var lista = document.querySelector("[data-equipe-resumo]");
+    if (!lista) return;
+    lista.innerHTML = (resumo || []).map(function (item) {
+      var nunca = item.ultimo_acesso === "Nunca acessou";
+      return "<tr>" +
+        "<td>" + escapar(item.nome) + "</td>" +
+        "<td>" + escapar(item.status) + "</td>" +
+        '<td class="' + (nunca ? "equipe-nunca" : "") + '">' + escapar(item.ultimo_acesso) + "</td>" +
+        "<td>" + Number(item.total_acessos || 0) + "</td>" +
+        "<td>" + Number(item.acoes_executadas || 0) + "</td></tr>";
+    }).join("") || '<tr><td colspan="5">Sem dados de engajamento.</td></tr>';
+  }
+
+  function popularFiltroEquipe(resumo) {
+    var seletor = document.querySelector("[data-equipe-filtro-funcionario]");
+    if (!seletor) return;
+    var atual = seletor.value;
+    var nomes = (resumo || []).map(function (item) { return item.nome; });
+    seletor.innerHTML = '<option value="">Todos</option>' + nomes.map(function (nome) {
+      return '<option value="' + escapar(nome) + '">' + escapar(nome) + "</option>";
+    }).join("");
+    if (atual) seletor.value = atual;
+  }
+
+  function renderEquipeLogs(logs) {
+    var lista = document.querySelector("[data-equipe-logs]");
+    var filtro = valorFiltro("[data-equipe-filtro-funcionario]");
+    if (!lista) return;
+    var itens = (logs || []).filter(function (item) {
+      return !filtro || String(item.funcionario || "").normalize("NFC") === filtro;
+    });
+    lista.innerHTML = itens.length ? itens.map(function (item) {
+      return "<tr>" +
+        "<td>" + escapar(item.horario) + "</td>" +
+        "<td>" + escapar(item.funcionario) + "</td>" +
+        "<td>" + escapar(item.acao) + "</td>" +
+        "<td>" + escapar(item.dispositivo || "—") + "</td></tr>";
+    }).join("") : '<tr><td colspan="4">Nenhuma ação registrada no período.</td></tr>';
+  }
+
+  function carregarAcessosEquipe() {
+    var pedido = ++equipePedido;
+    fetch("/api/equipe/resumo", { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
+      if (resposta.status === 401) {
+        window.location.replace("/");
+        return null;
+      }
+      return resposta.json().catch(function () { return null; });
+    }).then(function (corpo) {
+      if (pedido !== equipePedido || !corpo || !corpo.ok) return;
+      equipeDados = corpo;
+      renderEquipeCadastro(corpo.funcionarios || []);
+      renderEquipeResumo(corpo.resumo || []);
+      popularFiltroEquipe(corpo.resumo || []);
+      renderEquipeLogs(corpo.logs || []);
+    }).catch(function () {});
+  }
+
+  var formEquipe = document.querySelector("[data-equipe-cadastro]");
+  if (formEquipe) {
+    formEquipe.addEventListener("submit", function (evento) {
+      evento.preventDefault();
+      var nome = String(new FormData(formEquipe).get("nome") || "").trim();
+      if (!nome) return;
+      avisoEquipeCadastro("");
+      fetch("/api/equipe/funcionarios", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome: nome })
+      }).then(function (resposta) {
+        return resposta.json().catch(function () { return null; }).then(function (corpo) {
+          if (!resposta.ok || !corpo || !corpo.ok) throw new Error((corpo && corpo.erro) || "Não foi possível cadastrar.");
+          formEquipe.reset();
+          carregarAcessosEquipe();
+          carregarFuncionariosLogin();
+        });
+      }).catch(function (falha) {
+        avisoEquipeCadastro(falha && falha.message ? falha.message : "Não foi possível cadastrar.");
+      });
+    });
+  }
+
+  document.addEventListener("click", function (evento) {
+    var botao = evento.target.closest("[data-equipe-toggle]");
+    if (!botao) return;
+    fetch("/api/equipe/funcionarios", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        acao: "alternar_funcionario",
+        id: botao.getAttribute("data-equipe-toggle"),
+        ativo: botao.getAttribute("data-ativo") !== "1"
+      })
+    }).then(function (resposta) {
+      return resposta.json().catch(function () { return null; });
+    }).then(function (corpo) {
+      if (!corpo || !corpo.ok) return;
+      carregarAcessosEquipe();
+      carregarFuncionariosLogin();
+    }).catch(function () {});
+  });
+
+  var filtroEquipe = document.querySelector("[data-equipe-filtro-funcionario]");
+  if (filtroEquipe) {
+    filtroEquipe.addEventListener("change", function () {
+      renderEquipeLogs(equipeDados.logs || []);
+    });
+  }
+
+  var limparLogsEquipe = document.querySelector("[data-equipe-limpar-logs]");
+  if (limparLogsEquipe) {
+    limparLogsEquipe.addEventListener("click", function () {
+      if (!window.confirm("Limpar todo o histórico de opções executadas pela equipe?")) return;
+      fetch("/api/equipe/resumo", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao: "limpar_logs" })
+      }).then(function (resposta) {
+        return resposta.json().catch(function () { return null; });
+      }).then(function (corpo) {
+        if (!corpo || !corpo.ok) return;
+        carregarAcessosEquipe();
+      }).catch(function () {});
     });
   }
 
