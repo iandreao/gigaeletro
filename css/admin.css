@@ -397,26 +397,46 @@ body.gestor .dash-topo h1 { margin: 0; }
 .dash-nota { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.75rem; font-weight: 700; }
 /* Rastreamento de tráfego */
 .trafego-resumo { flex: none; margin: 0.2rem 0 0.6rem; }
-.trafego-tabela td { white-space: nowrap; }
-.trafego-tabela td.quem {
-  font-weight: 700;
-  white-space: normal;
-  min-width: 12rem;
-  max-width: 18rem;
-  line-height: 1.35;
+.gestor-pagina.trafego .gestor-tabela-box {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
+.trafego-tabela {
+  width: 100%;
+  min-width: 920px;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.trafego-tabela th,
+.trafego-tabela td {
+  padding: 8px 12px;
+  line-height: 1.2;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trafego-tabela .trafego-col-horario { width: 14%; }
+.trafego-tabela .trafego-col-cliente { width: 20%; font-weight: 700; }
+.trafego-tabela .trafego-col-contato { width: 13%; }
+.trafego-tabela .trafego-col-email { width: 22%; }
+.trafego-tabela .trafego-col-cep { width: 10%; }
+.trafego-tabela .trafego-col-dispositivo { width: 10%; }
+.trafego-tabela .trafego-col-acao { width: 11%; }
 .trafego-tabela td.trafego-acao { white-space: nowrap; }
 .trafego-whatsapp {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
-  padding: 0.25rem 0.75rem;
+  min-height: 28px;
+  padding: 2px 10px;
   border-radius: 999px;
   background: #16a34a;
   color: #fff;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 800;
+  line-height: 1.2;
   text-decoration: none;
 }
 .trafego-whatsapp:hover { background: #15803d; color: #fff; }

@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=25">
+  <link rel="stylesheet" href="css/admin.css?v=26">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -200,11 +200,13 @@
         <table class="gestor-tabela trafego-tabela">
           <thead>
             <tr>
-              <th>Horário Exato</th>
-              <th>Cliente / Contato</th>
-              <th>CEP</th>
-              <th>Dispositivo</th>
-              <th>Ação</th>
+              <th class="trafego-col-horario">Horário Exato</th>
+              <th class="trafego-col-cliente">Cliente</th>
+              <th class="trafego-col-contato">Contato</th>
+              <th class="trafego-col-email">E-mail</th>
+              <th class="trafego-col-cep">CEP</th>
+              <th class="trafego-col-dispositivo">Dispositivo</th>
+              <th class="trafego-col-acao">Ação</th>
             </tr>
           </thead>
           <tbody data-trafego-lista></tbody>
@@ -221,6 +223,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=47"></script>
+  <script src="js/admin.js?v=48"></script>
 </body>
 </html>

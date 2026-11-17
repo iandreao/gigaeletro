@@ -1014,17 +1014,6 @@
     return d.length === 8 ? d.slice(0, 5) + "-" + d.slice(5) : "";
   }
 
-  function htmlContatoTrafego(linha) {
-    var nome = String(linha.nome || "").trim();
-    var telefone = formatarTelefoneTrafego(linha.telefone);
-    var email = String(linha.email || "").trim();
-    var partes = [];
-    if (nome) partes.push('<strong>' + escapar(nome) + "</strong>");
-    if (telefone) partes.push(escapar(telefone));
-    if (email) partes.push(escapar(email));
-    return partes.length ? partes.join("<br>") : "—";
-  }
-
   function linkWhatsAppTrafego(linha) {
     var d = digitosTrafego(linha.telefone);
     if (d.length < 10) return "";
@@ -1058,15 +1047,22 @@
     if (lista) {
       lista.innerHTML = registros.map(function (linha) {
         var dispositivo = linha.dispositivo === "Mobile" || linha.dispositivo === "Desktop" ? linha.dispositivo : "";
+        var nome = String(linha.nome || "").trim();
+        var telefone = formatarTelefoneTrafego(linha.telefone);
+        var email = String(linha.email || "").trim();
         var cep = formatarCepTrafego(linha.cep);
         var whats = linkWhatsAppTrafego(linha);
         return '<tr data-sessao="' + escapar(linha.id_visitante || linha.id_sessao || "") +
           '" data-dispositivo="' + dispositivo + '">' +
-          "<td>" + escapar(horarioAcesso(linha.data_hora)) + "</td>" +
-          '<td class="quem">' + htmlContatoTrafego(linha) + "</td>" +
-          "<td>" + escapar(cep || "—") + "</td>" +
-          "<td>" + (dispositivo ? '<span class="trafego-tag trafego-tag-' + dispositivo.toLowerCase() + '">' + dispositivo + "</span>" : "—") + "</td>" +
-          '<td class="trafego-acao">' +
+          '<td class="trafego-col-horario">' + escapar(horarioAcesso(linha.data_hora)) + "</td>" +
+          '<td class="trafego-col-cliente">' + escapar(nome || "—") + "</td>" +
+          '<td class="trafego-col-contato">' + escapar(telefone || "—") + "</td>" +
+          '<td class="trafego-col-email">' + escapar(email || "—") + "</td>" +
+          '<td class="trafego-col-cep">' + escapar(cep || "—") + "</td>" +
+          '<td class="trafego-col-dispositivo">' +
+            (dispositivo ? '<span class="trafego-tag trafego-tag-' + dispositivo.toLowerCase() + '">' + dispositivo + "</span>" : "—") +
+          "</td>" +
+          '<td class="trafego-col-acao trafego-acao">' +
             (whats ? '<a class="trafego-whatsapp" href="' + escapar(whats) + '" target="_blank" rel="noopener noreferrer">WhatsApp</a>' : "—") +
           "</td></tr>";
       }).join("");
