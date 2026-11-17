@@ -19,3 +19,11 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         servidor.responder_equipe_post(self)
+
+    def do_PUT(self):
+        # Editar funcionário via rewrite /api/equipe/funcionarios.
+        servidor.responder_equipe_post(self)
+
+    def do_DELETE(self):
+        # Excluir funcionário via rewrite /api/equipe/funcionarios?id=...
+        servidor.responder_equipe_delete(self)

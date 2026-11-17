@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=30">
+  <link rel="stylesheet" href="css/admin.css?v=31">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -229,13 +229,27 @@
         <h2>Cadastro de Funcionários</h2>
         <form class="equipe-cadastro" data-equipe-cadastro>
           <label>Nome do Funcionário
-            <input type="text" name="nome" maxlength="60" autocomplete="off" required placeholder="Ex.: João">
+            <input type="text" name="nome" maxlength="60" autocomplete="off" required placeholder="Ex.: João" data-equipe-nome>
           </label>
-          <button class="btn btn-preto" type="submit">Cadastrar</button>
+          <div class="equipe-acoes-form">
+            <button class="btn btn-preto equipe-btn" type="submit" data-equipe-cadastrar>
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 2a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2H9v4a1 1 0 1 1-2 0V9H3a1 1 0 1 1 0-2h4V3a1 1 0 0 1 1-1z"/></svg>
+              Cadastrar
+            </button>
+            <button class="btn btn-line equipe-btn" type="button" data-equipe-alterar disabled>
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M11.3 1.7a1.5 1.5 0 0 1 2.1 2.1L5.2 12l-2.7.6.6-2.7 8.2-8.2zM2 14h12v1.5H2V14z"/></svg>
+              Alterar
+            </button>
+            <button class="btn btn-line equipe-btn equipe-btn-excluir" type="button" data-equipe-excluir disabled>
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6 2h4l.5 1H14v1.5H2V3h3.5L6 2zm1 4v6H5.5V6H7zm3.5 0v6H9V6h1.5zM3.5 4.5h9l-.7 9.2A1.5 1.5 0 0 1 10.3 15H5.7a1.5 1.5 0 0 1-1.5-1.3L3.5 4.5z"/></svg>
+              Excluir
+            </button>
+            <button class="btn btn-line equipe-btn" type="button" data-equipe-limpar-selecao hidden>Novo</button>
+          </div>
         </form>
         <p class="gestor-busca-aviso" data-equipe-cadastro-aviso hidden></p>
-        <div class="gestor-tabela-box">
-          <table class="gestor-tabela equipe-tabela">
+        <div class="equipe-lista-box">
+          <table class="gestor-tabela equipe-tabela equipe-lista-tabela">
             <thead>
               <tr>
                 <th>Funcionário</th>
@@ -299,6 +313,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=51"></script>
+  <script src="js/admin.js?v=52"></script>
 </body>
 </html>

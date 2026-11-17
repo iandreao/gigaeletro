@@ -1380,6 +1380,13 @@
 
   var equipePedido = 0;
   var equipeDados = { funcionarios: [], resumo: [], logs: [] };
+  var equipeSelecionadoId = "";
+  var formEquipe = document.querySelector("[data-equipe-cadastro]");
+  var campoEquipeNome = document.querySelector("[data-equipe-nome]");
+  var botaoEquipeCadastrar = document.querySelector("[data-equipe-cadastrar]");
+  var botaoEquipeAlterar = document.querySelector("[data-equipe-alterar]");
+  var botaoEquipeExcluir = document.querySelector("[data-equipe-excluir]");
+  var botaoEquipeLimpar = document.querySelector("[data-equipe-limpar-selecao]");
 
   function avisoEquipeCadastro(texto) {
     var aviso = document.querySelector("[data-equipe-cadastro-aviso]");
@@ -1388,17 +1395,69 @@
     aviso.textContent = texto || "";
   }
 
+  function atualizarBotoesEquipe() {
+    var temSelecao = !!equipeSelecionadoId;
+    if (botaoEquipeCadastrar) botaoEquipeCadastrar.disabled = temSelecao;
+    if (botaoEquipeAlterar) botaoEquipeAlterar.disabled = !temSelecao;
+    if (botaoEquipeExcluir) botaoEquipeExcluir.disabled = !temSelecao;
+    if (botaoEquipeLimpar) botaoEquipeLimpar.hidden = !temSelecao;
+  }
+
+  function limparSelecaoEquipe(manterNome) {
+    equipeSelecionadoId = "";
+    if (campoEquipeNome && !manterNome) campoEquipeNome.value = "";
+    document.querySelectorAll("[data-equipe-linha].is-selecionado").forEach(function (linha) {
+      linha.classList.remove("is-selecionado");
+    });
+    atualizarBotoesEquipe();
+  }
+
+  function selecionarFuncionarioEquipe(id, nome) {
+    equipeSelecionadoId = String(id || "");
+    if (campoEquipeNome) {
+      campoEquipeNome.value = nome || "";
+      campoEquipeNome.focus();
+      campoEquipeNome.select();
+    }
+    document.querySelectorAll("[data-equipe-linha]").forEach(function (linha) {
+      linha.classList.toggle("is-selecionado", linha.getAttribute("data-equipe-linha") === equipeSelecionadoId);
+    });
+    atualizarBotoesEquipe();
+    avisoEquipeCadastro("");
+  }
+
+  function postEquipeFuncionario(corpo) {
+    return fetch("/api/equipe/funcionarios", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo || {})
+    }).then(function (resposta) {
+      return resposta.json().catch(function () { return null; }).then(function (dados) {
+        if (!resposta.ok || !dados || !dados.ok) {
+          throw new Error((dados && dados.erro) || "Não foi possível concluir a operação.");
+        }
+        return dados;
+      });
+    });
+  }
+
   function renderEquipeCadastro(funcionarios) {
     var lista = document.querySelector("[data-equipe-lista]");
     if (!lista) return;
     var itens = (funcionarios || []).filter(function (item) { return item.id !== "admin"; });
+    if (equipeSelecionadoId && !itens.some(function (item) { return item.id === equipeSelecionadoId; })) {
+      limparSelecaoEquipe();
+    }
     lista.innerHTML = itens.length ? itens.map(function (item) {
-      return "<tr>" +
+      var selecionado = item.id === equipeSelecionadoId ? " is-selecionado" : "";
+      return '<tr class="' + selecionado.trim() + '" data-equipe-linha="' + escapar(item.id) + '" data-nome="' + escapar(item.nome) + '">' +
         "<td>" + escapar(item.nome) + "</td>" +
         "<td>" + (item.ativo ? '<span class="trafego-tag trafego-tag-externo">Ativo</span>' : '<span class="trafego-tag">Inativo</span>') + "</td>" +
-        '<td><button class="btn btn-line equipe-toggle" type="button" data-equipe-toggle="' + escapar(item.id) + '" data-ativo="' + (item.ativo ? "1" : "0") + '">' +
+        '<td class="equipe-cel-acao"><button class="btn btn-line equipe-toggle" type="button" data-equipe-toggle="' + escapar(item.id) + '" data-ativo="' + (item.ativo ? "1" : "0") + '">' +
           (item.ativo ? "Desativar" : "Ativar") + "</button></td></tr>";
     }).join("") : '<tr><td colspan="3">Nenhum funcionário cadastrado além de Administrador.</td></tr>';
+    atualizarBotoesEquipe();
   }
 
   function renderEquipeResumo(resumo) {
@@ -1460,51 +1519,94 @@
     }).catch(function () {});
   }
 
-  var formEquipe = document.querySelector("[data-equipe-cadastro]");
   if (formEquipe) {
     formEquipe.addEventListener("submit", function (evento) {
       evento.preventDefault();
-      var nome = String(new FormData(formEquipe).get("nome") || "").trim();
+      if (equipeSelecionadoId) return;
+      var nome = String((campoEquipeNome && campoEquipeNome.value) || "").trim();
       if (!nome) return;
       avisoEquipeCadastro("");
-      fetch("/api/equipe/funcionarios", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome: nome })
-      }).then(function (resposta) {
-        return resposta.json().catch(function () { return null; }).then(function (corpo) {
-          if (!resposta.ok || !corpo || !corpo.ok) throw new Error((corpo && corpo.erro) || "Não foi possível cadastrar.");
-          formEquipe.reset();
-          carregarAcessosEquipe();
-          carregarFuncionariosLogin();
-        });
+      postEquipeFuncionario({ nome: nome }).then(function () {
+        limparSelecaoEquipe();
+        carregarAcessosEquipe();
+        carregarFuncionariosLogin();
       }).catch(function (falha) {
         avisoEquipeCadastro(falha && falha.message ? falha.message : "Não foi possível cadastrar.");
       });
     });
   }
 
+  if (botaoEquipeAlterar) {
+    botaoEquipeAlterar.addEventListener("click", function () {
+      if (!equipeSelecionadoId) return;
+      var nome = String((campoEquipeNome && campoEquipeNome.value) || "").trim();
+      if (!nome) {
+        avisoEquipeCadastro("Informe o novo nome do funcionário.");
+        return;
+      }
+      avisoEquipeCadastro("");
+      postEquipeFuncionario({
+        acao: "editar_funcionario",
+        id: equipeSelecionadoId,
+        nome: nome
+      }).then(function (corpo) {
+        var atualizado = corpo && corpo.funcionario ? corpo.funcionario : null;
+        if (atualizado) selecionarFuncionarioEquipe(atualizado.id, atualizado.nome);
+        carregarAcessosEquipe();
+        carregarFuncionariosLogin();
+      }).catch(function (falha) {
+        avisoEquipeCadastro(falha && falha.message ? falha.message : "Não foi possível alterar.");
+      });
+    });
+  }
+
+  if (botaoEquipeExcluir) {
+    botaoEquipeExcluir.addEventListener("click", function () {
+      if (!equipeSelecionadoId) return;
+      var nome = String((campoEquipeNome && campoEquipeNome.value) || "este funcionário").trim();
+      if (!window.confirm("Excluir definitivamente o cadastro de " + nome + "?")) return;
+      avisoEquipeCadastro("");
+      postEquipeFuncionario({
+        acao: "excluir_funcionario",
+        id: equipeSelecionadoId
+      }).then(function () {
+        limparSelecaoEquipe();
+        carregarAcessosEquipe();
+        carregarFuncionariosLogin();
+      }).catch(function (falha) {
+        avisoEquipeCadastro(falha && falha.message ? falha.message : "Não foi possível excluir.");
+      });
+    });
+  }
+
+  if (botaoEquipeLimpar) {
+    botaoEquipeLimpar.addEventListener("click", function () {
+      limparSelecaoEquipe();
+      avisoEquipeCadastro("");
+      if (campoEquipeNome) campoEquipeNome.focus();
+    });
+  }
+
   document.addEventListener("click", function (evento) {
     var botao = evento.target.closest("[data-equipe-toggle]");
-    if (!botao) return;
-    fetch("/api/equipe/funcionarios", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    if (botao) {
+      evento.stopPropagation();
+      postEquipeFuncionario({
         acao: "alternar_funcionario",
         id: botao.getAttribute("data-equipe-toggle"),
         ativo: botao.getAttribute("data-ativo") !== "1"
-      })
-    }).then(function (resposta) {
-      return resposta.json().catch(function () { return null; });
-    }).then(function (corpo) {
-      if (!corpo || !corpo.ok) return;
-      carregarAcessosEquipe();
-      carregarFuncionariosLogin();
-    }).catch(function () {});
+      }).then(function () {
+        carregarAcessosEquipe();
+        carregarFuncionariosLogin();
+      }).catch(function () {});
+      return;
+    }
+    var linha = evento.target.closest("[data-equipe-linha]");
+    if (!linha) return;
+    selecionarFuncionarioEquipe(linha.getAttribute("data-equipe-linha"), linha.getAttribute("data-nome"));
   });
+
+  atualizarBotoesEquipe();
 
   var filtroEquipe = document.querySelector("[data-equipe-filtro-funcionario]");
   if (filtroEquipe) {

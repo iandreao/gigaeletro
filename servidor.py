@@ -824,36 +824,169 @@ def cadastrar_funcionario_equipe(nome):
     return registro, ""
 
 
+def _ler_funcionario_equipe(identificador):
+    identificador = str(identificador or "").strip()
+    if not identificador or identificador == "admin":
+        return None
+    if endereco_redis():
+        bruto = redis_pipeline([["HGET", EQUIPE_FUNCIONARIOS, identificador]])[0]
+        if not bruto:
+            return None
+        try:
+            dados = json.loads(bruto) if isinstance(bruto, str) else bruto
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return None
+        if not isinstance(dados, dict) or not dados.get("nome"):
+            return None
+        return {
+            "id": identificador,
+            "nome": nome_funcionario(dados.get("nome")),
+            "ativo": bool(dados.get("ativo", True)),
+            "criado_em": str(dados.get("criado_em") or ""),
+            "_bruto": dados,
+        }
+    if em_vercel():
+        return None
+    conn = conectar_equipe()
+    try:
+        linha = conn.execute(
+            "SELECT id, nome, ativo, criado_em FROM equipe_funcionarios WHERE id = ?",
+            (identificador,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not linha:
+        return None
+    return {
+        "id": str(linha["id"]),
+        "nome": nome_funcionario(linha["nome"]),
+        "ativo": bool(linha["ativo"]),
+        "criado_em": str(linha["criado_em"] or ""),
+    }
+
+
+def renomear_logs_equipe(nome_antigo, nome_novo):
+    antigo = nome_funcionario(nome_antigo)
+    novo = nome_funcionario(nome_novo)
+    if not antigo or not novo or antigo.casefold() == novo.casefold():
+        return
+    if endereco_redis():
+        bruto = redis_pipeline([["LRANGE", EQUIPE_LOGS, 0, EQUIPE_LOGS_LIMITE - 1]])[0] or []
+        atualizados = []
+        mudou = False
+        for item in bruto if isinstance(bruto, list) else []:
+            try:
+                dados = json.loads(item) if isinstance(item, str) else item
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if not isinstance(dados, dict):
+                continue
+            if nome_funcionario(dados.get("funcionario")).casefold() == antigo.casefold():
+                dados["funcionario"] = novo
+                mudou = True
+            atualizados.append(json.dumps(dados, ensure_ascii=False))
+        if mudou:
+            comandos = [["DEL", EQUIPE_LOGS]]
+            if atualizados:
+                # LPUSH empilha o último primeiro; reverte para preservar a ordem cronológica.
+                comandos.append(["LPUSH", EQUIPE_LOGS] + list(reversed(atualizados)))
+                comandos.append(["LTRIM", EQUIPE_LOGS, 0, EQUIPE_LOGS_LIMITE - 1])
+            redis_pipeline(comandos)
+        return
+    if em_vercel():
+        return
+    conn = conectar_equipe()
+    try:
+        conn.execute(
+            "UPDATE equipe_logs SET funcionario = ? WHERE lower(funcionario) = lower(?)",
+            (novo, antigo),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def alternar_funcionario_equipe(identificador, ativo=None):
     identificador = str(identificador or "").strip()
     if not identificador:
         return None, "Funcionário inválido."
-    if endereco_redis():
-        bruto = redis_pipeline([["HGET", EQUIPE_FUNCIONARIOS, identificador]])[0]
-        if not bruto:
-            return None, "Funcionário não encontrado."
-        try:
-            dados = json.loads(bruto) if isinstance(bruto, str) else bruto
-        except (TypeError, ValueError, json.JSONDecodeError):
-            return None, "Funcionário inválido."
-        if not isinstance(dados, dict):
-            return None, "Funcionário inválido."
-        dados["ativo"] = bool(ativo) if ativo is not None else (not bool(dados.get("ativo", True)))
-        redis_pipeline([["HSET", EQUIPE_FUNCIONARIOS, identificador, json.dumps(dados, ensure_ascii=False)]])
-        return {"id": identificador, "nome": nome_funcionario(dados.get("nome")), "ativo": bool(dados["ativo"])}, ""
-    if em_vercel():
+    if em_vercel() and not endereco_redis():
         return None, "Alteração indisponível: falta REDIS_URL."
+    atual = _ler_funcionario_equipe(identificador)
+    if not atual:
+        return None, "Funcionário não encontrado."
+    if endereco_redis():
+        dados = dict(atual.get("_bruto") or {})
+        dados["id"] = identificador
+        dados["nome"] = atual["nome"]
+        dados["ativo"] = bool(ativo) if ativo is not None else (not bool(atual["ativo"]))
+        redis_pipeline([["HSET", EQUIPE_FUNCIONARIOS, identificador, json.dumps(dados, ensure_ascii=False)]])
+        return {"id": identificador, "nome": atual["nome"], "ativo": bool(dados["ativo"])}, ""
     conn = conectar_equipe()
     try:
-        linha = conn.execute("SELECT id, nome, ativo FROM equipe_funcionarios WHERE id = ?", (identificador,)).fetchone()
-        if not linha:
-            return None, "Funcionário não encontrado."
-        novo = int(ativo) if ativo is not None else (0 if linha["ativo"] else 1)
+        if ativo is None:
+            novo = 0 if atual["ativo"] else 1
+        else:
+            novo = 1 if bool(ativo) else 0
         conn.execute("UPDATE equipe_funcionarios SET ativo = ? WHERE id = ?", (novo, identificador))
         conn.commit()
-        return {"id": identificador, "nome": nome_funcionario(linha["nome"]), "ativo": bool(novo)}, ""
+        return {"id": identificador, "nome": atual["nome"], "ativo": bool(novo)}, ""
     finally:
         conn.close()
+
+
+def editar_funcionario_equipe(identificador, nome):
+    identificador = str(identificador or "").strip()
+    nome = nome_funcionario(nome)
+    if not identificador:
+        return None, "Funcionário inválido."
+    if not nome or nome.casefold() == EQUIPE_ADMIN.casefold():
+        return None, "Informe um nome válido de funcionário."
+    if em_vercel() and not endereco_redis():
+        return None, "Alteração indisponível: falta REDIS_URL."
+    atual = _ler_funcionario_equipe(identificador)
+    if not atual:
+        return None, "Funcionário não encontrado."
+    for item in listar_funcionarios_equipe():
+        if item["id"] != identificador and item["nome"].casefold() == nome.casefold():
+            return None, "Este funcionário já está cadastrado."
+    if endereco_redis():
+        dados = dict(atual.get("_bruto") or {})
+        dados["id"] = identificador
+        dados["nome"] = nome
+        dados["ativo"] = bool(atual["ativo"])
+        redis_pipeline([["HSET", EQUIPE_FUNCIONARIOS, identificador, json.dumps(dados, ensure_ascii=False)]])
+        renomear_logs_equipe(atual["nome"], nome)
+        return {"id": identificador, "nome": nome, "ativo": bool(atual["ativo"])}, ""
+    conn = conectar_equipe()
+    try:
+        conn.execute("UPDATE equipe_funcionarios SET nome = ? WHERE id = ?", (nome, identificador))
+        conn.commit()
+    finally:
+        conn.close()
+    renomear_logs_equipe(atual["nome"], nome)
+    return {"id": identificador, "nome": nome, "ativo": bool(atual["ativo"])}, ""
+
+
+def excluir_funcionario_equipe(identificador):
+    identificador = str(identificador or "").strip()
+    if not identificador or identificador == "admin":
+        return None, "Funcionário inválido."
+    if em_vercel() and not endereco_redis():
+        return None, "Exclusão indisponível: falta REDIS_URL."
+    atual = _ler_funcionario_equipe(identificador)
+    if not atual:
+        return None, "Funcionário não encontrado."
+    if endereco_redis():
+        redis_pipeline([["HDEL", EQUIPE_FUNCIONARIOS, identificador]])
+        return {"id": identificador, "nome": atual["nome"]}, ""
+    conn = conectar_equipe()
+    try:
+        conn.execute("DELETE FROM equipe_funcionarios WHERE id = ?", (identificador,))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"id": identificador, "nome": atual["nome"]}, ""
 
 
 def gravar_log_equipe(funcionario, acao, dispositivo="Desktop"):
@@ -1043,6 +1176,10 @@ def responder_equipe_post(saida):
     eh_funcionarios = caminho.endswith("/funcionarios") or recurso == "funcionarios" or acao in (
         "cadastrar_funcionario",
         "alternar_funcionario",
+        "editar_funcionario",
+        "editar",
+        "excluir_funcionario",
+        "excluir",
     )
     eh_resumo = caminho.endswith("/resumo") or recurso == "resumo" or acao == "limpar_logs"
     if eh_log:
@@ -1068,7 +1205,21 @@ def responder_equipe_post(saida):
         escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
         return
     if eh_funcionarios:
-        if acao == "alternar_funcionario" or dados.get("id"):
+        if acao in ("excluir_funcionario", "excluir") or dados.get("excluir"):
+            registro, erro = excluir_funcionario_equipe(dados.get("id"))
+            if erro:
+                escrever_json(saida, {"ok": False, "erro": erro}, 400)
+                return
+            escrever_json(saida, {"ok": True, "funcionario": registro})
+            return
+        if acao in ("editar_funcionario", "editar") or (dados.get("id") and dados.get("nome") and "ativo" not in dados):
+            registro, erro = editar_funcionario_equipe(dados.get("id"), dados.get("nome"))
+            if erro:
+                escrever_json(saida, {"ok": False, "erro": erro}, 400)
+                return
+            escrever_json(saida, {"ok": True, "funcionario": registro})
+            return
+        if acao == "alternar_funcionario" or (dados.get("id") and "ativo" in dados):
             registro, erro = alternar_funcionario_equipe(dados.get("id"), dados.get("ativo"))
             if erro:
                 escrever_json(saida, {"ok": False, "erro": erro}, 400)
@@ -1091,6 +1242,31 @@ def responder_equipe_post(saida):
         escrever_json(saida, dados_resumo)
         return
     escrever_json(saida, {"ok": False, "erro": "Ação inválida."}, 400)
+
+
+def responder_equipe_delete(saida):
+    caminho = caminho_api(saida)
+    recurso = parametro_consulta(saida.path, "equipe")
+    if not (caminho.endswith("/funcionarios") or recurso == "funcionarios" or caminho.startswith("/api/equipe")):
+        escrever_json(saida, {"ok": False, "erro": "Ação inválida."}, 400)
+        return
+    if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+        escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
+        return
+    identificador = parametro_consulta(saida.path, "id")
+    if not identificador:
+        corpo = ler_corpo(saida)
+        try:
+            dados = json.loads((corpo or b"").decode("utf-8") or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            dados = {}
+        if isinstance(dados, dict):
+            identificador = dados.get("id")
+    registro, erro = excluir_funcionario_equipe(identificador)
+    if erro:
+        escrever_json(saida, {"ok": False, "erro": erro}, 400)
+        return
+    escrever_json(saida, {"ok": True, "funcionario": registro})
 
 
 def responder_login(saida):
@@ -3611,6 +3787,17 @@ class Handler(SimpleHTTPRequestHandler):
         caminho = self.path.split("?", 1)[0]
         if caminho == "/api/orcamentos":
             responder_orcamentos(self)
+            return
+        if caminho.startswith("/api/equipe/") or caminho == "/api/auditoria":
+            responder_equipe_delete(self)
+            return
+        self.send_error(404)
+
+    def do_PUT(self):
+        caminho = self.path.split("?", 1)[0]
+        if caminho.startswith("/api/equipe/") or caminho == "/api/auditoria":
+            # PUT /funcionarios com {id, nome} reaproveita o POST (acao=editar).
+            responder_equipe_post(self)
             return
         self.send_error(404)
 

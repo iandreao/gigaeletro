@@ -563,7 +563,61 @@ body.gestor .dash-topo h1 { margin: 0; }
   font: inherit;
   font-weight: 700;
 }
-.equipe-cadastro .btn { min-height: 36px; }
+.equipe-acoes-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.equipe-cadastro .equipe-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 36px;
+  padding: 0 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+.equipe-cadastro .equipe-btn svg { flex: none; }
+.equipe-btn-excluir { border-color: #fca5a5; color: #b91c1c; }
+.equipe-btn-excluir:hover:not(:disabled) { background: #fef2f2; }
+.equipe-cadastro .equipe-btn:disabled,
+.equipe-cadastro .equipe-btn:disabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: transparent;
+}
+.equipe-lista-box {
+  max-height: 160px;
+  overflow-x: auto;
+  overflow-y: auto;
+  border: 1px solid var(--gray-200, #e2e8f0);
+  border-radius: 0.55rem;
+  background: var(--white);
+  -webkit-overflow-scrolling: touch;
+}
+.equipe-lista-tabela { width: 100%; min-width: 100%; }
+.equipe-lista-tabela thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f3f5f4;
+  box-shadow: 0 1px 0 var(--gray-200, #e2e8f0);
+}
+.equipe-lista-tabela tbody tr[data-equipe-linha] {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.equipe-lista-tabela tbody tr[data-equipe-linha]:hover { background: #f0f7f3; }
+.equipe-lista-tabela tbody tr.is-selecionado {
+  background: #e7f5ee;
+  outline: 1px solid #86c5a5;
+}
+.equipe-lista-tabela td.equipe-cel-acao {
+  text-align: center;
+  vertical-align: middle;
+}
 .equipe-tabela { font-size: 0.82rem; }
 .equipe-nunca { color: #b45309; font-weight: 800; }
 .equipe-historico-topo {
@@ -576,7 +630,12 @@ body.gestor .dash-topo h1 { margin: 0; }
 .equipe-historico-topo h2 { flex: 1 1 auto; margin: 0; }
 .equipe-historico-topo .trafego-filtro { margin: 0; }
 .equipe-historico-topo .btn { min-height: 36px; }
-.equipe-toggle { min-height: 28px; padding: 0 0.65rem; font-size: 0.75rem; }
+.equipe-toggle {
+  min-height: 28px;
+  padding: 0 0.65rem;
+  font-size: 0.75rem;
+  vertical-align: middle;
+}
 @media (max-width: 760px) {
   .dash-grid { grid-template-columns: minmax(0, 1fr); }
   .dash-serie { height: 140px; }
