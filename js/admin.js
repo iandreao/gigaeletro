@@ -1400,7 +1400,7 @@
     if (botaoEquipeCadastrar) botaoEquipeCadastrar.disabled = temSelecao;
     if (botaoEquipeAlterar) botaoEquipeAlterar.disabled = !temSelecao;
     if (botaoEquipeExcluir) botaoEquipeExcluir.disabled = !temSelecao;
-    if (botaoEquipeLimpar) botaoEquipeLimpar.hidden = !temSelecao;
+    if (botaoEquipeLimpar) botaoEquipeLimpar.disabled = !temSelecao;
   }
 
   function limparSelecaoEquipe(manterNome) {

@@ -527,7 +527,7 @@ body.gestor .dash-topo h1 { margin: 0; }
   font: inherit;
   font-weight: 700;
 }
-.gestor-pagina.equipe h1 { margin-bottom: 0.75rem; }
+.gestor-pagina.equipe { padding-top: 0.15rem; }
 .equipe-bloco {
   margin: 0 0 1.1rem;
   padding: 0.85rem 0.9rem 0.95rem;
@@ -551,13 +551,14 @@ body.gestor .dash-topo h1 { margin: 0; }
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin: 0 0 0.55rem;
-  width: max-content;
+  width: fit-content;
   max-width: 100%;
 }
 .equipe-cadastro input[data-equipe-nome] {
   box-sizing: border-box;
+  flex: 0 0 280px;
   width: 280px;
   max-width: 100%;
   height: 36px;
@@ -575,7 +576,8 @@ body.gestor .dash-topo h1 { margin: 0; }
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
 }
 .equipe-cadastro .equipe-btn {
   display: inline-flex;
@@ -590,6 +592,7 @@ body.gestor .dash-topo h1 { margin: 0; }
   font-size: 0.8rem;
   font-weight: 800;
   line-height: 1;
+  white-space: nowrap;
 }
 .equipe-cadastro .equipe-btn svg { flex: none; }
 .equipe-btn-excluir { border-color: #fca5a5; color: #b91c1c; }
@@ -606,7 +609,7 @@ body.gestor .dash-topo h1 { margin: 0; }
   min-width: 0;
   max-width: 100%;
   max-height: 160px;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: auto;
   border: 1px solid var(--gray-200, #e2e8f0);
   border-radius: 0.55rem;
@@ -614,20 +617,27 @@ body.gestor .dash-topo h1 { margin: 0; }
   -webkit-overflow-scrolling: touch;
 }
 body.gestor .equipe-lista-tabela {
-  width: 100%;
-  min-width: 0;
+  width: 100% !important;
+  min-width: 0 !important;
   max-width: 100%;
-  table-layout: fixed;
+  table-layout: auto;
 }
 body.gestor .equipe-lista-tabela th,
 body.gestor .equipe-lista-tabela td {
-  padding: 2px 10px;
-  line-height: 1.15;
+  padding: 1px 8px;
+  line-height: 1.2;
 }
 body.gestor .equipe-lista-tabela th:nth-child(1),
-body.gestor .equipe-lista-tabela td:nth-child(1) { width: 46%; }
+body.gestor .equipe-lista-tabela td:nth-child(1) {
+  width: auto;
+  text-align: left;
+}
 body.gestor .equipe-lista-tabela th:nth-child(2),
-body.gestor .equipe-lista-tabela td:nth-child(2) { width: 26%; }
+body.gestor .equipe-lista-tabela td:nth-child(2) {
+  width: 90px;
+  text-align: center;
+  white-space: nowrap;
+}
 .equipe-lista-tabela thead th {
   position: sticky;
   top: 0;
@@ -637,8 +647,8 @@ body.gestor .equipe-lista-tabela td:nth-child(2) { width: 26%; }
 }
 .equipe-lista-tabela th.equipe-th-acao,
 .equipe-lista-tabela td.equipe-cel-acao {
-  width: 1%;
-  text-align: center;
+  width: 100px;
+  text-align: right;
   vertical-align: middle;
   white-space: nowrap;
 }
@@ -669,14 +679,19 @@ body.gestor .equipe-lista-tabela td:nth-child(2) { width: 26%; }
   justify-content: center;
   min-height: 0;
   height: auto;
-  padding: 2px 10px;
-  font-size: 12px;
+  padding: 2px 8px;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1.2;
   vertical-align: middle;
 }
-@media (max-width: 560px) {
-  .equipe-cadastro input[data-equipe-nome] { width: 100%; }
+@media (max-width: 720px) {
+  .equipe-cadastro { flex-wrap: wrap; }
+  .equipe-cadastro input[data-equipe-nome] {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+  .equipe-acoes-form { flex-wrap: wrap; }
 }
 @media (max-width: 760px) {
   .dash-grid { grid-template-columns: minmax(0, 1fr); }
