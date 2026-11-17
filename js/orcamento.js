@@ -1,70 +1,21 @@
-/* Telemetria de acessos: um único ponto de entrada no site.
-   1 POST por carregamento (__trafegoRegistrado) e 1 gravação por dia+tipo (localStorage CAS). */
+/* Rastreamento de leads: só após telefone ou e-mail válido; sem registro no carregamento da página. */
 (function () {
-  if (typeof window.registrarAcessoGigaeletro === "function") return;
+  if (typeof window.registrarLeadTrafego === "function") return;
 
-  var EQUIPE = ["Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03"];
   var CHAVE_INTERNO = "gigaeletro_interno";
-  var CHAVE_VISITANTE = "ge_visitor_id";
+  var EQUIPE = ["Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03"];
+  var timerLead = 0;
+  var ultimoEnvio = "";
 
   function lerLocal(chave) {
-    try {
-      return window.localStorage.getItem(chave) || "";
-    } catch (semArmazenamento) {
-      return "";
-    }
+    try { return window.localStorage.getItem(chave) || ""; } catch (erro) { return ""; }
   }
 
   function gravarLocal(chave, valor) {
     try {
       if (valor) window.localStorage.setItem(chave, valor);
       else window.localStorage.removeItem(chave);
-    } catch (semArmazenamento) {}
-  }
-
-  function lerSessao(chave) {
-    try {
-      return window.sessionStorage.getItem(chave) || "";
-    } catch (semArmazenamento) {
-      return "";
-    }
-  }
-
-  function gravarSessao(chave, valor) {
-    try {
-      if (valor) window.sessionStorage.setItem(chave, valor);
-      else window.sessionStorage.removeItem(chave);
-    } catch (semArmazenamento) {}
-  }
-
-  function hojeLocal() {
-    var agora = new Date();
-    return agora.getFullYear() + "-" + String(agora.getMonth() + 1).padStart(2, "0") + "-" + String(agora.getDate()).padStart(2, "0");
-  }
-
-  function novaSessao() {
-    if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID();
-    return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
-  }
-
-  function idVisitante() {
-    /* Releitura após gravar evita duas abas Desktop mintarem UUIDs diferentes no mesmo segundo. */
-    var atual = String(lerLocal(CHAVE_VISITANTE) || "").trim();
-    if (/^[A-Za-z0-9-]{8,64}$/.test(atual)) return atual;
-    atual = novaSessao();
-    gravarLocal(CHAVE_VISITANTE, atual);
-    var confirmado = String(lerLocal(CHAVE_VISITANTE) || "").trim();
-    return /^[A-Za-z0-9-]{8,64}$/.test(confirmado) ? confirmado : atual;
-  }
-
-  function reservarDia(chaveDia) {
-    /* CAS no localStorage + espelho no sessionStorage: a segunda aba/prerender perde a reserva. */
-    if (lerLocal(chaveDia) || lerSessao(chaveDia)) return false;
-    var token = novaSessao();
-    gravarLocal(chaveDia, token);
-    gravarSessao(chaveDia, token);
-    var ganhador = lerLocal(chaveDia) || lerSessao(chaveDia);
-    return !ganhador || ganhador === token;
+    } catch (erro) {}
   }
 
   function nomeDaEquipe(valor) {
@@ -93,66 +44,99 @@
       parametros.delete("user");
       var restante = parametros.toString();
       window.history.replaceState(window.history.state, "", window.location.pathname + (restante ? "?" + restante : "") + window.location.hash);
-    } catch (semHistorico) {}
+    } catch (erro) {}
   }
 
-  window.registrarAcessoGigaeletro = function (tipoInformado) {
-    /* Flag em memória: no máximo 1 disparo por carregamento (Desktop costuma repetir load/prerender). */
-    if (window.__trafegoRegistrado || window.__geAcessoLock) return false;
-    window.__trafegoRegistrado = true;
-    window.__geAcessoLock = true;
+  function digitos(valor) {
+    return String(valor || "").replace(/\D/g, "");
+  }
+
+  function emailOk(valor) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(valor || "").trim());
+  }
+
+  function telefoneOk(valor) {
+    var d = digitos(valor);
+    return d.length >= 10 && d.length <= 11;
+  }
+
+  function dispositivoAtual() {
+    var toque = "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
+    return toque && window.innerWidth < 1024 ? "Mobile" : "Desktop";
+  }
+
+  function lerFormLead() {
+    var form = document.querySelector("[data-cliente]");
+    if (!form) return null;
+    var nome = String((form.elements.nome && form.elements.nome.value) || "").trim();
+    var telefone = digitos((form.elements.celular && form.elements.celular.value) || "");
+    var email = String((form.elements.email && form.elements.email.value) || "").trim().toLowerCase();
+    var cep = digitos((form.elements.cep && form.elements.cep.value) || "");
+    return {
+      nome: nome.slice(0, 120),
+      telefone: telefoneOk(telefone) ? telefone : "",
+      email: emailOk(email) ? email.slice(0, 120) : "",
+      cep: cep.length === 8 ? cep : "",
+      dispositivo: dispositivoAtual()
+    };
+  }
+
+  window.registrarLeadTrafego = function () {
     try {
       sincronizarEquipeNaUrl();
-      var equipe = nomeInterno(lerLocal(CHAVE_INTERNO));
-      var tipo = tipoInformado === "Interno" || tipoInformado === "Externo"
-        ? tipoInformado
-        : (equipe ? "Interno" : "Externo");
-      var hoje = hojeLocal();
-      var chaveDia = "ge_acesso_reg_" + hoje + "_" + tipo;
-      if (!reservarDia(chaveDia)) return false;
-      var toque = "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
-      var dispositivo = toque && window.innerWidth < 1024 ? "Mobile" : "Desktop";
-      var origem = "Direto";
-      try {
-        var parametros = new URLSearchParams(window.location.search);
-        origem = (parametros.get("ref") || parametros.get("utm_source") || "").trim() || "Direto";
-      } catch (semUrl) {}
-      var visitante = idVisitante();
-      var sessao = visitante;
-      try {
-        sessao = lerSessao("gigaeletro_sessao") || visitante;
-        gravarSessao("gigaeletro_sessao", sessao);
-      } catch (bloqueado) {
-        sessao = visitante;
-      }
+      var lead = lerFormLead();
+      if (!lead || (!lead.telefone && !lead.email)) return false;
+      var assinatura = [lead.nome, lead.telefone, lead.email, lead.cep, lead.dispositivo].join("|");
+      if (assinatura === ultimoEnvio) return false;
+      ultimoEnvio = assinatura;
       fetch("/api/registrar-acesso", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          origem: origem,
-          sessao: sessao,
-          visitante: visitante,
-          equipe: equipe,
-          dispositivo: dispositivo
-        }),
+        body: JSON.stringify(lead),
         credentials: "same-origin"
       }).catch(function () {});
       return true;
-    } catch (falha) {
-      window.__trafegoRegistrado = false;
-      window.__geAcessoLock = false;
+    } catch (erro) {
       return false;
     }
   };
 
-  function dispararQuandoPronto() {
-    window.registrarAcessoGigaeletro();
+  function agendarLead() {
+    if (timerLead) window.clearTimeout(timerLead);
+    timerLead = window.setTimeout(function () {
+      timerLead = 0;
+      window.registrarLeadTrafego();
+    }, 250);
+  }
+
+  function campoDisparaLead(campo) {
+    if (!campo || !campo.name) return false;
+    return campo.name === "celular" || campo.name === "email" || campo.name === "nome" || campo.name === "cep";
+  }
+
+  function aoContato(evento) {
+    var campo = evento && evento.target;
+    if (!campoDisparaLead(campo)) return;
+    var lead = lerFormLead();
+    if (!lead || (!lead.telefone && !lead.email)) return;
+    /* Nome/CEP só atualizam se telefone ou e-mail já forem válidos. */
+    if ((campo.name === "nome" || campo.name === "cep") && !lead.telefone && !lead.email) return;
+    agendarLead();
+  }
+
+  function ligarFormularioLead() {
+    sincronizarEquipeNaUrl();
+    var form = document.querySelector("[data-cliente]");
+    if (!form || form.dataset.trafegoLead) return;
+    form.dataset.trafegoLead = "1";
+    form.addEventListener("blur", aoContato, true);
+    form.addEventListener("change", aoContato, true);
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", dispararQuandoPronto, { once: true });
+    document.addEventListener("DOMContentLoaded", ligarFormularioLead, { once: true });
   } else {
-    dispararQuandoPronto();
+    ligarFormularioLead();
   }
 })();
 

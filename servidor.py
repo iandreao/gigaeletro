@@ -79,7 +79,7 @@ ACESSOS_CORPO_MAX = 4096
 RE_MOBILE = re.compile(r"Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobi", re.IGNORECASE)
 RE_ROBO = re.compile(r"bot|crawl|spider|slurp", re.IGNORECASE)
 RE_SESSAO = re.compile(r"[A-Za-z0-9-]{8,64}")
-CAMPOS_AUDITORIA = ("data_hora", "quem_acessou", "dispositivo", "localizacao", "id_sessao", "id_visitante")
+CAMPOS_AUDITORIA = ("data_hora", "nome", "telefone", "email", "cep", "dispositivo", "id_sessao", "id_visitante")
 NOMES_DISPOSITIVO = ("Aceliani", "Julio", "Ivalino", "Caixa", "Balcão 01", "Balcão 02", "Balcão 03")
 CLIENTE_EXTERNO = "Cliente Externo"
 RESEND_URL = "https://api.resend.com/emails"
@@ -1733,6 +1733,15 @@ def incluir_orcamento_painel(corpo, meio_envio):
             registro["pdfId"] = registro["pdfId"] or str(anterior.get("pdfId") or "")
         lista.insert(0, registro)
         gravar_painel(lista[:PAINEL_LIMITE])
+    try:
+        email_cliente = ""
+        if isinstance(registro.get("cliente"), dict):
+            email_cliente = registro["cliente"].get("email") or ""
+        if not email_cliente and isinstance(corpo.get("cliente"), dict):
+            email_cliente = corpo["cliente"].get("email") or ""
+        remover_lead_trafego(telefone, email_cliente or corpo.get("email") or "")
+    except Exception as erro:
+        print("acessos: falha ao remover lead após envio (%s)" % erro, file=sys.stderr, flush=True)
     if motivo == "voz":
         return dict(registro, voz_anterior=anterior)
     return registro
@@ -2067,47 +2076,6 @@ def dispositivo_acesso(agente, informado=""):
     return "Mobile" if RE_MOBILE.search(agente or "") else "Desktop"
 
 
-def cabecalho_acesso(saida, nome):
-    """Lê cabeçalho HTTP sem diferenciar maiúsculas (Vercel e BaseHTTPRequestHandler)."""
-    if not saida or not getattr(saida, "headers", None):
-        return ""
-    valor = saida.headers.get(nome) or saida.headers.get(nome.lower()) or saida.headers.get(nome.upper())
-    return str(valor or "").strip()
-
-
-def decodificar_cidade_vercel(valor):
-    """x-vercel-ip-city vem com acentos em percent-encoding (ex.: Venda%20Nova%20do%20Imigrante)."""
-    texto = str(valor or "").strip()
-    if not texto:
-        return ""
-    try:
-        texto = urllib.parse.unquote(texto)
-    except Exception:
-        pass
-    texto = re.sub(r"\s+", " ", texto).strip()
-    return texto[:80]
-
-
-def localizacao_acesso(saida):
-    """Monta Cidade/UF a partir dos cabeçalhos geográficos da Vercel."""
-    cidade = decodificar_cidade_vercel(cabecalho_acesso(saida, "x-vercel-ip-city"))
-    uf = re.sub(r"[^A-Za-z]", "", cabecalho_acesso(saida, "x-vercel-ip-country-region")).upper()[:8]
-    pais = re.sub(r"[^A-Za-z]", "", cabecalho_acesso(saida, "x-vercel-ip-country")).upper()[:8]
-    if cidade and uf:
-        return ("%s/%s" % (cidade, uf))[:90]
-    if cidade:
-        return cidade[:90]
-    if uf and pais:
-        return ("%s/%s" % (uf, pais))[:90]
-    if uf:
-        return uf
-    host = (cabecalho_acesso(saida, "Host") or "").split(":")[0].lower()
-    ip = ip_do_cliente(saida)
-    if host in ("localhost", "127.0.0.1", "::1") or ip in ("127.0.0.1", "::1", "localhost"):
-        return "Localhost"
-    return "Não identificada"
-
-
 def ip_do_cliente(saida):
     encaminhado = saida.headers.get("X-Forwarded-For") or saida.headers.get("X-Real-IP") or ""
     ip = encaminhado.split(",")[0].strip()
@@ -2132,69 +2100,62 @@ def anonimizar_ip(ip):
     return "%s:%s:X:X:X:X:X:X" % (blocos[0], blocos[1])
 
 
-def origem_acesso(valor):
-    texto = re.sub(r"[^\w .:/@+-]", "", str(valor or "")).strip()[:60]
-    if not texto or texto.lower() == "direto":
-        return "Direto"
-    return texto.lower()
+def nome_lead(valor):
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFC", str(valor or ""))).strip()[:120]
 
 
-def sessao_acesso(valor):
-    texto = str(valor or "").strip()
-    return texto if RE_SESSAO.fullmatch(texto) else ""
+def cep_lead(valor):
+    digitos = apenas_digitos(valor)
+    return digitos if len(digitos) == 8 else ""
 
 
-def nome_equipe(valor):
-    """Nome marcado no navegador (?equipe= ou login do admin): letras, números, espaço e . ' - _; até 30 caracteres."""
-    texto = re.sub(r"[^\w .'-]", "", unicodedata.normalize("NFC", str(valor or "")))
-    return re.sub(r"\s+", " ", texto).strip()[:30].strip()
+def email_lead(valor):
+    texto = str(valor or "").strip().lower()
+    return texto if len(texto) <= 120 and RE_EMAIL.fullmatch(texto) else ""
 
 
-def quem_acessou(equipe, legado=""):
-    """Navegador marcado como da equipe vira "Interno (Nome)"; o resto é Cliente Externo."""
-    nome = nome_equipe(equipe)
-    if not nome:
-        legado = unicodedata.normalize("NFC", str(legado or "")).strip()
-        nome = legado if legado in NOMES_DISPOSITIVO else ""
-    return "Interno (%s)" % nome if nome else CLIENTE_EXTERNO
-
-
-def classificar_quem(valor):
-    """Registros antigos guardavam só o nome da equipe (links ?user=); hoje eles também são internos."""
-    texto = unicodedata.normalize("NFC", str(valor or "")).strip()
-    if texto.startswith("Interno (") and texto.endswith(")"):
-        return texto
-    if texto in NOMES_DISPOSITIVO:
-        return "Interno (%s)" % texto
-    return CLIENTE_EXTERNO
-
-
-def tipo_acesso(quem):
-    return "Externo" if classificar_quem(quem) == CLIENTE_EXTERNO else "Interno"
-
-
-def visitante_acesso(dados, saida):
-    """ID estável do navegador; sem ele, IP anonimizado + User-Agent viram um fallback do dia."""
-    visitante = sessao_acesso((dados or {}).get("visitante") or (dados or {}).get("visitor_id"))
-    if visitante:
-        return visitante
-    base = anonimizar_ip(ip_do_cliente(saida)) + "|" + (saida.headers.get("User-Agent") or "")[:160]
-    return "ip-" + hashlib.sha256(base.encode("utf-8")).hexdigest()[:24]
+def chave_lead_contato(telefone="", email=""):
+    """Chave diária do lead: telefone (dígitos) tem prioridade; senão e-mail em minúsculas."""
+    tel = apenas_digitos(telefone)
+    if len(tel) >= 10:
+        return "tel:" + tel
+    mail = email_lead(email)
+    if mail:
+        return "mail:" + mail
+    return ""
 
 
 def chave_acesso_dia(registro):
-    """Campo único do Hash Redis: tipo + visitante (fallback estável por IP+dispositivo)."""
-    visitante = str(registro.get("id_visitante") or "").strip()
-    if not visitante:
-        visitante = "anon-" + hashlib.sha256(
-            (str(registro.get("ip_anonimizado") or "") + "|" + str(registro.get("dispositivo") or "")).encode("utf-8")
-        ).hexdigest()[:16]
-    return tipo_acesso(registro.get("quem_acessou")) + ":" + visitante
+    """Campo único do hash Redis do dia: tel:DDDNUMERO ou mail:email."""
+    chave = chave_lead_contato(registro.get("telefone"), registro.get("email"))
+    if chave:
+        return chave
+    visitante = str(registro.get("id_visitante") or registro.get("id_sessao") or "").strip()
+    return visitante if visitante.startswith(("tel:", "mail:")) else ""
 
 
 def chave_hash_acessos(dia):
     """Hash dedicado do dia: HSET é atômico e não disputa com a lista legada log:YYYY-MM-DD."""
     return ACESSOS_CHAVE + "dia:" + dia
+
+
+def eh_lead_trafego(dados):
+    """Só entram na lista leads com telefone ou e-mail; visitas antigas por IP são ignoradas."""
+    if not isinstance(dados, dict):
+        return False
+    return bool(chave_lead_contato(dados.get("telefone"), dados.get("email")))
+
+
+def fundir_lead(atual, novo):
+    """Atualiza horário e preenche campos vazios sem apagar o que o cliente já informou."""
+    mesclado = dict(atual or {})
+    mesclado.update({chave: valor for chave, valor in (novo or {}).items() if valor not in (None, "")})
+    for campo in ("nome", "telefone", "email", "cep", "dispositivo"):
+        if not str(novo.get(campo) or "").strip() and str((atual or {}).get(campo) or "").strip():
+            mesclado[campo] = atual[campo]
+    if novo.get("data_hora"):
+        mesclado["data_hora"] = novo["data_hora"]
+    return mesclado
 
 
 def conectar_acessos():
@@ -2206,48 +2167,45 @@ def conectar_acessos():
         "ip_anonimizado TEXT, id_sessao TEXT, id_visitante TEXT, quem_acessou TEXT, dispositivo TEXT, origem TEXT)"
     )
     existentes = {linha[1] for linha in conn.execute("PRAGMA table_info(acessos_log)")}
-    for coluna in ("id_sessao", "id_visitante", "quem_acessou", "dispositivo", "origem", "localizacao"):
+    for coluna in ("id_sessao", "id_visitante", "quem_acessou", "dispositivo", "origem", "nome", "telefone", "email", "cep"):
         if coluna not in existentes:
             conn.execute("ALTER TABLE acessos_log ADD COLUMN %s TEXT" % coluna)
     return conn
 
 
 def gravar_acesso_local(registro):
-    """Um registro por visitante + tipo + dia: se já existir, só atualiza o horário e os dados do acesso."""
+    """1 lead por contato+dia: atualiza horário e dados se já existir."""
     dia = registro["data_hora"][:10]
-    tipo = tipo_acesso(registro["quem_acessou"])
-    localizacao = str(registro.get("localizacao") or "Não identificada")[:90]
+    campo = chave_acesso_dia(registro)
+    if not campo:
+        return
     conn = conectar_acessos()
     try:
-        if tipo == "Externo":
-            existente = conn.execute(
-                "SELECT id FROM acessos_log WHERE substr(data_hora, 1, 10) = ? AND id_visitante = ? AND quem_acessou = ? "
-                "ORDER BY id DESC LIMIT 1",
-                (dia, registro["id_visitante"], CLIENTE_EXTERNO),
-            ).fetchone()
-        else:
-            existente = conn.execute(
-                "SELECT id FROM acessos_log WHERE substr(data_hora, 1, 10) = ? AND id_visitante = ? AND quem_acessou != ? "
-                "ORDER BY id DESC LIMIT 1",
-                (dia, registro["id_visitante"], CLIENTE_EXTERNO),
-            ).fetchone()
+        existente = conn.execute(
+            "SELECT id, nome, telefone, email, cep, dispositivo FROM acessos_log "
+            "WHERE substr(data_hora, 1, 10) = ? AND id_visitante = ? ORDER BY id DESC LIMIT 1",
+            (dia, campo),
+        ).fetchone()
         if existente:
+            atual = dict(existente)
+            mesclado = fundir_lead(atual, registro)
             conn.execute(
-                "UPDATE acessos_log SET data_hora = ?, ip_anonimizado = ?, id_sessao = ?, quem_acessou = ?, "
-                "dispositivo = ?, origem = ?, localizacao = ? WHERE id = ?",
+                "UPDATE acessos_log SET data_hora = ?, id_sessao = ?, nome = ?, telefone = ?, email = ?, "
+                "cep = ?, dispositivo = ?, ip_anonimizado = ? WHERE id = ?",
                 (
-                    registro["data_hora"], registro["ip_anonimizado"], registro["id_sessao"],
-                    registro["quem_acessou"], registro["dispositivo"], registro["origem"],
-                    localizacao, existente["id"],
+                    mesclado["data_hora"], campo, mesclado.get("nome") or "", mesclado.get("telefone") or "",
+                    mesclado.get("email") or "", mesclado.get("cep") or "", mesclado.get("dispositivo") or "",
+                    mesclado.get("ip_anonimizado") or "", existente["id"],
                 ),
             )
         else:
             conn.execute(
-                "INSERT INTO acessos_log (data_hora, ip_anonimizado, id_sessao, id_visitante, quem_acessou, dispositivo, origem, localizacao) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO acessos_log (data_hora, ip_anonimizado, id_sessao, id_visitante, nome, telefone, email, cep, dispositivo) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    registro["data_hora"], registro["ip_anonimizado"], registro["id_sessao"], registro["id_visitante"],
-                    registro["quem_acessou"], registro["dispositivo"], registro["origem"], localizacao,
+                    registro["data_hora"], registro.get("ip_anonimizado") or "", campo, campo,
+                    registro.get("nome") or "", registro.get("telefone") or "", registro.get("email") or "",
+                    registro.get("cep") or "", registro.get("dispositivo") or "",
                 ),
             )
         conn.commit()
@@ -2268,8 +2226,8 @@ def normalizar_registro_acesso(dados):
         return None
     atual = dict(dados)
     if not str(atual.get("id_visitante") or "").strip():
-        atual["id_visitante"] = str(atual.get("id_sessao") or "").strip()
-    return atual
+        atual["id_visitante"] = chave_acesso_dia(atual) or str(atual.get("id_sessao") or "").strip()
+    return atual if eh_lead_trafego(atual) else None
 
 
 def ler_acessos_do_dia_redis(dia):
@@ -2296,53 +2254,63 @@ def ler_acessos_do_dia_redis(dia):
     return linhas
 
 
-def chave_trava_acesso(dia, campo):
-    """SET NX diário por visitante+tipo: elimina a corrida de dois POSTs com o mesmo ID."""
-    return ACESSOS_CHAVE + "nx:" + dia + ":" + campo
-
-
-def chave_trava_corrida(registro):
-    """Janela curta por IP+dispositivo+tipo: colapsa o clone Desktop com dois UUIDs no mesmo segundo."""
-    dia = str(registro.get("data_hora") or "")[:10]
-    tipo = tipo_acesso(registro.get("quem_acessou"))
-    base = "|".join((
-        dia,
-        tipo,
-        str(registro.get("ip_anonimizado") or ""),
-        str(registro.get("dispositivo") or ""),
-    ))
-    return ACESSOS_CHAVE + "race:" + hashlib.sha256(base.encode("utf-8")).hexdigest()[:28]
-
-
 def registrar_acesso(registro):
+    campo = chave_acesso_dia(registro)
+    if not campo:
+        return
+    registro = dict(registro)
+    registro["id_visitante"] = campo
+    registro["id_sessao"] = campo
     if endereco_redis():
         dia = registro["data_hora"][:10]
         chave = chave_hash_acessos(dia)
-        campo = chave_acesso_dia(registro)
-        trava_dia = chave_trava_acesso(dia, campo)
-        trava_corrida = chave_trava_corrida(registro)
-        # NX do visitante (~1 dia) + NX da corrida (30 s). O 2º POST Desktop no mesmo segundo perde.
-        criado_dia, criado_corrida = redis_pipeline([
-            ["SET", trava_dia, registro["data_hora"], "EX", 90000, "NX"],
-            ["SET", trava_corrida, campo, "EX", 30, "NX"],
-        ])[:2]
-        if criado_dia is None:
-            return
-        if criado_corrida is None:
-            return
+        atual_bruto = redis_pipeline([["HGET", chave, campo]])[0]
+        atual = normalizar_registro_acesso(registro_acesso_de_json(atual_bruto)) if atual_bruto else None
+        mesclado = fundir_lead(atual, registro) if atual else registro
+        mesclado["id_visitante"] = campo
+        mesclado["id_sessao"] = campo
         redis_pipeline([
-            ["HSET", chave, campo, json.dumps(registro, ensure_ascii=False)],
+            ["HSET", chave, campo, json.dumps(mesclado, ensure_ascii=False)],
             ["EXPIRE", chave, ACESSOS_EXPIRA],
         ])
         return
-    # O SQLite da Vercel fica em /tmp e some a cada instância: lá só o Redis guarda acessos.
     if em_vercel():
         return
     gravar_acesso_local(registro)
 
 
+def remover_lead_trafego(telefone="", email=""):
+    """Remove o lead do dia quando o orçamento é concluído (WhatsApp, E-mail ou Comando de Voz)."""
+    campos = []
+    tel = apenas_digitos(telefone)
+    mail = email_lead(email)
+    if len(tel) >= 10:
+        campos.append("tel:" + tel)
+    if mail:
+        campos.append("mail:" + mail)
+    if not campos:
+        return
+    dia = agora_painel().strftime("%Y-%m-%d")
+    if endereco_redis():
+        chave = chave_hash_acessos(dia)
+        redis_pipeline([["HDEL", chave] + campos])
+        return
+    if em_vercel():
+        return
+    conn = conectar_acessos()
+    try:
+        conn.execute(
+            "DELETE FROM acessos_log WHERE substr(data_hora, 1, 10) = ? AND id_visitante IN (%s)"
+            % ", ".join("?" for _ in campos),
+            [dia] + campos,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def responder_registrar_acesso(saida):
-    # A telemetria nunca pode atrapalhar o site: qualquer falha vira só um aviso no log.
+    # Lead com contato: telefone válido ou e-mail válido. Sem geo por IP.
     try:
         agente = saida.headers.get("User-Agent") or ""
         tamanho = int(saida.headers.get("Content-Length", "0") or "0")
@@ -2351,16 +2319,25 @@ def responder_registrar_acesso(saida):
             dados = json.loads(corpo.decode("utf-8")) if corpo else {}
             if not isinstance(dados, dict):
                 dados = {}
-            registrar_acesso({
+            telefone = apenas_digitos(dados.get("telefone") or dados.get("celular") or "")
+            email = email_lead(dados.get("email"))
+            if len(telefone) < 10:
+                telefone = ""
+            if not telefone and not email:
+                escrever_json(saida, {"status": "sucesso"})
+                return
+            registro = {
                 "data_hora": agora_painel().strftime("%Y-%m-%d %H:%M:%S"),
                 "ip_anonimizado": anonimizar_ip(ip_do_cliente(saida)),
-                "id_sessao": sessao_acesso(dados.get("sessao")),
-                "id_visitante": visitante_acesso(dados, saida),
-                "quem_acessou": quem_acessou(dados.get("equipe"), dados.get("quem")),
+                "nome": nome_lead(dados.get("nome")),
+                "telefone": telefone,
+                "email": email,
+                "cep": cep_lead(dados.get("cep")),
                 "dispositivo": dispositivo_acesso(agente, dados.get("dispositivo")),
-                "origem": origem_acesso(dados.get("origem")),
-                "localizacao": localizacao_acesso(saida),
-            })
+            }
+            registro["id_visitante"] = chave_acesso_dia(registro)
+            registro["id_sessao"] = registro["id_visitante"]
+            registrar_acesso(registro)
     except Exception as erro:
         print("acessos: falha ao registrar (%s)" % erro, file=sys.stderr, flush=True)
     escrever_json(saida, {"status": "sucesso"})
@@ -2620,62 +2597,31 @@ def desfazer_orcamento_email(registro):
 
 def linha_auditoria(dados):
     linha = {campo: str(dados.get(campo) or "") for campo in CAMPOS_AUDITORIA}
-    linha["quem_acessou"] = classificar_quem(linha["quem_acessou"])
-    linha["tipo"] = "Externo" if linha["quem_acessou"] == CLIENTE_EXTERNO else "Interno"
     if not linha["id_visitante"] and linha["id_sessao"]:
         linha["id_visitante"] = linha["id_sessao"]
-    # Registros antigos sem geo: o painel mostra "—"; não inventa cidade.
-    linha["localizacao"] = str(dados.get("localizacao") or "").strip()
+    if not linha["id_visitante"]:
+        linha["id_visitante"] = chave_acesso_dia(dados)
+    telefone = apenas_digitos(linha.get("telefone"))
+    linha["telefone"] = telefone if len(telefone) >= 10 else ""
+    linha["email"] = email_lead(linha.get("email"))
+    linha["cep"] = cep_lead(linha.get("cep"))
+    linha["nome"] = nome_lead(linha.get("nome"))
     return linha
 
 
-def _epoch_acesso(valor):
-    texto = str(valor or "").strip()
-    for formato in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(texto[:19], formato).timestamp()
-        except ValueError:
-            continue
-    return 0
-
-
 def deduplicar_linhas_acesso(linhas):
-    """1 registro por visitante+tipo+dia; clones Desktop (IDs diferentes, mesmos ~30 s) viram um só."""
-    por_visitante = {}
+    """1 lead por contato (telefone ou e-mail) + dia."""
+    por_contato = {}
     for dados in linhas:
         atual = normalizar_registro_acesso(dados)
         if not atual:
             continue
         chave = str(atual.get("data_hora") or "")[:10] + "|" + chave_acesso_dia(atual)
-        anterior = por_visitante.get(chave)
-        if anterior is None or str(atual.get("data_hora") or "") >= str(anterior.get("data_hora") or ""):
-            por_visitante[chave] = atual
-    ordenados = sorted(por_visitante.values(), key=lambda item: str(item.get("data_hora") or ""))
-    por_exibicao = []
-    for atual in ordenados:
-        epoca = _epoch_acesso(atual.get("data_hora"))
-        tipo = tipo_acesso(atual.get("quem_acessou"))
-        digital = (
-            str(atual.get("data_hora") or "")[:10],
-            tipo,
-            str(atual.get("dispositivo") or ""),
-            classificar_quem(atual.get("quem_acessou")),
-            str(atual.get("ip_anonimizado") or ""),
-        )
-        clone = None
-        for indice, anterior in enumerate(por_exibicao):
-            if anterior["digital"] != digital:
-                continue
-            if abs(epoca - anterior["epoca"]) <= 30:
-                clone = indice
-                break
-        if clone is None:
-            por_exibicao.append({"digital": digital, "epoca": epoca, "registro": atual})
-            continue
-        anterior = por_exibicao[clone]
-        if epoca >= anterior["epoca"]:
-            por_exibicao[clone] = {"digital": digital, "epoca": epoca, "registro": atual}
-    return [item["registro"] for item in por_exibicao]
+        if not chave.endswith("|") and chave.split("|", 1)[-1]:
+            anterior = por_contato.get(chave)
+            if anterior is None or str(atual.get("data_hora") or "") >= str(anterior.get("data_hora") or ""):
+                por_contato[chave] = atual
+    return list(por_contato.values())
 
 
 def contar_acessos_unicos(linhas):
@@ -2702,7 +2648,7 @@ def auditoria_sqlite(datas):
     conn = conectar_acessos()
     try:
         linhas = conn.execute(
-            "SELECT data_hora, quem_acessou, dispositivo, localizacao, id_sessao, id_visitante, ip_anonimizado "
+            "SELECT data_hora, nome, telefone, email, cep, dispositivo, id_sessao, id_visitante, ip_anonimizado "
             "FROM acessos_log WHERE data_hora >= ? ORDER BY data_hora DESC, id DESC",
             (datas[-1],),
         ).fetchall()

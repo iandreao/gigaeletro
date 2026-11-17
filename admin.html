@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=24">
+  <link rel="stylesheet" href="css/admin.css?v=25">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -181,20 +181,8 @@
           <button type="button" data-trafego-dias="0">Tudo</button>
         </div>
       </div>
-      <p class="dash-numero trafego-resumo"><strong data-trafego-unicos>0</strong> <span data-trafego-resumo>usuário(s) único(s)</span></p>
+      <p class="dash-numero trafego-resumo"><strong data-trafego-unicos>0</strong> <span data-trafego-resumo>contato(s) sem orçamento enviado</span></p>
       <div class="trafego-barra">
-        <label class="trafego-filtro">Tipo de tráfego
-          <select data-trafego-tipo aria-label="Filtrar por tipo de tráfego">
-            <option value="">Todos</option>
-            <option value="Externo">Externo (clientes)</option>
-            <option value="Interno">Interno (equipe)</option>
-          </select>
-        </label>
-        <label class="trafego-filtro">Quem acessou
-          <select data-trafego-quem aria-label="Filtrar por quem acessou">
-            <option value="">Todos</option>
-          </select>
-        </label>
         <label class="trafego-filtro">Dispositivo
           <select data-trafego-dispositivo aria-label="Filtrar por dispositivo">
             <option value="">Todos</option>
@@ -207,16 +195,16 @@
       </div>
       <p class="trafego-divisao" data-trafego-divisao hidden></p>
       <p class="gestor-busca-aviso" data-trafego-aviso hidden></p>
-      <p class="gestor-vazio" data-trafego-vazio hidden>Nenhum acesso registrado no período para este filtro.</p>
+      <p class="gestor-vazio" data-trafego-vazio hidden>Nenhum contato sem orçamento no período para este filtro.</p>
       <div class="gestor-tabela-box" data-trafego aria-busy="true">
         <table class="gestor-tabela trafego-tabela">
           <thead>
             <tr>
               <th>Horário Exato</th>
-              <th>Tipo</th>
-              <th>Quem Acessou</th>
+              <th>Cliente / Contato</th>
+              <th>CEP</th>
               <th>Dispositivo</th>
-              <th>Cidade/UF</th>
+              <th>Ação</th>
             </tr>
           </thead>
           <tbody data-trafego-lista></tbody>
@@ -233,6 +221,6 @@
     </div>
     <div class="gestor-detalhe-corpo" data-detalhe-corpo></div>
   </div>
-  <script src="js/admin.js?v=46"></script>
+  <script src="js/admin.js?v=47"></script>
 </body>
 </html>

@@ -398,13 +398,28 @@ body.gestor .dash-topo h1 { margin: 0; }
 /* Rastreamento de tráfego */
 .trafego-resumo { flex: none; margin: 0.2rem 0 0.6rem; }
 .trafego-tabela td { white-space: nowrap; }
-.trafego-tabela td.quem { font-weight: 800; }
-.trafego-tabela td.localizacao {
-  max-width: 16rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.trafego-tabela td.quem {
+  font-weight: 700;
+  white-space: normal;
+  min-width: 12rem;
+  max-width: 18rem;
+  line-height: 1.35;
 }
+.trafego-tabela td.trafego-acao { white-space: nowrap; }
+.trafego-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+.trafego-whatsapp:hover { background: #15803d; color: #fff; }
 .trafego-barra { flex: none; display: flex; flex-wrap: wrap; align-items: end; gap: 0.5rem 1rem; margin-bottom: 0.6rem; }
 .trafego-filtro { display: grid; gap: 0.25rem; font-size: 0.78rem; font-weight: 800; }
 .trafego-filtro select {

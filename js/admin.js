@@ -998,6 +998,42 @@
     return data.length === 3 ? data[2] + "/" + data[1] + "/" + data[0] + " " + (partes[1] || "") : String(valor || "");
   }
 
+  function digitosTrafego(valor) {
+    return String(valor || "").replace(/\D/g, "");
+  }
+
+  function formatarTelefoneTrafego(valor) {
+    var d = digitosTrafego(valor);
+    if (d.length === 11) return "(" + d.slice(0, 2) + ") " + d.slice(2, 7) + "-" + d.slice(7);
+    if (d.length === 10) return "(" + d.slice(0, 2) + ") " + d.slice(2, 6) + "-" + d.slice(6);
+    return "";
+  }
+
+  function formatarCepTrafego(valor) {
+    var d = digitosTrafego(valor);
+    return d.length === 8 ? d.slice(0, 5) + "-" + d.slice(5) : "";
+  }
+
+  function htmlContatoTrafego(linha) {
+    var nome = String(linha.nome || "").trim();
+    var telefone = formatarTelefoneTrafego(linha.telefone);
+    var email = String(linha.email || "").trim();
+    var partes = [];
+    if (nome) partes.push('<strong>' + escapar(nome) + "</strong>");
+    if (telefone) partes.push(escapar(telefone));
+    if (email) partes.push(escapar(email));
+    return partes.length ? partes.join("<br>") : "—";
+  }
+
+  function linkWhatsAppTrafego(linha) {
+    var d = digitosTrafego(linha.telefone);
+    if (d.length < 10) return "";
+    if (d.length <= 11) d = "55" + d;
+    var nome = String(linha.nome || "").trim() || "cliente";
+    var mensagem = "Olá " + nome + ", vimos que você iniciou um orçamento no site da GigaEletro. Podemos ajudar?";
+    return "https://wa.me/" + d + "?text=" + encodeURIComponent(mensagem);
+  }
+
   function renderTrafego(dados) {
     var lista = document.querySelector("[data-trafego-lista]");
     var vazio = document.querySelector("[data-trafego-vazio]");
@@ -1005,18 +1041,7 @@
     var dias = Number(dados.periodoDias || 0);
     var total = Number(dados.totalAcessos || 0);
     var unicosServidor = Number(dados.sessoesUnicas || 0);
-    /* Segurança: únicos nunca passam dos acessos, mesmo com cache antigo no navegador. */
-    var unicos = Math.min(unicosServidor, total);
-    if (!unicos && registros.length) {
-      var ids = {};
-      registros.forEach(function (linha) {
-        var id = String(linha.id_visitante || linha.id_sessao || "").trim();
-        if (id) ids[id] = true;
-      });
-      unicos = Object.keys(ids).length;
-      total = Math.max(total, registros.length);
-      unicos = Math.min(unicos, total);
-    }
+    var unicos = Math.min(unicosServidor || registros.length, Math.max(total, registros.length));
     trafegoCabecalho = {
       unicos: String(unicos),
       periodo: dias === 1 ? "hoje" : (dias ? "nos últimos " + dias + " dias" : "em todo o período"),
@@ -1026,48 +1051,27 @@
     };
     trafegoCabecalho.texto = trafegoCabecalho.desativado
       ? "Contagem desativada: falta a variável REDIS_URL na Vercel."
-      : "usuário(s) único(s) " + trafegoCabecalho.periodo +
-        " · " + total + " acesso(s) registrado(s)" +
+      : "contato(s) sem orçamento enviado " + trafegoCabecalho.periodo +
+        " · " + total + " registro(s)" +
         (trafegoCabecalho.cortado ? " · mostrando os " + registros.length + " mais recentes" : "");
     if (vazio) vazio.hidden = registros.length > 0;
     if (lista) {
       lista.innerHTML = registros.map(function (linha) {
-        var tipo = linha.tipo === "Interno" ? "Interno" : "Externo";
         var dispositivo = linha.dispositivo === "Mobile" || linha.dispositivo === "Desktop" ? linha.dispositivo : "";
-        var localizacao = String(linha.localizacao || "").trim();
-        return '<tr data-sessao="' + escapar(linha.id_visitante || linha.id_sessao || "") + '" data-tipo="' + tipo + '" data-quem="' +
-          escapar(linha.quem_acessou || "") + '" data-dispositivo="' + dispositivo + '">' +
+        var cep = formatarCepTrafego(linha.cep);
+        var whats = linkWhatsAppTrafego(linha);
+        return '<tr data-sessao="' + escapar(linha.id_visitante || linha.id_sessao || "") +
+          '" data-dispositivo="' + dispositivo + '">' +
           "<td>" + escapar(horarioAcesso(linha.data_hora)) + "</td>" +
-          '<td><span class="trafego-tag trafego-tag-' + tipo.toLowerCase() + '">' + tipo + "</span></td>" +
-          '<td class="quem">' + escapar(linha.quem_acessou || "—") + "</td>" +
+          '<td class="quem">' + htmlContatoTrafego(linha) + "</td>" +
+          "<td>" + escapar(cep || "—") + "</td>" +
           "<td>" + (dispositivo ? '<span class="trafego-tag trafego-tag-' + dispositivo.toLowerCase() + '">' + dispositivo + "</span>" : "—") + "</td>" +
-          '<td class="localizacao">' + escapar(localizacao || "—") + "</td>" +
-          "</tr>";
+          '<td class="trafego-acao">' +
+            (whats ? '<a class="trafego-whatsapp" href="' + escapar(whats) + '" target="_blank" rel="noopener noreferrer">WhatsApp</a>' : "—") +
+          "</td></tr>";
       }).join("");
     }
-    opcoesQuem(registros);
-    aplicarFiltroQuem();
-  }
-
-  /* Os nomes internos são livres (?equipe=Nome), então a lista do filtro vem dos próprios registros. */
-  function opcoesQuem(registros) {
-    var seletor = document.querySelector("[data-trafego-quem]");
-    if (!seletor) return;
-    var atual = seletor.value;
-    var nomes = {};
-    registros.forEach(function (linha) {
-      if (linha.quem_acessou) nomes[linha.quem_acessou.normalize("NFC")] = true;
-    });
-    if (atual) nomes[atual] = true;
-    var lista = Object.keys(nomes).sort(function (a, b) {
-      if (a === "Cliente Externo") return -1;
-      if (b === "Cliente Externo") return 1;
-      return a.localeCompare(b, "pt-BR");
-    });
-    seletor.innerHTML = '<option value="">Todos</option>' + lista.map(function (nome) {
-      return '<option value="' + escapar(nome) + '">' + escapar(nome) + "</option>";
-    }).join("");
-    seletor.value = atual;
+    aplicarFiltroTrafego();
   }
 
   function valorFiltro(seletor) {
@@ -1075,45 +1079,34 @@
     return campo ? campo.value.normalize("NFC") : "";
   }
 
-  function aplicarFiltroQuem() {
+  function aplicarFiltroTrafego() {
     var resultado = document.querySelector("[data-trafego-filtro-resultado]");
     var vazio = document.querySelector("[data-trafego-vazio]");
     var divisao = document.querySelector("[data-trafego-divisao]");
     var linhas = document.querySelectorAll("[data-trafego-lista] tr");
-    var tipo = valorFiltro("[data-trafego-tipo]");
-    var quem = valorFiltro("[data-trafego-quem]");
     var dispositivo = valorFiltro("[data-trafego-dispositivo]");
-    var escolhido = [
-      tipo === "Interno" ? "Interno (equipe)" : (tipo === "Externo" ? "Externo (clientes)" : ""),
-      quem,
-      dispositivo
-    ].filter(Boolean).join(" · ");
+    var escolhido = dispositivo || "";
     var visiveis = 0;
     var sessoes = {};
-    var contagem = { Externo: 0, Interno: 0, Desktop: 0, Mobile: 0 };
+    var contagem = { Desktop: 0, Mobile: 0 };
     linhas.forEach(function (linha) {
-      var mostrar = (!tipo || linha.getAttribute("data-tipo") === tipo) &&
-        (!quem || String(linha.getAttribute("data-quem") || "").normalize("NFC") === quem) &&
-        (!dispositivo || linha.getAttribute("data-dispositivo") === dispositivo);
+      var mostrar = !dispositivo || linha.getAttribute("data-dispositivo") === dispositivo;
       linha.hidden = !mostrar;
       if (!mostrar) return;
       visiveis += 1;
-      contagem[linha.getAttribute("data-tipo")] += 1;
       if (linha.getAttribute("data-dispositivo")) contagem[linha.getAttribute("data-dispositivo")] += 1;
       if (linha.getAttribute("data-sessao")) sessoes[linha.getAttribute("data-sessao")] = true;
     });
     if (divisao) {
       divisao.hidden = visiveis === 0;
-      divisao.innerHTML = '<span class="trafego-tag trafego-tag-externo">Externo (clientes): ' + contagem.Externo + "</span>" +
-        '<span class="trafego-tag trafego-tag-interno">Interno (equipe): ' + contagem.Interno + "</span>" +
-        '<span class="trafego-tag trafego-tag-desktop">Desktop: ' + contagem.Desktop + "</span>" +
+      divisao.innerHTML = '<span class="trafego-tag trafego-tag-desktop">Desktop: ' + contagem.Desktop + "</span>" +
         '<span class="trafego-tag trafego-tag-mobile">Mobile: ' + contagem.Mobile + "</span>";
     }
     var unicosFiltro = Object.keys(sessoes).length;
     if (vazio) vazio.hidden = visiveis > 0;
     if (resultado) {
       resultado.textContent = escolhido
-        ? escolhido + ": " + visiveis + " acesso(s) · " + unicosFiltro + " usuário(s) único(s) na lista"
+        ? escolhido + ": " + visiveis + " contato(s) na lista"
         : "";
     }
     var unicos = document.querySelector("[data-trafego-unicos]");
@@ -1123,7 +1116,7 @@
     if (unicos) unicos.textContent = filtrado ? String(unicosFiltro) : trafegoCabecalho.unicos;
     if (resumo) {
       resumo.textContent = filtrado
-        ? "usuário(s) único(s) · " + escolhido + " " + trafegoCabecalho.periodo + " · " + visiveis + " acesso(s)" +
+        ? "contato(s) sem orçamento · " + escolhido + " " + trafegoCabecalho.periodo + " · " + visiveis + " registro(s)" +
           (trafegoCabecalho.cortado ? " entre os " + trafegoCabecalho.cortado + " mais recentes" : "")
         : trafegoCabecalho.texto;
     }
@@ -1160,8 +1153,8 @@
     });
   }
 
-  document.querySelectorAll("[data-trafego-tipo], [data-trafego-quem], [data-trafego-dispositivo]").forEach(function (filtro) {
-    filtro.addEventListener("change", aplicarFiltroQuem);
+  document.querySelectorAll("[data-trafego-dispositivo]").forEach(function (filtro) {
+    filtro.addEventListener("change", aplicarFiltroTrafego);
   });
 
   var FALHA_LIMPAR_TRAFEGO = "Não foi possível limpar o histórico de tráfego.";
@@ -1175,7 +1168,7 @@
   var limparTrafego = document.querySelector("[data-trafego-limpar]");
   if (limparTrafego) {
     limparTrafego.addEventListener("click", function () {
-      if (!window.confirm("Limpar todo o histórico do Rastreamento de Tráfego?\nTodos os acessos registrados até agora serão apagados e a contagem recomeça do zero. Esta ação não pode ser desfeita.")) return;
+      if (!window.confirm("Limpar todo o histórico do Rastreamento de Tráfego?\nTodos os contatos sem orçamento registrados até agora serão apagados. Esta ação não pode ser desfeita.")) return;
       limparTrafego.disabled = true;
       fetch("/api/admin/metricas-acesso", {
         method: "POST",
