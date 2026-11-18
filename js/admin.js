@@ -125,6 +125,7 @@
   }
 
   function ocultarModaisPainel() {
+    if (typeof liberarPdfDetalhe === "function") liberarPdfDetalhe();
     document.querySelectorAll("[data-detalhe], .overlay[data-fechar-detalhe], [data-equipe-acoes-modal], .equipe-acoes-overlay, [data-equipe-acoes-tooltip]").forEach(function (el) {
       el.hidden = true;
       el.style.removeProperty("display");
@@ -133,6 +134,8 @@
     if (corpoDetalhe) corpoDetalhe.innerHTML = "";
     var corpoEquipe = document.querySelector("[data-equipe-acoes-corpo]");
     if (corpoEquipe) corpoEquipe.innerHTML = "";
+    var botaoImprimir = document.querySelector("[data-detalhe-imprimir]");
+    if (botaoImprimir) botaoImprimir.hidden = true;
   }
 
   ocultarModaisPainel();
@@ -575,33 +578,18 @@
     return null;
   }
 
-  function campoPedido(valor) {
-    var texto = String(valor == null ? "" : valor).trim();
-    return texto || "—";
-  }
+  var pdfDetalheUrl = "";
+  var pdfDetalheRevogar = false;
+  var botaoDetalheImprimir = document.querySelector("[data-detalhe-imprimir]");
 
-  function clienteDoPedido(item) {
-    var origem = item && item.cliente && typeof item.cliente === "object" ? item.cliente : {};
-    return {
-      nome: item.nome || origem.nome || "",
-      documento: item.documento || origem.documento || "",
-      endereco: origem.endereco || item.endereco || "",
-      numero: origem.numero || item.numero || "",
-      bairro: origem.bairro || item.bairro || "",
-      cidade: origem.cidade || item.cidade || "",
-      uf: String(origem.uf || item.uf || "").toUpperCase(),
-      cep: origem.cep || item.cep || "",
-      telefone: item.telefone || origem.celular || origem.telefone || "",
-      email: origem.email || item.email || ""
-    };
-  }
-
-  function dataHoraPedido(iso) {
-    var texto = String(iso || "").trim();
-    var match = texto.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
-    if (!match) return dataVisivel(iso) || "—";
-    var hora = (match[4] || "00") + ":" + (match[5] || "00") + ":" + (match[6] || "00");
-    return match[3] + "/" + match[2] + "/" + match[1] + " " + hora;
+  function liberarPdfDetalhe() {
+    if (pdfDetalheRevogar && pdfDetalheUrl) {
+      try { URL.revokeObjectURL(pdfDetalheUrl); } catch (erro) {}
+    }
+    pdfDetalheUrl = "";
+    pdfDetalheRevogar = false;
+    if (detalhe) detalhe.removeAttribute("data-pdf-url");
+    if (botaoDetalheImprimir) botaoDetalheImprimir.hidden = true;
   }
 
   function cepPedido(valor) {
@@ -610,121 +598,80 @@
     return String(valor || "").trim();
   }
 
-  function codigoItemPedido(produto) {
-    var codigo = String((produto && produto.codigo) || "").trim();
-    if (/^voz-/i.test(codigo)) return "";
-    return codigo;
+  function clientePdfOrcamento(item) {
+    var origem = item && item.cliente && typeof item.cliente === "object" ? item.cliente : {};
+    var documento = item.documento || origem.documento || "";
+    return {
+      nome: item.nome || origem.nome || "",
+      documento: documentoVisivel(String(documento)) || String(documento || ""),
+      endereco: origem.endereco || item.endereco || "",
+      numero: origem.numero || item.numero || "",
+      bairro: origem.bairro || item.bairro || "",
+      cidade: origem.cidade || item.cidade || "",
+      uf: String(origem.uf || item.uf || "").toUpperCase(),
+      cep: cepPedido(origem.cep || item.cep || ""),
+      celular: item.telefone || origem.celular || origem.telefone || "",
+      email: origem.email || item.email || ""
+    };
   }
 
-  function nomeItemPedido(produto) {
-    var nome = String((produto && produto.produto) || "").trim();
-    nome = nome.replace(/^voz-[a-z0-9]+-\d+\s*-\s*/i, "");
-    if (!codigoItemPedido(produto)) nome = nome.replace(/^\d+\s*-\s*/, "");
-    return nome.trim();
+  function itensPdfOrcamento(item) {
+    return (Array.isArray(item.itens) ? item.itens : []).map(function (produto) {
+      var qtd = Number(produto && produto.qtd) || 0;
+      var preco = Number(produto && produto.preco);
+      if (!isFinite(preco)) {
+        var total = Number(produto && produto.valor);
+        preco = qtd > 0 && isFinite(total) ? total / qtd : 0;
+      }
+      return {
+        codigo: String((produto && produto.codigo) || ""),
+        produto: String((produto && produto.produto) || ""),
+        qtd: qtd || 1,
+        preco: preco
+      };
+    });
   }
 
-  function valorUnitarioItem(produto) {
-    if (produto && produto.preco != null && isFinite(Number(produto.preco))) return Number(produto.preco);
-    var qtd = Number(produto && produto.qtd) || 0;
-    var total = Number(produto && produto.valor);
-    if (qtd > 0 && isFinite(total)) return total / qtd;
-    return 0;
+  function urlPdfSalvo(item) {
+    var id = String((item && item.pdfId) || "").trim();
+    if (!id) return "";
+    return "/api/ver-pdf?id=" + encodeURIComponent(id) + "&arquivo=pdf";
   }
 
-  function valorTotalItem(produto) {
-    if (produto && produto.valor != null && isFinite(Number(produto.valor))) return Number(produto.valor);
-    return valorUnitarioItem(produto) * (Number(produto && produto.qtd) || 0);
+  function obterPdfOrcamento(item) {
+    var salvo = urlPdfSalvo(item);
+    if (salvo) {
+      return Promise.resolve({ url: salvo, revogar: false });
+    }
+    if (!window.GigaeletroPedidoPdf || !window.GigaeletroPedidoPdf.gerar) {
+      return Promise.reject(new Error("Gerador de PDF indisponível."));
+    }
+    try {
+      var blob = window.GigaeletroPedidoPdf.gerar({
+        cliente: clientePdfOrcamento(item),
+        itens: itensPdfOrcamento(item),
+        subtotal: item.total,
+        dataCriacao: item.data ? new Date(item.data) : new Date()
+      });
+      var url = URL.createObjectURL(blob);
+      return Promise.resolve({ url: url, revogar: true });
+    } catch (erro) {
+      return Promise.reject(erro);
+    }
   }
 
-  function celulaPedido(rotulo, valor, colspan, classe) {
-    return '<td colspan="' + (colspan || 1) + '" class="' + (classe || "") + '">' +
-      '<span class="pedido-rotulo">' + escapar(rotulo) + "</span> " +
-      '<span class="pedido-valor">' + escapar(campoPedido(valor)) + "</span></td>";
-  }
-
-  function htmlPedidoOrcamento(item) {
-    var cliente = clienteDoPedido(item);
-    var itens = Array.isArray(item.itens) ? item.itens : [];
-    var total = item.total != null && isFinite(Number(item.total))
-      ? Number(item.total)
-      : itens.reduce(function (soma, produto) { return soma + valorTotalItem(produto); }, 0);
-    var colunasCliente = Array(12).fill('<col>').join("");
-    var linhas = itens.map(function (produto, indice) {
-      return "<tr>" +
-        '<td class="pedido-centro">' + (indice + 1) + "</td>" +
-        '<td class="pedido-centro">' + escapar(codigoItemPedido(produto) || "—") + "</td>" +
-        '<td class="pedido-nome">' + escapar(campoPedido(nomeItemPedido(produto))) + "</td>" +
-        '<td class="pedido-centro">' + escapar(String(produto.qtd != null ? produto.qtd : "—")) + "</td>" +
-        '<td class="pedido-direita">' + moedaPainel(valorUnitarioItem(produto)) + "</td>" +
-        '<td class="pedido-direita">' + moedaPainel(valorTotalItem(produto)) + "</td>" +
-      "</tr>";
-    }).join("") || '<tr><td colspan="6" class="pedido-vazio">Nenhum item neste orçamento.</td></tr>';
-
-    return '<div class="pedido-doc">' +
-      '<div class="pedido-doc-cabeca">' +
-        '<img class="pedido-doc-logo" src="assets/logo-gigaeletro.jpg?v=3" width="146" height="74" alt="Gigaeletro Material Elétrico">' +
-        "<h3>PEDIDO DE ORÇAMENTO</h3>" +
-      "</div>" +
-      '<table class="pedido-doc-cliente">' +
-        "<colgroup>" + colunasCliente + "</colgroup>" +
-        "<tr>" +
-          celulaPedido("Nome:", cliente.nome, 7) +
-          celulaPedido("CPF/CNPJ:", documentoVisivel(String(cliente.documento || "")), 5, "pedido-nowrap") +
-        "</tr>" +
-        "<tr>" +
-          celulaPedido("End:", cliente.endereco, 9) +
-          celulaPedido("Nr:", cliente.numero, 3, "pedido-nowrap") +
-        "</tr>" +
-        "<tr>" +
-          celulaPedido("Cidade:", cliente.cidade, 4) +
-          celulaPedido("Bairro:", cliente.bairro, 4) +
-          celulaPedido("UF:", cliente.uf, 1, "pedido-nowrap") +
-          celulaPedido("CEP:", cepPedido(cliente.cep), 3, "pedido-nowrap") +
-        "</tr>" +
-        "<tr>" +
-          celulaPedido("Telefone / Celular:", cliente.telefone, 6, "pedido-nowrap") +
-          celulaPedido("e-mail:", cliente.email, 6, "pedido-nowrap") +
-        "</tr>" +
-      "</table>" +
-      '<table class="pedido-doc-itens">' +
-        "<colgroup>" +
-          '<col class="pedido-col-itens">' +
-          '<col class="pedido-col-codigo">' +
-          '<col class="pedido-col-nome">' +
-          '<col class="pedido-col-qte">' +
-          '<col class="pedido-col-unit">' +
-          '<col class="pedido-col-total">' +
-        "</colgroup>" +
-        "<thead><tr>" +
-          '<th class="pedido-centro">Itens</th>' +
-          '<th class="pedido-centro">Código</th>' +
-          "<th>Nome</th>" +
-          '<th class="pedido-centro">Qte</th>' +
-          '<th class="pedido-direita">Pr.Unitário</th>' +
-          '<th class="pedido-direita">Total</th>' +
-        "</tr></thead>" +
-        "<tbody>" + linhas + "</tbody>" +
-      "</table>" +
-      '<div class="pedido-doc-rodape">' +
-        '<div class="pedido-doc-nota">' +
-          "<p><strong>Data/Hora:</strong> " + escapar(dataHoraPedido(item.data)) + "</p>" +
-          "<p>" + escapar(notaOrcamentoAdmin(item)) + "</p>" +
-        "</div>" +
-        '<div class="pedido-doc-total">' +
-          "<span>Valor Total</span>" +
-          "<strong>R$ " + moedaPainel(total) + "</strong>" +
-        "</div>" +
-      "</div>" +
-    "</div>";
-  }
-
-  function htmlDetalhe(item) {
-    return htmlPedidoOrcamento(item);
+  function mostrarPdfNoModal(url) {
+    if (!detalheCorpo) return;
+    detalheCorpo.innerHTML =
+      '<iframe class="pedido-pdf-frame" title="Pedido de Orçamento" src="' + escapar(url) + '"></iframe>';
+    if (detalhe) detalhe.setAttribute("data-pdf-url", url);
+    if (botaoDetalheImprimir) botaoDetalheImprimir.hidden = false;
   }
 
   function abrirDetalhe(item) {
     if (!detalhe || !detalheCorpo || !item) return;
-    detalheCorpo.innerHTML = htmlDetalhe(item);
+    liberarPdfDetalhe();
+    detalheCorpo.innerHTML = '<p class="pedido-pdf-status">Carregando PDF oficial...</p>';
     detalhe.hidden = false;
     detalhe.style.removeProperty("display");
     var fundo = document.querySelector(".overlay[data-fechar-detalhe]");
@@ -732,9 +679,18 @@
       fundo.hidden = false;
       fundo.style.removeProperty("display");
     }
+    obterPdfOrcamento(item).then(function (resultado) {
+      pdfDetalheUrl = resultado.url;
+      pdfDetalheRevogar = !!resultado.revogar;
+      mostrarPdfNoModal(resultado.url);
+    }).catch(function () {
+      detalheCorpo.innerHTML = '<p class="pedido-pdf-status pedido-pdf-erro">Não foi possível abrir o PDF oficial deste orçamento.</p>';
+      if (botaoDetalheImprimir) botaoDetalheImprimir.hidden = true;
+    });
   }
 
   function fecharDetalhe() {
+    liberarPdfDetalhe();
     if (detalhe) {
       detalhe.hidden = true;
       detalhe.style.removeProperty("display");
@@ -747,50 +703,31 @@
     }
   }
 
-  function orcamentoPorVozAdmin(item) {
-    if (!item) return false;
-    if (String(item.meio_envio || "") === "Comando de Voz") return true;
-    if (String(item.metodo || "").toLowerCase() === "gigavoz") return true;
-    var itens = Array.isArray(item.itens) ? item.itens : [];
-    if (!itens.length) return false;
-    var voz = itens.filter(function (produto) {
-      var codigo = String((produto && produto.codigo) || "").trim().toLowerCase();
-      var preco = Number(produto && produto.preco);
-      return codigo.indexOf("voz-") === 0 || (!codigo && !(preco > 0));
-    }).length;
-    return voz * 2 > itens.length;
-  }
-
-  function dataValidadeAdmin(iso) {
-    var base = iso ? new Date(iso) : new Date();
-    if (isNaN(base.getTime())) base = new Date();
-    var validade = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 12);
-    validade.setDate(validade.getDate() + 15);
-    function dois(n) { return String(n).padStart(2, "0"); }
-    return dois(validade.getDate()) + "/" + dois(validade.getMonth() + 1) + "/" + validade.getFullYear();
-  }
-
-  function notaOrcamentoAdmin(item) {
-    if (orcamentoPorVozAdmin(item)) {
-      return "Nota: Este orçamento foi gerado por comando de voz, o preço dos itens listados, o estoque e o frete, serão informados no WhatsApp ou no E-mail.";
-    }
-    return "Nota: O preço dos itens listados vale até " + dataValidadeAdmin(item && item.data) + ". O estoque e o frete serão informados no WhatsApp ou no E-mail.";
+  function abrirPdfExterno(url) {
+    if (!url) return;
+    var janela = window.open(url, "_blank", "noopener,noreferrer");
+    if (janela) janela.focus();
   }
 
   function imprimirOrcamento(item) {
     if (!item) return;
-    var janela = window.open("", "orcamento-gigaeletro");
-    if (!janela) return;
-    janela.document.open();
-    janela.document.write(
-      "<!DOCTYPE html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>Pedido de Orçamento | Gigaeletro</title>" +
-      "<link rel=\"stylesheet\" href=\"css/admin.css?v=40\">" +
-      "<style>body{margin:18px;background:#fff}.gestor-detalhe-corpo{padding:0}.pedido-doc{max-width:920px;margin:0 auto}</style>" +
-      "</head><body>" + htmlPedidoOrcamento(item) + "</body></html>"
-    );
-    janela.document.close();
-    janela.focus();
-    janela.print();
+    obterPdfOrcamento(item).then(function (resultado) {
+      abrirPdfExterno(resultado.url);
+      if (resultado.revogar) {
+        window.setTimeout(function () {
+          try { URL.revokeObjectURL(resultado.url); } catch (erro) {}
+        }, 60000);
+      }
+    }).catch(function () {
+      window.alert("Não foi possível gerar ou abrir o PDF oficial deste orçamento.");
+    });
+  }
+
+  if (botaoDetalheImprimir) {
+    botaoDetalheImprimir.addEventListener("click", function () {
+      var url = (detalhe && detalhe.getAttribute("data-pdf-url")) || pdfDetalheUrl;
+      abrirPdfExterno(url);
+    });
   }
 
   var STATUS_ORCAMENTO = ["Pendente", "Analisado", "Respondido"];
