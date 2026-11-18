@@ -2365,7 +2365,8 @@ def segundos_desde(data, agora):
         return None
 
 
-def achar_rascunho_painel(lista, documento, tipo_orcamento, identificador=""):
+def achar_rascunho_painel(lista, documento, tipo_orcamento, identificador="", somente_a_enviar=True):
+    """Localiza rascunho A Enviar (por id, tipo ou qualquer aberto do CPF/CNPJ)."""
     documento = apenas_digitos(documento)
     identificador = str(identificador or "")
     if identificador and id_painel_valido(identificador):
@@ -2376,7 +2377,12 @@ def achar_rascunho_painel(lista, documento, tipo_orcamento, identificador=""):
                 continue
             if apenas_digitos(str(item.get("documento") or "")) != documento:
                 continue
+            if somente_a_enviar and status_envio_de(item) != STATUS_ENVIO_RASCUNHO:
+                # Id aponta para Enviado: não reutiliza como rascunho nesta busca.
+                break
             return item
+    candidato_tipo = None
+    candidato_qualquer = None
     for item in lista:
         if item.get("excluido"):
             continue
@@ -2384,14 +2390,18 @@ def achar_rascunho_painel(lista, documento, tipo_orcamento, identificador=""):
             continue
         if apenas_digitos(str(item.get("documento") or "")) != documento:
             continue
+        if candidato_qualquer is None:
+            candidato_qualquer = item
         tipo_item = str(item.get("tipoOrcamento") or "").strip() or tipo_orcamento_de(item)
-        if tipo_item == tipo_orcamento:
-            return item
-    return None
+        if tipo_orcamento and tipo_item == tipo_orcamento:
+            candidato_tipo = item
+            break
+    return candidato_tipo or candidato_qualquer
 
 
 def upsert_rascunho_painel(corpo):
-    """Upsert de rascunho multi-dispositivo. Existência = itens.length > 0; total R$ 0,00 é válido."""
+    """Upsert de rascunho multi-dispositivo. Existência = itens.length > 0; total R$ 0,00 é válido.
+    Nunca rebaixa um registro já Enviado: só atualiza status A Enviar (ou cria outro)."""
     if not isinstance(corpo, dict):
         return None
     documento = apenas_digitos(corpo.get("documento") or "")
@@ -2415,7 +2425,14 @@ def upsert_rascunho_painel(corpo):
     identificador = str(corpo.get("id") or "")
     with PAINEL_LOCK:
         lista = ler_painel()
-        anterior = achar_rascunho_painel(lista, documento, tipo_orcamento, identificador)
+        # Com id explícito (edição), pode reassumir Enviado → A Enviar. Sem id, só rascunhos abertos.
+        anterior = achar_rascunho_painel(
+            lista,
+            documento,
+            tipo_orcamento,
+            identificador,
+            somente_a_enviar=not id_painel_valido(identificador),
+        )
         if anterior is not None:
             anterior["data"] = agora_painel().isoformat(timespec="seconds")
             anterior["nome"] = nome
@@ -2513,7 +2530,7 @@ def orcamento_anterior(lista, registro):
 
 
 def incluir_orcamento_painel(corpo, meio_envio):
-    """O registro devolvido traz "repetido" quando o envio já estava gravado e "voz_anterior"/"rascunho" quando assumiu rascunho."""
+    """Converte rascunho A Enviar em Enviado (mesmo id) ou cria o registro final. Sem duplicar A Enviar."""
     if not isinstance(corpo, dict):
         return None
     if meio_envio not in MEIOS_ENVIO:
@@ -2551,17 +2568,47 @@ def incluir_orcamento_painel(corpo, meio_envio):
         lista = ler_painel()
         anterior, motivo = orcamento_anterior(lista, registro)
         if motivo == "repetido":
+            # Reforço: se o "repetido" ainda estiver A Enviar, promove para Enviado.
+            if status_envio_de(anterior) == STATUS_ENVIO_RASCUNHO:
+                anterior["status"] = STATUS_ENVIO_FINAL
+                anterior["meio_envio"] = meio_envio
+                anterior["data"] = registro["data"]
+                anterior["itens"] = registro["itens"]
+                anterior["total"] = registro["total"]
+                anterior["pdfId"] = registro["pdfId"] or anterior.get("pdfId") or ""
+                anterior["cliente"] = registro["cliente"]
+                anterior["nome"] = registro["nome"]
+                anterior["telefone"] = registro["telefone"]
+                anterior["tipoOrcamento"] = registro["tipoOrcamento"]
+                gravar_painel(lista)
+                return dict(anterior)
             print("painel: envio repetido ignorado (%s)" % anterior.get("id"), file=sys.stderr, flush=True)
             return dict(anterior, repetido=True)
         if motivo in ("voz", "rascunho"):
-            # Mesmo id e vendedor do rascunho/voz; data, cliente, PDF, meio e status passam a ser os do envio.
-            lista = [item for item in lista if item is not anterior]
+            # Atualiza o mesmo registro: status Enviado + meio_envio; remove qualquer outro A Enviar órfão do doc.
             registro["id"] = str(anterior.get("id") or registro["id"])
             registro["vendedor"] = anterior.get("vendedor") or ""
             registro["pdfId"] = registro["pdfId"] or str(anterior.get("pdfId") or "")
             if not registro.get("tipoOrcamento"):
                 registro["tipoOrcamento"] = str(anterior.get("tipoOrcamento") or "") or tipo_orcamento
-        lista.insert(0, registro)
+            nova = []
+            for item in lista:
+                if item is anterior:
+                    continue
+                if (
+                    not item.get("excluido")
+                    and status_envio_de(item) == STATUS_ENVIO_RASCUNHO
+                    and apenas_digitos(str(item.get("documento") or "")) == documento
+                ):
+                    continue
+                nova.append(item)
+            nova.insert(0, registro)
+            lista = nova
+        else:
+            lista.insert(0, registro)
+        # Garante status final mesmo se o dict anterior tiver sido reaproveitado.
+        registro["status"] = STATUS_ENVIO_FINAL
+        registro["meio_envio"] = meio_envio
         gravar_painel(lista[:PAINEL_LIMITE])
     try:
         email_cliente = ""

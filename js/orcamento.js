@@ -188,6 +188,7 @@
   var tipoOrcamentoTravado = "";
   var timerRascunhoNuvem = 0;
   var syncRascunhoEmCurso = 0;
+  var pausarSyncRascunho = false;
 
   if (buscaEl) {
     buscaEl.addEventListener("input", function () {
@@ -916,6 +917,8 @@
     if (envioEmCurso || envioEmailEmCurso) return;
     /* A trava vem antes de tudo: clique duplo não grava o mesmo orçamento duas vezes. */
     envioEmCurso = true;
+    cancelarSyncRascunhoPendente();
+    pausarSyncRascunho = true;
     if (enviar) {
       enviar.disabled = true;
       enviar.textContent = "Processando...";
@@ -924,6 +927,7 @@
     /* Enviar por WhatsApp só segue com o formulário amarelo completo e válido. */
     var pendente = primeiroCampoIncompleto();
     if (pendente || !formularioPreenchido()) {
+      pausarSyncRascunho = false;
       soltarBotaoEnvio();
       alert("Favor preencher os dados do cliente");
       if (!pendente && formCliente) pendente = formCliente.querySelector("input[required]");
@@ -939,6 +943,7 @@
     var quadroOrcamento = document.querySelector(".quote-side") || document.querySelector("#carrinho");
     var listaVozNaTela = !!(quadroOrcamento && String(quadroOrcamento.textContent || "").indexOf("[Lista de Itens via Comando de Voz Inclusa]") !== -1);
     if (!carrinhoValido() && !listaVozNaTela) {
+      pausarSyncRascunho = false;
       mostrarAviso("Adicione ao menos um produto ao orçamento.");
       soltarBotaoEnvio();
       return;
@@ -952,6 +957,7 @@
     var cliente = lerCliente();
     var erro = validarCliente(cliente);
     if (erro) {
+      pausarSyncRascunho = false;
       mostrarAviso(erro);
       soltarBotaoEnvio();
       return;
@@ -961,6 +967,7 @@
     try {
       arquivo = new File([gerarPdf(cliente, subtotal)], "Pedido-de-Orcamento-Gigaeletro.pdf", { type: "application/pdf" });
     } catch (falha) {
+      pausarSyncRascunho = false;
       mostrarAviso("Não foi possível gerar o PDF do orçamento.");
       soltarBotaoEnvio();
       return;
@@ -974,7 +981,17 @@
     dados.append("arquivo", arquivo, "Pedido-de-Orcamento-Gigaeletro.pdf");
     if (avisoEnvio) avisoEnvio.hidden = true;
     var textoSemPdf = textoOrcamento(cliente, "");
-    fetch("/api/orcamento-pdf", { method: "POST", body: dados }).then(function (resposta) {
+
+    function concluirWhatsApp(texto, pdfId) {
+      return publicarPainel(cliente, pdfId || "").then(function (idPainel) {
+        if (!idPainel) throw new Error("painel");
+        limparDepoisDoEnvio();
+        mostrarSucessoEnvio();
+        dispararWhatsApp(texto);
+      });
+    }
+
+    fetch("/api/orcamento-pdf", { method: "POST", body: dados, keepalive: true }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
         if (!resposta.ok || !publicado || !publicado.url) {
           throw new Error((publicado && publicado.erro) || "upload");
@@ -989,21 +1006,17 @@
         if (trecho) idSalvo = decodeURIComponent(trecho[1]);
       }
       cliente.tipo = tipoPessoa();
-      var texto = textoOrcamento(cliente, idSalvo);
-      return publicarPainel(cliente, idSalvo).then(function () {
-        limparDepoisDoEnvio();
-        mostrarSucessoEnvio();
-        dispararWhatsApp(texto);
-      });
+      return concluirWhatsApp(textoOrcamento(cliente, idSalvo), idSalvo);
     }, function () {
-      return publicarPainel(cliente, "").then(function () {
-        limparDepoisDoEnvio();
-        mostrarSucessoEnvio();
-        dispararWhatsApp(textoSemPdf);
-      });
+      /* Sem PDF público: ainda grava Enviado no painel antes de abrir o WhatsApp. */
+      return concluirWhatsApp(textoSemPdf, "");
     }).then(function () {
       envioEmCurso = false;
       liberarEnvio();
+    }, function () {
+      pausarSyncRascunho = false;
+      soltarBotaoEnvio();
+      mostrarAviso("Não foi possível registrar o orçamento. Tente novamente.");
     });
   }
 
@@ -1064,6 +1077,8 @@
       return;
     }
     envioEmailEmCurso = true;
+    cancelarSyncRascunhoPendente();
+    pausarSyncRascunho = true;
     if (enviarEmail) {
       enviarEmail.disabled = true;
       enviarEmail.textContent = "Enviando...";
@@ -1071,8 +1086,6 @@
     if (enviar) enviar.disabled = true;
     cliente.tipo = tipoPessoa();
     var painel = dadosPainel(cliente, "", "E-mail");
-    var antigo = orcamentoSendoEditadoId;
-    var documentoAntigo = orcamentoSendoEditadoDocumento || apenasDigitos(cliente.documento);
     var armadilha = formCliente && formCliente.elements.sobrenome_confirmacao;
     pdfEmBase64(pdf).then(function (base64) {
       return fetch("/api/enviar-orcamento-email", {
@@ -1084,7 +1097,9 @@
           pdf: base64,
           painel: painel,
           site: armadilha ? String(armadilha.value || "") : ""
-        })
+        }),
+        keepalive: true,
+        cache: "no-store"
       });
     }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (corpo) {
@@ -1092,12 +1107,15 @@
         return String(corpo.id || "");
       });
     }).then(function (idPainel) {
+      if (!idPainel) throw { erroServidor: "Não foi possível registrar o orçamento." };
+      orcamentoSendoEditadoId = "";
+      orcamentoSendoEditadoDocumento = "";
       envioEmailEmCurso = false;
       if (enviarEmail) enviarEmail.textContent = "Enviar por E-mail";
-      if (idPainel && antigo && antigo !== idPainel) descartarPainelEditado(antigo, documentoAntigo);
       limparDepoisDoEnvio();
       mostrarAviso("Orçamento enviado para " + destino);
     }, function (falha) {
+      pausarSyncRascunho = false;
       soltarBotaoEmail();
       mostrarAviso((falha && falha.erroServidor) || "Não foi possível enviar o e-mail agora. Tente novamente ou use o WhatsApp.");
     });
@@ -1198,9 +1216,17 @@
     };
   }
 
+  function cancelarSyncRascunhoPendente() {
+    window.clearTimeout(timerRascunhoNuvem);
+    timerRascunhoNuvem = 0;
+    syncRascunhoEmCurso += 1;
+  }
+
   function sincronizarRascunhoNuvem(imediato) {
+    if (pausarSyncRascunho || envioEmCurso || envioEmailEmCurso) return;
     window.clearTimeout(timerRascunhoNuvem);
     var rodar = function () {
+      if (pausarSyncRascunho || envioEmCurso || envioEmailEmCurso) return;
       var documento = documentoClienteAtual();
       if (!documento) return;
       var ticket = ++syncRascunhoEmCurso;
@@ -1239,10 +1265,13 @@
   }
 
   function gravarPainelGestor(cliente, pdfId) {
+    var corpo = dadosPainel(cliente, pdfId, "WhatsApp");
     return fetch("/api/orcamentos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dadosPainel(cliente, pdfId, "WhatsApp"))
+      body: JSON.stringify(corpo),
+      keepalive: true,
+      cache: "no-store"
     }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
         if (!resposta.ok || !publicado || !publicado.ok) return "";
@@ -1252,20 +1281,29 @@
   }
 
   function publicarPainel(cliente, pdfId) {
-    var antigo = orcamentoSendoEditadoId;
-    var documentoAntigo = orcamentoSendoEditadoDocumento || apenasDigitos(cliente && cliente.documento);
+    cancelarSyncRascunhoPendente();
+    pausarSyncRascunho = true;
     return gravarPainelGestor(cliente, pdfId).then(function (idPainel) {
-      if (!idPainel || !antigo || antigo === idPainel) return idPainel;
-      return descartarPainelEditado(antigo, documentoAntigo).then(function () { return idPainel; });
+      /* O mesmo id do rascunho vira Enviado: nunca DELETE nele. */
+      if (idPainel) {
+        orcamentoSendoEditadoId = "";
+        orcamentoSendoEditadoDocumento = "";
+      }
+      return idPainel;
+    }, function (erro) {
+      if (!envioEmCurso && !envioEmailEmCurso) pausarSyncRascunho = false;
+      throw erro;
     });
   }
 
   function descartarPainelEditado(id, documento) {
     var doc = apenasDigitos(documento);
     if (!id || !doc) return Promise.resolve();
-    return fetch("/api/orcamentos?id=" + encodeURIComponent(id) + "&documento=" + encodeURIComponent(doc), {
+    /* Só remove rascunho A Enviar órfão — nunca o registro já marcado Enviado. */
+    return fetch("/api/orcamentos?rascunho=1&id=" + encodeURIComponent(id) + "&documento=" + encodeURIComponent(doc), {
       method: "DELETE",
-      cache: "no-store"
+      cache: "no-store",
+      keepalive: true
     }).catch(function () { return null; });
   }
 
@@ -1438,18 +1476,23 @@
   }
 
   function limparDepoisDoEnvio() {
+    /* Impede DELETE/upsert de rascunho por cima do registro recém marcado Enviado. */
+    pausarSyncRascunho = true;
+    cancelarSyncRascunhoPendente();
+    orcamentoSendoEditadoId = "";
+    orcamentoSendoEditadoDocumento = "";
     var fisico = formCliente && formCliente.querySelector('input[name="tipo"][value="pf"]');
     if (fisico) fisico.checked = true;
     limparCamposCliente();
     zerarQuadroOrcamento();
     ocultarValidadeTela();
-    orcamentoSendoEditadoId = "";
-    orcamentoSendoEditadoDocumento = "";
     tipoOrcamentoTravado = "";
     tipoOrcamentoAtual = "Tradicional";
     if (enviar) enviar.textContent = "Enviar por WhatsApp";
     document.dispatchEvent(new CustomEvent("gv-travar-tipo-orcamento", { detail: { travar: false } }));
     document.dispatchEvent(new CustomEvent("gv-orcamento-enviado"));
+    /* Carrinho e id já limpos: libera sync para o próximo orçamento. */
+    pausarSyncRascunho = false;
   }
 
   function preencherCliente(cliente) {
@@ -2428,7 +2471,7 @@
         localStorage.removeItem(CHAVE_RASCUNHO);
       }
     } catch (erro) { /* modo privado ou cota cheia: o orçamento segue só na memória */ }
-    sincronizarRascunhoNuvem(false);
+    if (!pausarSyncRascunho) sincronizarRascunhoNuvem(false);
   }
 
   function restaurarRascunho() {
