@@ -730,14 +730,15 @@
     });
   }
 
-  var STATUS_ORCAMENTO = ["Enviado", "Analisado", "Respondido"];
+  var STATUS_ORCAMENTO = ["Recebido", "Analisado", "Respondido"];
   var VENDEDORES = ["Bruno", "Summer", "Júlio", "Aceliani"];
 
   function statusAtual(item) {
     var texto = String((item && item.status) || "").trim();
     if (texto === "A Enviar") return "A Enviar";
-    if (texto === "Pendente" || !texto) return "Enviado";
-    return STATUS_ORCAMENTO.indexOf(texto) >= 0 ? texto : "Enviado";
+    /* Enviado/Pendente/Recebido (e vazio) = status inicial na Área Restrita. */
+    if (!texto || texto === "Enviado" || texto === "Pendente" || texto === "Recebido") return "Recebido";
+    return STATUS_ORCAMENTO.indexOf(texto) >= 0 ? texto : "Recebido";
   }
 
   function vendedorAtual(item) {
@@ -747,7 +748,7 @@
   function classeStatus(valor) {
     if (valor === "Analisado") return "analisado";
     if (valor === "Respondido") return "respondido";
-    return "enviado";
+    return "recebido";
   }
 
   function opcoesSelect(valores, atual, rotuloVazio) {

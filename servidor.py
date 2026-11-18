@@ -64,6 +64,7 @@ MEIOS_ENVIO = ("WhatsApp", "E-mail", "Comando de Voz")
 MEIO_ENVIO_PADRAO = "WhatsApp"
 STATUS_ENVIO_RASCUNHO = "A Enviar"
 STATUS_ENVIO_FINAL = "Enviado"
+STATUS_ATENDIMENTO_RECEBIDO = "Recebido"
 TIPOS_ORCAMENTO = ("Tradicional", "Comando de Voz")
 # Mesmo CPF/CNPJ, itens e meio de envio nesse prazo é o mesmo envio repetido (duplo clique, reenvio da rede).
 PAINEL_REPETIDO = 10
@@ -1958,6 +1959,21 @@ def normalizar_data_painel(valor):
     return ""
 
 
+def marcado_excluido(item):
+    """True para excluido true/1/"true"/"1" (lixeira); não trata string "false" como excluído."""
+    if not isinstance(item, dict):
+        return False
+    valor = item.get("excluido")
+    if valor is True:
+        return True
+    if valor is False or valor is None:
+        return False
+    if isinstance(valor, (int, float)):
+        return valor != 0
+    texto = str(valor).strip().casefold()
+    return texto in ("1", "true", "sim", "yes")
+
+
 def status_envio_de(item):
     """Ciclo multi-dispositivo: A Enviar (rascunho) ou Enviado (e legados de atendimento)."""
     texto = str((item or {}).get("status") or "").strip()
@@ -1965,12 +1981,14 @@ def status_envio_de(item):
         return STATUS_ENVIO_RASCUNHO
     if texto == STATUS_ENVIO_FINAL:
         return STATUS_ENVIO_FINAL
-    # Pendente/Analisado/Respondido e registros sem status já foram concluídos pelo cliente.
+    # Recebido/Pendente/Analisado/Respondido e registros sem status já foram concluídos pelo cliente.
     return STATUS_ENVIO_FINAL
 
 
 def orcamento_visivel_admin(item):
-    """A equipe só vê pedidos já enviados; rascunhos A Enviar ficam ocultos."""
+    """A equipe só vê pedidos já enviados; rascunhos A Enviar e lixeira ficam ocultos na listagem ativa."""
+    if marcado_excluido(item):
+        return False
     return status_envio_de(item) != STATUS_ENVIO_RASCUNHO
 
 
@@ -2001,7 +2019,9 @@ def filtrar_painel(lista, documento, inicio="", fim="", lixeira=False, somente_e
         return []
     saida = []
     for item in lista:
-        if bool(item.get("excluido")) != lixeira:
+        if not isinstance(item, dict) or not str(item.get("id") or "").strip():
+            continue
+        if marcado_excluido(item) != bool(lixeira):
             continue
         if somente_enviados and not orcamento_visivel_admin(item):
             continue
@@ -2217,14 +2237,12 @@ def devolver_orcamento_painel(original):
 
 
 def status_atendimento(valor):
+    """Status interno da Área Restrita. Recebido unifica Enviado/Pendente legados."""
     texto = str(valor or "").strip()
     if texto == STATUS_ENVIO_RASCUNHO:
         return ""
-    if texto == STATUS_ENVIO_FINAL:
-        return STATUS_ENVIO_FINAL
-    if texto == "Pendente":
-        # Legado: Pendente equivale ao ciclo Enviado no atendimento.
-        return STATUS_ENVIO_FINAL
+    if texto in (STATUS_ATENDIMENTO_RECEBIDO, STATUS_ENVIO_FINAL, "Pendente"):
+        return STATUS_ATENDIMENTO_RECEBIDO
     if texto in ("Analisado", "Respondido"):
         return texto
     return ""
@@ -2834,11 +2852,18 @@ def instante_painel(valor):
 
 def registro_conta_painel_comercial(registro):
     """Mesma elegibilidade de Orçamentos Recebidos: ativo, válido e não rascunho A Enviar."""
-    if not isinstance(registro, dict) or not registro.get("id"):
+    if not isinstance(registro, dict):
         return False
-    if registro.get("excluido"):
+    if not str(registro.get("id") or "").strip():
         return False
-    return orcamento_visivel_admin(registro)
+    if marcado_excluido(registro):
+        return False
+    if status_envio_de(registro) == STATUS_ENVIO_RASCUNHO:
+        return False
+    # Órfão/incompleto: sem data utilizável não entra no volume comercial.
+    if not normalizar_data_painel(registro.get("data")):
+        return False
+    return True
 
 
 def metricas_validas(metricas, painel):
@@ -2846,14 +2871,13 @@ def metricas_validas(metricas, painel):
     sem excluido, sem órfãos e sem status A Enviar. metricas.json só completa o que o painel
     já descartou por ter passado de PAINEL_LIMITE."""
     if painel is None:
-        return [
-            item for item in (metricas or [])
-            if isinstance(item, dict) and str(item.get("id") or "").strip()
-        ]
-    ids_rascunho = {
+        return []
+    ids_ignorados = {
         str(registro.get("id") or "")
         for registro in painel
-        if isinstance(registro, dict) and status_envio_de(registro) == STATUS_ENVIO_RASCUNHO
+        if isinstance(registro, dict) and str(registro.get("id") or "").strip() and (
+            marcado_excluido(registro) or status_envio_de(registro) == STATUS_ENVIO_RASCUNHO
+        )
     }
     ativos = [
         metrica_do_orcamento(registro)
@@ -2875,8 +2899,8 @@ def metricas_validas(metricas, painel):
     for metrica in metricas or []:
         if not isinstance(metrica, dict):
             continue
-        ident = str(metrica.get("id") or "")
-        if ident and ident in ids_rascunho:
+        ident = str(metrica.get("id") or "").strip()
+        if not ident or ident in ids_ignorados:
             continue
         instante = instante_painel(metrica.get("data"))
         if instante is not None and instante < mais_antigo:
