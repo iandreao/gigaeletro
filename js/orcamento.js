@@ -1,3 +1,35 @@
+/* Atualização automática após deploy: compara /versao.json com localStorage e recarrega 1x. */
+(function () {
+  var CHAVE = "giga_app_versao";
+  var TRAVA = "giga_app_reload";
+  function checarVersaoApp() {
+    fetch("/versao.json?t=" + Date.now(), { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
+      if (!resposta.ok) return null;
+      return resposta.json().catch(function () { return null; });
+    }).then(function (dados) {
+      var atual = String(dados && dados.versao || "").trim();
+      if (!atual) return;
+      var local = "";
+      try { local = String(localStorage.getItem(CHAVE) || ""); } catch (erro) { local = ""; }
+      if (local === atual) {
+        try { sessionStorage.removeItem(TRAVA); } catch (erroLimpa) {}
+        return;
+      }
+      try { localStorage.setItem(CHAVE, atual); } catch (erroGrava) {}
+      if (!local) return;
+      try {
+        if (sessionStorage.getItem(TRAVA) === atual) return;
+        sessionStorage.setItem(TRAVA, atual);
+      } catch (erroTrava) {}
+      window.location.reload();
+    }).catch(function () {});
+  }
+  checarVersaoApp();
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") checarVersaoApp();
+  });
+})();
+
 /* Rastreamento de leads: só após telefone ou e-mail válido; sem registro no carregamento da página. */
 (function () {
   if (typeof window.registrarLeadTrafego === "function") return;
