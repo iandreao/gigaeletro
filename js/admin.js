@@ -866,6 +866,7 @@
 
   var consultaPainel = 0;
   var modoLixeira = false;
+  var lixeiraComFiltro = false;
   var idsExcluidos = {};
   var idsRestaurados = {};
 
@@ -878,10 +879,11 @@
     var status = filtros.status;
     var vendedor = filtros.vendedor;
     var ocultos = idsOcultos();
+    var filtrarStatusVendedor = !modoLixeira || lixeiraComFiltro;
     return (lista || []).filter(function (item) {
       if (ocultos[String(item.id)]) return false;
-      if (status && statusAtual(item) !== status) return false;
-      if (vendedor && vendedorAtual(item) !== vendedor) return false;
+      if (filtrarStatusVendedor && status && statusAtual(item) !== status) return false;
+      if (filtrarStatusVendedor && vendedor && vendedorAtual(item) !== vendedor) return false;
       return true;
     });
   }
@@ -891,8 +893,16 @@
     if (vazioGestor) vazioGestor.hidden = true;
     var pedido = ++consultaPainel;
     var filtros = lerFiltrosBusca();
-    var url = "/api/orcamentos?dataInicio=" + encodeURIComponent(filtros.dataInicio) + "&dataFim=" + encodeURIComponent(filtros.dataFim) + "&cpf_cnpj=" + encodeURIComponent(filtros.cpf_cnpj) + (modoLixeira ? "&lixeira=1" : "");
-    console.log("[orcamentos] busca", filtros, url);
+    /* Ao abrir a Lixeira: lista todos os excluídos. Datas/status só após Buscar. */
+    var usarFiltroData = !modoLixeira || lixeiraComFiltro;
+    var dataInicio = usarFiltroData ? filtros.dataInicio : "";
+    var dataFim = usarFiltroData ? filtros.dataFim : "";
+    var cpf = usarFiltroData ? filtros.cpf_cnpj : "";
+    var url = "/api/orcamentos?dataInicio=" + encodeURIComponent(dataInicio) +
+      "&dataFim=" + encodeURIComponent(dataFim) +
+      "&cpf_cnpj=" + encodeURIComponent(cpf) +
+      (modoLixeira ? "&lixeira=1&excluidos=1" : "");
+    console.log("[orcamentos] busca", filtros, { modoLixeira: modoLixeira, lixeiraComFiltro: lixeiraComFiltro }, url);
     fetch(url, { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
       if (resposta.status === 401) {
         mostrarAvisoBusca("Sessão expirada. Entre novamente na área restrita.");
@@ -920,7 +930,8 @@
       var ocultos = idsOcultos();
       lista = lista.filter(function (atual) {
         if (ocultos[String(atual.id)]) return false;
-        /* Rascunhos A Enviar não entram na Área Restrita (defesa extra se a API trouxer). */
+        /* Ativos: esconde A Enviar. Lixeira: API já devolve excluídos (com Restaurar). */
+        if (modoLixeira) return true;
         return statusAtual(atual) !== "A Enviar";
       });
       orcamentosCarregados = lista;
@@ -943,16 +954,19 @@
   if (formFiltros) {
     formFiltros.addEventListener("submit", function (event) {
       event.preventDefault();
+      if (modoLixeira) lixeiraComFiltro = true;
       carregarOrcamentos();
     });
     formFiltros.addEventListener("change", function (event) {
       var alvo = event.target;
       if (!alvo) return;
       if (alvo.hasAttribute("data-gestor-status") || alvo.hasAttribute("data-gestor-vendedor")) {
+        if (modoLixeira) lixeiraComFiltro = true;
         renderOrcamentos(aplicarFiltrosLocais(orcamentosCarregados), cargaConcluida);
         return;
       }
       if (alvo.hasAttribute("data-gestor-data-inicio") || alvo.hasAttribute("data-gestor-data-fim") || alvo.hasAttribute("data-gestor-documento")) {
+        if (modoLixeira) lixeiraComFiltro = true;
         carregarOrcamentos();
       }
     });
@@ -1000,6 +1014,9 @@
   if (botaoLixeira) {
     botaoLixeira.addEventListener("click", function () {
       modoLixeira = !modoLixeira;
+      lixeiraComFiltro = false;
+      idsExcluidos = {};
+      idsRestaurados = {};
       botaoLixeira.setAttribute("aria-pressed", modoLixeira ? "true" : "false");
       botaoLixeira.textContent = modoLixeira ? "Voltar aos Orçamentos" : "Ver Excluídos / Lixeira";
       if (tituloOrcamentos) tituloOrcamentos.textContent = modoLixeira ? "Lixeira: orçamentos excluídos" : "Orçamentos recebidos";

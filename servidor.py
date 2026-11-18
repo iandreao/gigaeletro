@@ -1986,9 +1986,7 @@ def status_envio_de(item):
 
 
 def orcamento_visivel_admin(item):
-    """A equipe só vê pedidos já enviados; rascunhos A Enviar e lixeira ficam ocultos na listagem ativa."""
-    if marcado_excluido(item):
-        return False
+    """Rascunhos A Enviar ficam fora da listagem ativa. A lixeira é tratada em filtrar_painel."""
     return status_envio_de(item) != STATUS_ENVIO_RASCUNHO
 
 
@@ -2009,7 +2007,7 @@ def tipo_orcamento_de(corpo, itens=None):
 
 
 def filtrar_painel(lista, documento, inicio="", fim="", lixeira=False, somente_enviados=False):
-    """lixeira=False devolve só os ativos; lixeira=True, só os excluídos."""
+    """lixeira=False devolve só os ativos; lixeira=True, só os excluídos (com Restaurar)."""
     documento = apenas_digitos(documento)
     bruto_inicio = str(inicio or "").strip()
     bruto_fim = str(fim or "").strip()
@@ -2023,7 +2021,14 @@ def filtrar_painel(lista, documento, inicio="", fim="", lixeira=False, somente_e
             continue
         if marcado_excluido(item) != bool(lixeira):
             continue
-        if somente_enviados and not orcamento_visivel_admin(item):
+        if lixeira:
+            # Lixeira: todos os excluídos (Recebido/Enviado/Pendente/Analisado/Respondido).
+            # Só ignora rascunho A Enviar sem itens.
+            if status_envio_de(item) == STATUS_ENVIO_RASCUNHO:
+                itens = item.get("itens") if isinstance(item.get("itens"), list) else []
+                if not itens:
+                    continue
+        elif somente_enviados and not orcamento_visivel_admin(item):
             continue
         dia = normalizar_data_painel(item.get("data"))
         if inicio and (not dia or dia < inicio):
@@ -2212,7 +2217,7 @@ def restaurar_orcamento_painel(identificador):
         alvo = next((item for item in lista if str(item.get("id") or "") == identificador), None)
         if alvo is None:
             return None
-        if alvo.get("excluido"):
+        if marcado_excluido(alvo):
             for campo in ("excluido", "excluidoEm", "excluidoPor"):
                 alvo.pop(campo, None)
             gravar_painel(lista)
@@ -3860,8 +3865,13 @@ def responder_orcamentos(saida):
             unico = parametro_consulta(saida.path, "data")
             inicio = fim = unico
         lixeira = parametro_consulta(saida.path, "lixeira") == "1"
-        # Admin: só Enviado (e legados). Cliente (KBA): vê também A Enviar.
-        somente_enviados = bool(admin)
+        if not lixeira:
+            # Aliases aceitos pelo frontend da Área Restrita.
+            lixeira = parametro_consulta(saida.path, "excluidos") == "1"
+        if not lixeira:
+            lixeira = parametro_consulta(saida.path, "incluir_excluidos") == "1"
+        # Admin ativos: oculta A Enviar. Lixeira: devolve excluídos (ver filtrar_painel).
+        somente_enviados = bool(admin) and not lixeira
         escrever_json(saida, {"ok": True, "orcamentos": filtrar_painel(lista, documento, inicio, fim, lixeira, somente_enviados)})
         return
     if saida.command == "DELETE":
