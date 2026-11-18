@@ -184,6 +184,10 @@
   var sugestaoAtiva = -1;
   var orcamentoSendoEditadoId = "";
   var orcamentoSendoEditadoDocumento = "";
+  var tipoOrcamentoAtual = "Tradicional";
+  var tipoOrcamentoTravado = "";
+  var timerRascunhoNuvem = 0;
+  var syncRascunhoEmCurso = 0;
 
   if (buscaEl) {
     buscaEl.addEventListener("input", function () {
@@ -335,6 +339,7 @@
       if (alvo && alvo.name === "documento") {
         aplicarMascaraDocumento(alvo);
         consultarCnpjSeCompleto();
+        if (documentoClienteAtual() && itensDoOrcamento().length) sincronizarRascunhoNuvem(false);
       }
       if (alvo && alvo.name === "cep") {
         aplicarMascaraCep(alvo);
@@ -1098,7 +1103,8 @@
     });
   }
 
-  function dadosPainel(cliente, pdfId, meioEnvio) {
+  function itensDoOrcamento() {
+    var vistos = {};
     var itens = selecionados.map(function (item) {
       return {
         codigo: item.codigo,
@@ -1106,15 +1112,46 @@
         qtd: item.qtd,
         preco: item.preco
       };
-    }).concat(itensVoz().map(function (item) {
-      return {
-        codigo: "",
-        produto: String((item && (item.rotulo || item.texto)) || "").trim(),
+    });
+    itens.forEach(function (item) {
+      if (item.codigo) vistos[item.codigo] = true;
+    });
+    itensVoz().forEach(function (item) {
+      var produto = String((item && (item.rotulo || item.texto)) || "").trim();
+      if (!produto) return;
+      var codigo = String((item && item.codigo) || "");
+      if (codigo && vistos[codigo]) return;
+      itens.push({
+        codigo: codigo,
+        produto: produto,
         qtd: item && item.qtd ? item.qtd : 1,
         preco: 0
-      };
-    }).filter(function (item) { return item.produto; }));
-    return {
+      });
+    });
+    return itens;
+  }
+
+  function tipoOrcamentoAtivo() {
+    if (tipoOrcamentoTravado === "Tradicional" || tipoOrcamentoTravado === "Comando de Voz") {
+      return tipoOrcamentoTravado;
+    }
+    if (tipoOrcamentoAtual === "Comando de Voz" || selecionados.some(itemVoz) || itensVoz().length) {
+      return "Comando de Voz";
+    }
+    return "Tradicional";
+  }
+
+  function documentoClienteAtual() {
+    var campo = formCliente && formCliente.elements.documento;
+    var digitos = apenasDigitos(campo && campo.value);
+    if (digitos.length === 11 && cpfValido(digitos)) return digitos;
+    if (digitos.length === 14 && cnpjValido(digitos)) return digitos;
+    return "";
+  }
+
+  function dadosPainel(cliente, pdfId, meioEnvio) {
+    var itens = itensDoOrcamento();
+    var payload = {
       meio_envio: meioEnvio,
       metodo: orcamentoPorVoz(itens) ? "gigavoz" : "tradicional",
       nome: cliente.nome,
@@ -1122,9 +1159,83 @@
       telefone: apenasDigitos(cliente.celular),
       pdfId: pdfId || "",
       tipo: cliente.tipo,
+      tipoOrcamento: tipoOrcamentoAtivo(),
+      status: "Enviado",
       cliente: copiarCliente(cliente),
       itens: itens
     };
+    if (orcamentoSendoEditadoId) payload.id = orcamentoSendoEditadoId;
+    return payload;
+  }
+
+  function payloadRascunhoNuvem() {
+    var documento = documentoClienteAtual();
+    var itens = itensDoOrcamento();
+    var cliente = formCliente ? {
+      tipo: tipoPessoa(),
+      nome: String((formCliente.elements.nome && formCliente.elements.nome.value) || "").trim(),
+      documento: documento,
+      celular: String((formCliente.elements.celular && formCliente.elements.celular.value) || "").trim(),
+      email: String((formCliente.elements.email && formCliente.elements.email.value) || "").trim(),
+      endereco: String((formCliente.elements.endereco && formCliente.elements.endereco.value) || "").trim(),
+      numero: String((formCliente.elements.numero && formCliente.elements.numero.value) || "").trim(),
+      bairro: String((formCliente.elements.bairro && formCliente.elements.bairro.value) || "").trim(),
+      cidade: String((formCliente.elements.cidade && formCliente.elements.cidade.value) || "").trim(),
+      uf: String((formCliente.elements.uf && formCliente.elements.uf.value) || "").trim(),
+      cep: String((formCliente.elements.cep && formCliente.elements.cep.value) || "").trim()
+    } : { documento: documento };
+    return {
+      acao: "rascunho",
+      id: orcamentoSendoEditadoId || "",
+      status: "A Enviar",
+      tipoOrcamento: tipoOrcamentoAtivo(),
+      nome: cliente.nome || "",
+      documento: documento,
+      telefone: apenasDigitos(cliente.celular || ""),
+      tipo: cliente.tipo || tipoPessoa(),
+      cliente: cliente,
+      itens: itens
+    };
+  }
+
+  function sincronizarRascunhoNuvem(imediato) {
+    window.clearTimeout(timerRascunhoNuvem);
+    var rodar = function () {
+      var documento = documentoClienteAtual();
+      if (!documento) return;
+      var ticket = ++syncRascunhoEmCurso;
+      var corpo = payloadRascunhoNuvem();
+      if (!corpo.itens.length) {
+        var url = "/api/orcamentos?rascunho=1&documento=" + encodeURIComponent(documento);
+        if (orcamentoSendoEditadoId) url += "&id=" + encodeURIComponent(orcamentoSendoEditadoId);
+        fetch(url, { method: "DELETE", cache: "no-store" }).then(function () {
+          if (ticket !== syncRascunhoEmCurso) return;
+          orcamentoSendoEditadoId = "";
+          orcamentoSendoEditadoDocumento = "";
+          tipoOrcamentoTravado = "";
+        }).catch(function () {});
+        return;
+      }
+      fetch("/api/orcamentos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(corpo)
+      }).then(function (resposta) {
+        return resposta.json().catch(function () { return null; }).then(function (dados) {
+          if (ticket !== syncRascunhoEmCurso) return;
+          if (!resposta.ok || !dados || !dados.ok) return;
+          if (dados.id) {
+            orcamentoSendoEditadoId = String(dados.id);
+            orcamentoSendoEditadoDocumento = documento;
+          }
+        });
+      }).catch(function () {});
+    };
+    if (imediato) {
+      rodar();
+      return;
+    }
+    timerRascunhoNuvem = window.setTimeout(rodar, 450);
   }
 
   function gravarPainelGestor(cliente, pdfId) {
@@ -1319,6 +1430,10 @@
       resumoVazio.hidden = false;
       resumoVazio.textContent = "Nenhum produto no orçamento.";
     }
+    if (!selecionados.length) {
+      tipoOrcamentoTravado = "";
+      document.dispatchEvent(new CustomEvent("gv-travar-tipo-orcamento", { detail: { travar: false } }));
+    }
     liberarEnvio();
   }
 
@@ -1330,7 +1445,10 @@
     ocultarValidadeTela();
     orcamentoSendoEditadoId = "";
     orcamentoSendoEditadoDocumento = "";
+    tipoOrcamentoTravado = "";
+    tipoOrcamentoAtual = "Tradicional";
     if (enviar) enviar.textContent = "Enviar por WhatsApp";
+    document.dispatchEvent(new CustomEvent("gv-travar-tipo-orcamento", { detail: { travar: false } }));
     document.dispatchEvent(new CustomEvent("gv-orcamento-enviado"));
   }
 
@@ -1588,8 +1706,7 @@
 
   function incluirItensVoz(pacote) {
     if (!Array.isArray(pacote)) return;
-    /* Confirmar a lista de voz substitui os itens de catálogo. A troca de modo não faz isso. */
-    if (selecionados.some(function (item) { return !itemVoz(item); })) selecionados = [];
+    /* Novos produtos falados são somados à lista atual, sem apagar o que já está no orçamento. */
     var carimbo = Date.now().toString(36);
     pacote.forEach(function (item, indice) {
       var nome = String((item && (item.rotulo || item.texto)) || "").trim();
@@ -1602,6 +1719,7 @@
         qtd: item && item.qtd ? item.qtd : 1
       });
     });
+    tipoOrcamentoAtual = "Comando de Voz";
     salvarPedido();
     renderResumo();
     liberarEnvio();
@@ -2083,6 +2201,25 @@
     return '<svg ' + comum + '><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
   }
 
+  function statusEnvioHistorico(item) {
+    var texto = String((item && item.status) || "").trim();
+    return texto === "A Enviar" ? "A Enviar" : "Enviado";
+  }
+
+  function tipoOrcamentoHistorico(item) {
+    var texto = String((item && (item.tipoOrcamento || item.tipo_orcamento)) || "").trim();
+    if (texto === "Comando de Voz" || texto === "Tradicional") return texto;
+    var itens = (item && item.itens) || [];
+    var voz = 0;
+    itens.forEach(function (linha) {
+      if (String((linha && linha.codigo) || "").indexOf("voz-") === 0) voz += 1;
+      else if (!(Number(linha && linha.preco) > 0) && !String((linha && linha.codigo) || "").trim()) voz += 1;
+    });
+    if (itens.length && voz * 2 > itens.length) return "Comando de Voz";
+    if (String((item && item.meio_envio) || "") === "Comando de Voz") return "Comando de Voz";
+    return "Tradicional";
+  }
+
   function registroHistorico(item) {
     var origem = item || {};
     var clienteSalvo = origem.cliente && typeof origem.cliente === "object" ? origem.cliente : {};
@@ -2101,6 +2238,8 @@
       nome: String(origem.nome || cliente.nome || ""),
       documento: documento,
       total: Number(origem.total) || 0,
+      status: statusEnvioHistorico(origem),
+      tipoOrcamento: tipoOrcamentoHistorico(origem),
       itens: copiarItens(origem.itens),
       cliente: cliente
     };
@@ -2131,7 +2270,7 @@
   }
 
   function editarRecente(id) {
-    if (document.body.dataset.gvCatalogoTravado === "1" || selecionados.some(itemVoz)) {
+    if (document.body.dataset.gvCatalogoTravado === "1" && !tipoOrcamentoTravado) {
       window.alert("Envie o orçamento ou clique em Início antes de abrir outro orçamento.");
       return;
     }
@@ -2144,13 +2283,22 @@
     selecionados = itens;
     orcamentoSendoEditadoId = String(id || "");
     orcamentoSendoEditadoDocumento = registro.documento || documentoConsulta;
+    tipoOrcamentoAtual = registro.tipoOrcamento || tipoOrcamentoHistorico(registro);
+    tipoOrcamentoTravado = tipoOrcamentoAtual;
+    if (registro.cliente) preencherCliente(registro.cliente);
     salvarPedido();
     renderResumo();
-    if (registro.cliente) preencherCliente(registro.cliente);
     if (enviar) enviar.textContent = "Enviar por WhatsApp";
     liberarEnvio();
     if (avisoEnvio) avisoEnvio.hidden = true;
     if (resumoEl) resumoEl.scrollTop = 0;
+    setHistorico(false);
+    document.dispatchEvent(new CustomEvent("gv-travar-tipo-orcamento", {
+      detail: { travar: true, tipo: tipoOrcamentoTravado }
+    }));
+    document.dispatchEvent(new CustomEvent("gv-abrir-tipo-orcamento", {
+      detail: { tipo: tipoOrcamentoTravado }
+    }));
   }
 
   function formatarEnvio(iso) {
@@ -2189,7 +2337,15 @@
     itens.forEach(function (item) {
       var linha = document.createElement("li");
       var quando = document.createElement("span");
-      quando.textContent = formatarEnvio(item.data) + " · " + moeda(item.total);
+      quando.className = "historico-meta";
+      var status = statusEnvioHistorico(item);
+      var badge = document.createElement("span");
+      badge.className = "historico-status " + (status === "A Enviar" ? "historico-status-a-enviar" : "historico-status-enviado");
+      badge.textContent = status;
+      var textoQuando = document.createElement("span");
+      textoQuando.textContent = formatarEnvio(item.data) + " · " + moeda(item.total);
+      quando.appendChild(badge);
+      quando.appendChild(textoQuando);
       var acoes = document.createElement("span");
       acoes.className = "historico-acoes";
       if (item.pdfId) {
@@ -2272,6 +2428,7 @@
         localStorage.removeItem(CHAVE_RASCUNHO);
       }
     } catch (erro) { /* modo privado ou cota cheia: o orçamento segue só na memória */ }
+    sincronizarRascunhoNuvem(false);
   }
 
   function restaurarRascunho() {
@@ -2355,6 +2512,8 @@
 
   document.addEventListener("gv-tipo-orcamento", function (evento) {
     var detalhe = (evento && evento.detail) || {};
+    if (detalhe.voz) tipoOrcamentoAtual = "Comando de Voz";
+    else if (detalhe.voz === false) tipoOrcamentoAtual = "Tradicional";
     if (detalhe.exibir === true) {
       atualizarValidadeTela({ exibir: true, voz: detalhe.voz });
       return;
@@ -2364,6 +2523,10 @@
       return;
     }
     atualizarValidadeTela(detalhe.voz != null ? { voz: detalhe.voz } : undefined);
+  });
+
+  document.addEventListener("gv-tipo-orcamento-bloqueado", function () {
+    window.alert("Este orçamento está em edição no modo " + (tipoOrcamentoTravado || tipoOrcamentoAtivo()) + ". Para trocar entre Tradicional e Comando de Voz, envie o orçamento ou clique em Início.");
   });
 
   function normalizar(valor) {

@@ -29,6 +29,7 @@
   var modoIntencoes = false;
   var catalogoTravado = false;
   var escolhaTradicional = false;
+  var tipoOrcamentoTravado = "";
   var ultimaTransicaoVoz = "";
   var ultimoTimestampVoz = 0;
 
@@ -186,9 +187,32 @@
 
   function alternarTipoOrcamento(evento) {
     if (evento) evento.preventDefault();
+    if (tipoOrcamentoTravado) {
+      document.dispatchEvent(new CustomEvent("gv-tipo-orcamento-bloqueado", {
+        detail: { tipo: tipoOrcamentoTravado }
+      }));
+      return;
+    }
     /* A troca de modelo não apaga selecionados. A limpeza ocorre só ao inserir o modelo oposto. */
     if (modoGigaVozAberto()) desligarModoGigaVoz();
     else reabrirBoasVindas();
+  }
+
+  function aplicarTipoOrcamentoTravado(tipo) {
+    tipoOrcamentoTravado = tipo === "Comando de Voz" || tipo === "Tradicional" ? tipo : "";
+  }
+
+  function abrirTipoOrcamento(tipo) {
+    if (tipo === "Comando de Voz") {
+      escolhaTradicional = false;
+      abrirGravador();
+      return;
+    }
+    if (modoGigaVozAberto()) desligarModoGigaVoz();
+    escolhaTradicional = true;
+    refletirTipoOrcamento({ exibir: true });
+    var produtos = document.getElementById("btnProdutos");
+    if (produtos) produtos.click();
   }
 
   function fecharBoasVindas() {
@@ -1151,7 +1175,6 @@
     enviandoLista = true;
     confirmarLista.disabled = true;
     confirmarLista.textContent = "Enviando...";
-    var cliente = lerFormularioAmarelo();
     var pacote = intencoes.map(function (item) {
       return { qtd: item.qtd || 1, texto: item.texto, rotulo: rotulo(item) };
     }).filter(function (item) { return item.rotulo; });
@@ -1159,27 +1182,9 @@
       soltarConfirmar();
       return;
     }
-    /* O quadro da direita recebe os itens na hora; o PDF de intenções segue em paralelo. */
+    /* Acrescenta à lista atual; o rascunho A Enviar é sincronizado por orcamento.js. */
     document.dispatchEvent(new CustomEvent("gv-itens-orcamento", { detail: pacote }));
-    fetch("/api/orcamentos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tipo: "intencoes",
-        meio_envio: "Comando de Voz",
-        nome: cliente.nome,
-        documento: cliente.documento,
-        telefone: cliente.telefone,
-        cliente: cliente,
-        textos: pacote.map(function (item) { return item.rotulo; }),
-        itens: pacote.map(function (item) {
-          return { codigo: "", produto: item.rotulo, qtd: item.qtd || 1, preco: 0 };
-        })
-      })
-    }).catch(function () {
-      /* Só a falha de rede solta a trava; o orçamento da direita permanece mesmo sem o PDF de intenções. */
-      soltarConfirmar();
-    });
+    soltarConfirmar();
     pararEscuta();
     limparIntencoes();
     gravador.hidden = true;
@@ -1195,6 +1200,7 @@
     limparIntencoes();
     modoIntencoes = false;
     escolhaTradicional = false;
+    tipoOrcamentoTravado = "";
     if (gravador) gravador.hidden = true;
     if (raiz && document.body.contains(raiz)) {
       raiz.remove();
@@ -1283,6 +1289,18 @@
     document.addEventListener("gv-orcamento-enviado", concluirFluxoOrcamento);
     document.addEventListener("gv-orcamento-limpo", aoLimparOrcamento);
     document.addEventListener("gv-cliente-pronto", aoClientePronto);
+    document.addEventListener("gv-travar-tipo-orcamento", function (evento) {
+      var detalhe = (evento && evento.detail) || {};
+      if (detalhe.travar === false) {
+        tipoOrcamentoTravado = "";
+        return;
+      }
+      aplicarTipoOrcamentoTravado(detalhe.tipo);
+    });
+    document.addEventListener("gv-abrir-tipo-orcamento", function (evento) {
+      var detalhe = (evento && evento.detail) || {};
+      abrirTipoOrcamento(detalhe.tipo);
+    });
     var formulario = document.querySelector("form");
     if (formulario && !formulario.dataset.gvForcaEnvio) {
       formulario.dataset.gvForcaEnvio = "1";

@@ -62,6 +62,9 @@ CATALOGO_CACHE = {"conteudo": b"", "ate": 0.0}
 CATALOGO_CACHE_LOCK = threading.Lock()
 MEIOS_ENVIO = ("WhatsApp", "E-mail", "Comando de Voz")
 MEIO_ENVIO_PADRAO = "WhatsApp"
+STATUS_ENVIO_RASCUNHO = "A Enviar"
+STATUS_ENVIO_FINAL = "Enviado"
+TIPOS_ORCAMENTO = ("Tradicional", "Comando de Voz")
 # Mesmo CPF/CNPJ, itens e meio de envio nesse prazo é o mesmo envio repetido (duplo clique, reenvio da rede).
 PAINEL_REPETIDO = 10
 # A lista de voz confirmada entra no painel na hora; se o cliente a enviar depois, o envio assume esse registro.
@@ -1417,7 +1420,11 @@ def id_pdf_valido(ident):
 
 
 def parametro_consulta(caminho, chave):
-    valores = parse_qs(urlparse(caminho).query)
+    """Lê ?chave= da URL. Na Vercel o query às vezes vem só em QUERY_STRING."""
+    consulta = urlparse(caminho or "").query
+    if not consulta:
+        consulta = os.environ.get("QUERY_STRING") or ""
+    valores = parse_qs(consulta)
     return (valores.get(chave) or [""])[0]
 
 
@@ -1951,7 +1958,39 @@ def normalizar_data_painel(valor):
     return ""
 
 
-def filtrar_painel(lista, documento, inicio="", fim="", lixeira=False):
+def status_envio_de(item):
+    """Ciclo multi-dispositivo: A Enviar (rascunho) ou Enviado (e legados de atendimento)."""
+    texto = str((item or {}).get("status") or "").strip()
+    if texto == STATUS_ENVIO_RASCUNHO:
+        return STATUS_ENVIO_RASCUNHO
+    if texto == STATUS_ENVIO_FINAL:
+        return STATUS_ENVIO_FINAL
+    # Pendente/Analisado/Respondido e registros sem status já foram concluídos pelo cliente.
+    return STATUS_ENVIO_FINAL
+
+
+def orcamento_visivel_admin(item):
+    """A equipe só vê pedidos já enviados; rascunhos A Enviar ficam ocultos."""
+    return status_envio_de(item) != STATUS_ENVIO_RASCUNHO
+
+
+def tipo_orcamento_de(corpo, itens=None):
+    bruto = ""
+    if isinstance(corpo, dict):
+        bruto = str(corpo.get("tipoOrcamento") or corpo.get("tipo_orcamento") or "").strip()
+    if bruto in TIPOS_ORCAMENTO:
+        return bruto
+    if pedido_por_voz(corpo if isinstance(corpo, dict) else {}):
+        return "Comando de Voz"
+    lista = itens if isinstance(itens, list) else (corpo.get("itens") if isinstance(corpo, dict) else None)
+    if isinstance(lista, list) and lista:
+        voz = sum(1 for item in lista if isinstance(item, dict) and item_de_voz(item))
+        if voz * 2 > len(lista):
+            return "Comando de Voz"
+    return "Tradicional"
+
+
+def filtrar_painel(lista, documento, inicio="", fim="", lixeira=False, somente_enviados=False):
     """lixeira=False devolve só os ativos; lixeira=True, só os excluídos."""
     documento = apenas_digitos(documento)
     bruto_inicio = str(inicio or "").strip()
@@ -1963,6 +2002,8 @@ def filtrar_painel(lista, documento, inicio="", fim="", lixeira=False):
     saida = []
     for item in lista:
         if bool(item.get("excluido")) != lixeira:
+            continue
+        if somente_enviados and not orcamento_visivel_admin(item):
             continue
         dia = normalizar_data_painel(item.get("data"))
         if inicio and (not dia or dia < inicio):
@@ -2177,7 +2218,14 @@ def devolver_orcamento_painel(original):
 
 def status_atendimento(valor):
     texto = str(valor or "").strip()
-    if texto in ("Pendente", "Analisado", "Respondido"):
+    if texto == STATUS_ENVIO_RASCUNHO:
+        return ""
+    if texto == STATUS_ENVIO_FINAL:
+        return STATUS_ENVIO_FINAL
+    if texto == "Pendente":
+        # Legado: Pendente equivale ao ciclo Enviado no atendimento.
+        return STATUS_ENVIO_FINAL
+    if texto in ("Analisado", "Respondido"):
         return texto
     return ""
 
@@ -2240,25 +2288,30 @@ def linhas_intencoes(corpo):
 
 
 def registrar_intencoes(corpo):
+    """Confirmação da lista de voz: grava/atualiza rascunho A Enviar (não aparece no admin)."""
     if not isinstance(corpo, dict):
         return None
     linhas = linhas_intencoes(corpo)
     pedido = dict(corpo)
     pedido["tipo"] = "intencoes"
+    pedido["tipoOrcamento"] = "Comando de Voz"
     pedido["itens"] = itens_pdf_intencoes(corpo, linhas)
     if not normalizar_itens_painel(pedido["itens"]):
         return None
-    nome = str(pedido.get("nome") or "").strip()[:120]
     documento = apenas_digitos(pedido.get("documento") or "")
-    telefone = apenas_digitos(pedido.get("telefone") or "")
-    if not nome or not (cpf_valido(documento) or cnpj_valido(documento)) or not telefone_painel_valido(telefone):
+    if not (cpf_valido(documento) or cnpj_valido(documento)):
         return None
-    pedido["pdfId"] = guardar_pdf(nome, pdf_intencoes(nome, formatar_telefone(telefone), pedido["itens"]))
-    # A lista de voz entra no painel antes de o cliente escolher WhatsApp ou E-mail.
-    registro = incluir_orcamento_painel(pedido, meio_envio_da_rota("Comando de Voz", corpo))
+    nome = str(pedido.get("nome") or "").strip()[:120]
+    telefone = apenas_digitos(pedido.get("telefone") or "")
+    try:
+        if nome and telefone_painel_valido(telefone):
+            pedido["pdfId"] = guardar_pdf(nome, pdf_intencoes(nome, formatar_telefone(telefone), pedido["itens"]))
+    except (ValueError, OSError):
+        pedido["pdfId"] = str(pedido.get("pdfId") or "")
+    registro = upsert_rascunho_painel(pedido)
     if not registro:
         return None
-    if not registro.get("pdfId"):
+    if pedido.get("pdfId") and not registro.get("pdfId"):
         registro["pdfId"] = pedido["pdfId"]
     return registro
 
@@ -2312,12 +2365,136 @@ def segundos_desde(data, agora):
         return None
 
 
+def achar_rascunho_painel(lista, documento, tipo_orcamento, identificador=""):
+    documento = apenas_digitos(documento)
+    identificador = str(identificador or "")
+    if identificador and id_painel_valido(identificador):
+        for item in lista:
+            if item.get("excluido"):
+                continue
+            if str(item.get("id") or "") != identificador:
+                continue
+            if apenas_digitos(str(item.get("documento") or "")) != documento:
+                continue
+            return item
+    for item in lista:
+        if item.get("excluido"):
+            continue
+        if status_envio_de(item) != STATUS_ENVIO_RASCUNHO:
+            continue
+        if apenas_digitos(str(item.get("documento") or "")) != documento:
+            continue
+        tipo_item = str(item.get("tipoOrcamento") or "").strip() or tipo_orcamento_de(item)
+        if tipo_item == tipo_orcamento:
+            return item
+    return None
+
+
+def upsert_rascunho_painel(corpo):
+    """Upsert de rascunho multi-dispositivo. Existência = itens.length > 0; total R$ 0,00 é válido."""
+    if not isinstance(corpo, dict):
+        return None
+    documento = apenas_digitos(corpo.get("documento") or "")
+    if not (cpf_valido(documento) or cnpj_valido(documento)):
+        return None
+    itens = normalizar_itens_painel(corpo.get("itens"))
+    if not itens:
+        return None
+    tipo_orcamento = tipo_orcamento_de(corpo, itens)
+    nome = str(corpo.get("nome") or "").strip()[:120]
+    if not nome and isinstance(corpo.get("cliente"), dict):
+        nome = str(corpo["cliente"].get("nome") or "").strip()[:120]
+    if not nome:
+        nome = "Cliente"
+    telefone = apenas_digitos(corpo.get("telefone") or "")
+    if not telefone and isinstance(corpo.get("cliente"), dict):
+        telefone = apenas_digitos(corpo["cliente"].get("celular") or corpo["cliente"].get("telefone") or "")
+    pdf_id = str(corpo.get("pdfId") or "").strip().lower()
+    if not id_pdf_valido(pdf_id):
+        pdf_id = ""
+    identificador = str(corpo.get("id") or "")
+    with PAINEL_LOCK:
+        lista = ler_painel()
+        anterior = achar_rascunho_painel(lista, documento, tipo_orcamento, identificador)
+        if anterior is not None:
+            anterior["data"] = agora_painel().isoformat(timespec="seconds")
+            anterior["nome"] = nome
+            anterior["documento"] = documento
+            if telefone_painel_valido(telefone):
+                anterior["telefone"] = formatar_telefone(telefone)
+            elif not anterior.get("telefone"):
+                anterior["telefone"] = ""
+            anterior["itens"] = itens
+            anterior["total"] = round(sum(item["valor"] for item in itens), 2)
+            if pdf_id:
+                anterior["pdfId"] = pdf_id
+            elif "pdfId" not in anterior:
+                anterior["pdfId"] = ""
+            anterior["cliente"] = cliente_do_painel(corpo, nome, documento, telefone)
+            anterior["status"] = STATUS_ENVIO_RASCUNHO
+            anterior["tipoOrcamento"] = tipo_orcamento
+            anterior["meio_envio"] = ""
+            gravar_painel(lista)
+            return dict(anterior)
+        registro = {
+            "id": hoje_painel().replace("-", "") + "-" + secrets.token_hex(4),
+            "data": agora_painel().isoformat(timespec="seconds"),
+            "nome": nome,
+            "documento": documento,
+            "telefone": formatar_telefone(telefone) if telefone_painel_valido(telefone) else "",
+            "itens": itens,
+            "total": round(sum(item["valor"] for item in itens), 2),
+            "pdfId": pdf_id,
+            "cliente": cliente_do_painel(corpo, nome, documento, telefone),
+            "status": STATUS_ENVIO_RASCUNHO,
+            "vendedor": "",
+            "meio_envio": "",
+            "tipoOrcamento": tipo_orcamento,
+        }
+        lista.insert(0, registro)
+        gravar_painel(lista[:PAINEL_LIMITE])
+    return dict(registro)
+
+
+def excluir_rascunho_painel(documento, identificador=""):
+    """Remove de vez o rascunho A Enviar quando a lista fica sem itens."""
+    documento = apenas_digitos(documento)
+    identificador = str(identificador or "")
+    if not (cpf_valido(documento) or cnpj_valido(documento)):
+        return False
+    with PAINEL_LOCK:
+        lista = ler_painel()
+        restante = []
+        removido = False
+        for item in lista:
+            if item.get("excluido") or status_envio_de(item) != STATUS_ENVIO_RASCUNHO:
+                restante.append(item)
+                continue
+            if apenas_digitos(str(item.get("documento") or "")) != documento:
+                restante.append(item)
+                continue
+            if identificador and str(item.get("id") or "") != identificador:
+                restante.append(item)
+                continue
+            removido = True
+        if removido:
+            gravar_painel(restante)
+    return removido
+
+
 def orcamento_anterior(lista, registro):
-    """(registro já gravado, motivo): "repetido" para o mesmo envio de novo; "voz" para a lista de voz que este envio assume."""
+    """(registro já gravado, motivo): "repetido", "voz" ou "rascunho" (A Enviar do mesmo documento/tipo)."""
     agora = agora_painel()
     assinatura = assinatura_itens(registro["itens"])
+    tipo_registro = str(registro.get("tipoOrcamento") or "").strip() or tipo_orcamento_de(registro)
+    id_informado = str(registro.get("id") or "")
+    rascunho = achar_rascunho_painel(lista, registro["documento"], tipo_registro, id_informado)
+    if rascunho is not None:
+        return rascunho, "rascunho"
     for item in lista:
         if item.get("excluido") or str(item.get("documento") or "") != registro["documento"]:
+            continue
+        if status_envio_de(item) == STATUS_ENVIO_RASCUNHO:
             continue
         idade = segundos_desde(item.get("data"), agora)
         if idade is None or idade > PAINEL_VOZ_JANELA:
@@ -2336,7 +2513,7 @@ def orcamento_anterior(lista, registro):
 
 
 def incluir_orcamento_painel(corpo, meio_envio):
-    """O registro devolvido traz "repetido" quando o envio já estava gravado e "voz_anterior" quando assumiu a lista de voz."""
+    """O registro devolvido traz "repetido" quando o envio já estava gravado e "voz_anterior"/"rascunho" quando assumiu rascunho."""
     if not isinstance(corpo, dict):
         return None
     if meio_envio not in MEIOS_ENVIO:
@@ -2353,8 +2530,10 @@ def incluir_orcamento_painel(corpo, meio_envio):
     pdf_id = str(corpo.get("pdfId") or "").strip().lower()
     if not id_pdf_valido(pdf_id):
         pdf_id = ""
+    tipo_orcamento = tipo_orcamento_de(corpo, itens)
+    id_informado = str(corpo.get("id") or "")
     registro = {
-        "id": hoje_painel().replace("-", "") + "-" + secrets.token_hex(4),
+        "id": id_informado if id_painel_valido(id_informado) else (hoje_painel().replace("-", "") + "-" + secrets.token_hex(4)),
         "data": agora_painel().isoformat(timespec="seconds"),
         "nome": nome,
         "documento": documento,
@@ -2363,9 +2542,10 @@ def incluir_orcamento_painel(corpo, meio_envio):
         "total": round(sum(item["valor"] for item in itens), 2),
         "pdfId": pdf_id,
         "cliente": cliente_do_painel(corpo, nome, documento, telefone),
-        "status": "Pendente",
+        "status": STATUS_ENVIO_FINAL,
         "vendedor": "",
         "meio_envio": meio_envio,
+        "tipoOrcamento": tipo_orcamento,
     }
     with PAINEL_LOCK:
         lista = ler_painel()
@@ -2373,13 +2553,14 @@ def incluir_orcamento_painel(corpo, meio_envio):
         if motivo == "repetido":
             print("painel: envio repetido ignorado (%s)" % anterior.get("id"), file=sys.stderr, flush=True)
             return dict(anterior, repetido=True)
-        if motivo == "voz":
-            # Mesmo id, status e vendedor da lista de voz; canal, data, cliente e PDF passam a ser os do envio.
+        if motivo in ("voz", "rascunho"):
+            # Mesmo id e vendedor do rascunho/voz; data, cliente, PDF, meio e status passam a ser os do envio.
             lista = [item for item in lista if item is not anterior]
             registro["id"] = str(anterior.get("id") or registro["id"])
-            registro["status"] = anterior.get("status") or registro["status"]
             registro["vendedor"] = anterior.get("vendedor") or ""
             registro["pdfId"] = registro["pdfId"] or str(anterior.get("pdfId") or "")
+            if not registro.get("tipoOrcamento"):
+                registro["tipoOrcamento"] = str(anterior.get("tipoOrcamento") or "") or tipo_orcamento
         lista.insert(0, registro)
         gravar_painel(lista[:PAINEL_LIMITE])
     try:
@@ -2393,6 +2574,8 @@ def incluir_orcamento_painel(corpo, meio_envio):
         print("acessos: falha ao remover lead após envio (%s)" % erro, file=sys.stderr, flush=True)
     if motivo == "voz":
         return dict(registro, voz_anterior=anterior)
+    if motivo == "rascunho":
+        return dict(registro, rascunho_anterior=anterior)
     return registro
 
 
@@ -3576,7 +3759,9 @@ def responder_orcamentos(saida):
             unico = parametro_consulta(saida.path, "data")
             inicio = fim = unico
         lixeira = parametro_consulta(saida.path, "lixeira") == "1"
-        escrever_json(saida, {"ok": True, "orcamentos": filtrar_painel(lista, documento, inicio, fim, lixeira)})
+        # Admin: só Enviado (e legados). Cliente (KBA): vê também A Enviar.
+        somente_enviados = bool(admin)
+        escrever_json(saida, {"ok": True, "orcamentos": filtrar_painel(lista, documento, inicio, fim, lixeira, somente_enviados)})
         return
     if saida.command == "DELETE":
         admin = token_valido(cookie_de(saida.headers.get("Cookie")))
@@ -3584,6 +3769,15 @@ def responder_orcamentos(saida):
         documento = documento_consulta_valido(parametro_consulta(saida.path, "documento"))
         if not admin and not documento:
             escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
+            return
+        # Cliente sem id (ou com rascunho=1): remove rascunho A Enviar vazio.
+        if not admin and parametro_consulta(saida.path, "rascunho") == "1":
+            try:
+                excluir_rascunho_painel(documento, identificador if id_painel_valido(identificador) else "")
+            except OSError:
+                escrever_json(saida, {"ok": False, "erro": "Não foi possível excluir o orçamento."}, 500)
+                return
+            escrever_json(saida, {"ok": True})
             return
         if not id_painel_valido(identificador):
             escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
@@ -3612,6 +3806,30 @@ def responder_orcamentos(saida):
         return
     if isinstance(corpo, dict) and corpo.get("acao") == "validar_identidade":
         responder_validar_identidade(saida, corpo)
+        return
+    if isinstance(corpo, dict) and str(corpo.get("acao") or "").strip().lower() == "rascunho":
+        itens = corpo.get("itens") if isinstance(corpo.get("itens"), list) else []
+        documento = documento_consulta_valido(corpo.get("documento"))
+        if not documento:
+            escrever_json(saida, {"ok": False, "erro": "CPF ou CNPJ inválido"}, 400)
+            return
+        if len(itens) == 0:
+            try:
+                excluir_rascunho_painel(documento, str(corpo.get("id") or ""))
+            except OSError:
+                escrever_json(saida, {"ok": False, "erro": "Não foi possível atualizar o orçamento."}, 500)
+                return
+            escrever_json(saida, {"ok": True, "removido": True})
+            return
+        try:
+            registro = upsert_rascunho_painel(corpo)
+        except OSError:
+            escrever_json(saida, {"ok": False, "erro": "Não foi possível gravar o orçamento."}, 500)
+            return
+        if not registro:
+            escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
+            return
+        escrever_json(saida, {"ok": True, "id": registro["id"], "status": STATUS_ENVIO_RASCUNHO})
         return
     if corpo.get("restaurar") is True:
         if not token_valido(cookie_de(saida.headers.get("Cookie"))):
@@ -3655,10 +3873,15 @@ def responder_orcamentos(saida):
         except (OSError, ValueError):
             escrever_json(saida, {"ok": False, "erro": "Não foi possível gravar o orçamento."}, 500)
             return
-        if not registro or not registro.get("pdfId"):
+        if not registro:
             escrever_json(saida, {"ok": False, "erro": "Dado Inválido"}, 400)
             return
-        escrever_json(saida, {"ok": True, "id": registro["pdfId"]})
+        escrever_json(saida, {
+            "ok": True,
+            "id": registro.get("id") or "",
+            "pdfId": registro.get("pdfId") or "",
+            "status": STATUS_ENVIO_RASCUNHO,
+        })
         return
     try:
         registro = incluir_orcamento_painel(corpo, meio_envio_da_rota("WhatsApp", corpo))
@@ -3670,7 +3893,11 @@ def responder_orcamentos(saida):
         return
     if not registro.get("repetido"):
         registrar_metrica(registro)
-    escrever_json(saida, {"ok": True, "id": registro["id"]})
+    escrever_json(saida, {
+        "ok": True,
+        "id": registro["id"],
+        "status": registro.get("status") or STATUS_ENVIO_FINAL,
+    })
 
 
 def responder_orcamento_pdf(saida):

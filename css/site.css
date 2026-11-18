@@ -760,6 +760,35 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
   max-height: min(360px, 52vh);
   overflow-y: auto;
 }
+.historico-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  min-width: 0;
+}
+.historico-status {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  text-transform: none;
+}
+.historico-status-a-enviar {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+}
+.historico-status-enviado {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #34d399;
+}
 .historico-lista li {
   display: flex;
   align-items: center;

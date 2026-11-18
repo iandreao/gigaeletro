@@ -1,4 +1,15 @@
-"""GET, POST e DELETE /api/orcamentos na Vercel."""
+"""GET, POST e DELETE /api/orcamentos na Vercel.
+
+Toda a lógica vive em servidor.responder_orcamentos (mesmo código do servidor local):
+
+- POST { acao: "rascunho", documento, itens, tipoOrcamento, id? }
+  upsert com status "A Enviar"; itens=[] remove o rascunho.
+- DELETE ?rascunho=1&documento=...&id=...
+  remove rascunho "A Enviar" vazio / correspondente.
+- GET autenticado (admin): filtra somente enviados (oculta "A Enviar").
+- GET/POST KBA do cliente: lista inclui "A Enviar" e "Enviado".
+- POST envio final (WhatsApp) e fluxo de e-mail: status "Enviado".
+"""
 import sys
 from pathlib import Path
 

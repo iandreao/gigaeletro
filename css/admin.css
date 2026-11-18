@@ -89,7 +89,8 @@ body.gestor .gestor-tabela .gestor-acoes svg {
   width: 14px;
   height: 14px;
 }
-.gestor-tabela select.gestor-status-pendente { background: #fef9c3; }
+.gestor-tabela select.gestor-status-pendente,
+.gestor-tabela select.gestor-status-enviado { background: #fef9c3; }
 .gestor-tabela select.gestor-status-analisado { background: #dbeafe; }
 .gestor-tabela select.gestor-status-respondido { background: #dcfce7; }
 .gestor-login {

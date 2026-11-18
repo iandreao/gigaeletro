@@ -32,6 +32,7 @@
     { "src": "/api/equipe/funcionarios", "dest": "/api/auditoria.py?equipe=funcionarios" },
     { "src": "/api/equipe/log", "dest": "/api/auditoria.py?equipe=log" },
     { "src": "/api/equipe/resumo", "dest": "/api/auditoria.py?equipe=resumo" },
+    { "src": "/api/orcamentos", "dest": "/api/orcamentos.py" },
     { "src": "/api/(.*)", "dest": "/api/$1.py" },
     { "src": "/admin-estoque", "dest": "/admin.html" },
     { "handle": "filesystem" }

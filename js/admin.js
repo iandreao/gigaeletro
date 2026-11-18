@@ -730,11 +730,14 @@
     });
   }
 
-  var STATUS_ORCAMENTO = ["Pendente", "Analisado", "Respondido"];
+  var STATUS_ORCAMENTO = ["Enviado", "Analisado", "Respondido"];
   var VENDEDORES = ["Bruno", "Summer", "Júlio", "Aceliani"];
 
   function statusAtual(item) {
-    return STATUS_ORCAMENTO.indexOf(item && item.status) >= 0 ? item.status : "Pendente";
+    var texto = String((item && item.status) || "").trim();
+    if (texto === "A Enviar") return "A Enviar";
+    if (texto === "Pendente" || !texto) return "Enviado";
+    return STATUS_ORCAMENTO.indexOf(texto) >= 0 ? texto : "Enviado";
   }
 
   function vendedorAtual(item) {
@@ -744,7 +747,7 @@
   function classeStatus(valor) {
     if (valor === "Analisado") return "analisado";
     if (valor === "Respondido") return "respondido";
-    return "pendente";
+    return "enviado";
   }
 
   function opcoesSelect(valores, atual, rotuloVazio) {
@@ -914,7 +917,11 @@
       }
       var lista = Array.isArray(corpo.orcamentos) ? corpo.orcamentos : [];
       var ocultos = idsOcultos();
-      lista = lista.filter(function (atual) { return !ocultos[String(atual.id)]; });
+      lista = lista.filter(function (atual) {
+        if (ocultos[String(atual.id)]) return false;
+        /* Rascunhos A Enviar não entram na Área Restrita (defesa extra se a API trouxer). */
+        return statusAtual(atual) !== "A Enviar";
+      });
       orcamentosCarregados = lista;
       cargaConcluida = true;
       var visiveis = aplicarFiltrosLocais(orcamentosCarregados);
