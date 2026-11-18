@@ -881,3 +881,177 @@ body.gestor .equipe-lista-tabela .equipe-toggle {
   .dash-nome-longo { display: none; }
   .dash-nome-curto { display: inline; }
 }
+
+/* Modal do olho: documento formal "PEDIDO DE ORÇAMENTO" (espelha o PDF). */
+body.gestor .gestor-detalhe {
+  width: min(840px, calc(100% - 1.25rem));
+  max-width: 92vw;
+  max-height: min(90vh, 900px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+body.gestor .gestor-detalhe-topo {
+  justify-content: flex-end;
+  min-height: 0;
+  padding: 0.35rem 0.55rem 0;
+  border-bottom: 0;
+  background: transparent;
+}
+body.gestor .gestor-detalhe-topo h2 { display: none; }
+body.gestor .gestor-detalhe-corpo {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 0.35rem 1rem 1rem;
+  -webkit-overflow-scrolling: touch;
+}
+.pedido-doc {
+  color: #111;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.pedido-doc-cabeca {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin: 0 0 0.85rem;
+}
+.pedido-doc-logo {
+  width: auto;
+  height: 46px;
+  object-fit: contain;
+}
+.pedido-doc-cabeca h3 {
+  margin: 0;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #111;
+}
+.pedido-doc-cliente,
+.pedido-doc-itens {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: #fff;
+}
+.pedido-doc-cliente {
+  margin: 0 0 0.85rem;
+}
+.pedido-doc-cliente td,
+.pedido-doc-itens th,
+.pedido-doc-itens td {
+  border: 1px solid #111;
+  padding: 0.4rem 0.45rem;
+  vertical-align: middle;
+  background: #fff;
+}
+.pedido-doc-cliente .pedido-rotulo {
+  font-weight: 800;
+  white-space: nowrap;
+}
+.pedido-doc-cliente .pedido-valor {
+  font-weight: 600;
+  word-break: break-word;
+}
+.pedido-doc-cliente .pedido-largo { width: 62%; }
+.pedido-doc-cliente .pedido-cidade { width: 34%; }
+.pedido-doc-cliente .pedido-bairro { width: 34%; }
+.pedido-doc-cliente .pedido-uf { width: 12%; }
+.pedido-doc-cliente .pedido-cep { width: 20%; }
+.pedido-doc-itens th {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+  background: #fafafa;
+}
+.pedido-doc-itens td {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.pedido-doc-itens .pedido-nome { text-align: left; }
+.pedido-doc-itens .pedido-centro { text-align: center; white-space: nowrap; }
+.pedido-doc-itens .pedido-direita {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pedido-doc-itens th:nth-child(1),
+.pedido-doc-itens td:nth-child(1) { width: 7%; }
+.pedido-doc-itens th:nth-child(2),
+.pedido-doc-itens td:nth-child(2) { width: 11%; }
+.pedido-doc-itens th:nth-child(3),
+.pedido-doc-itens td:nth-child(3) { width: 42%; }
+.pedido-doc-itens th:nth-child(4),
+.pedido-doc-itens td:nth-child(4) { width: 8%; }
+.pedido-doc-itens th:nth-child(5),
+.pedido-doc-itens td:nth-child(5) { width: 16%; }
+.pedido-doc-itens th:nth-child(6),
+.pedido-doc-itens td:nth-child(6) { width: 16%; }
+.pedido-doc-itens .pedido-vazio {
+  text-align: center;
+  color: #64748b;
+  font-weight: 700;
+}
+.pedido-doc-rodape {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 11.5rem;
+  gap: 0;
+  margin-top: 0;
+  border: 1px solid #111;
+  background: #fff;
+}
+.pedido-doc-nota {
+  padding: 0.55rem 0.65rem;
+  border-right: 1px solid #111;
+}
+.pedido-doc-nota p {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.pedido-doc-nota p:last-child { margin-bottom: 0; }
+.pedido-doc-total {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  padding: 0.45rem 0.5rem;
+  text-align: center;
+}
+.pedido-doc-total span {
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.pedido-doc-total strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 700px) {
+  body.gestor .gestor-detalhe {
+    width: 92vw;
+    max-width: 92vw;
+  }
+  .pedido-doc-cabeca {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+  .pedido-doc-cabeca h3 { font-size: 1.05rem; }
+  .pedido-doc-logo { height: 40px; }
+  .pedido-doc-cliente,
+  .pedido-doc-itens {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pedido-doc-rodape {
+    grid-template-columns: 1fr;
+  }
+  .pedido-doc-nota { border-right: 0; border-bottom: 1px solid #111; }
+}

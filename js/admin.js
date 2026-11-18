@@ -561,28 +561,131 @@
     return null;
   }
 
-  function tabelaItens(item) {
-    var linhas = (item.itens || []).map(function (produto) {
+  function campoPedido(valor) {
+    var texto = String(valor == null ? "" : valor).trim();
+    return texto || "—";
+  }
+
+  function clienteDoPedido(item) {
+    var origem = item && item.cliente && typeof item.cliente === "object" ? item.cliente : {};
+    return {
+      nome: item.nome || origem.nome || "",
+      documento: item.documento || origem.documento || "",
+      endereco: origem.endereco || item.endereco || "",
+      numero: origem.numero || item.numero || "",
+      bairro: origem.bairro || item.bairro || "",
+      cidade: origem.cidade || item.cidade || "",
+      uf: String(origem.uf || item.uf || "").toUpperCase(),
+      cep: origem.cep || item.cep || "",
+      telefone: item.telefone || origem.celular || origem.telefone || "",
+      email: origem.email || item.email || ""
+    };
+  }
+
+  function dataHoraPedido(iso) {
+    var texto = String(iso || "").trim();
+    var match = texto.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+    if (!match) return dataVisivel(iso) || "—";
+    var hora = (match[4] || "00") + ":" + (match[5] || "00") + ":" + (match[6] || "00");
+    return match[3] + "/" + match[2] + "/" + match[1] + " " + hora;
+  }
+
+  function cepPedido(valor) {
+    var digitos = String(valor || "").replace(/\D/g, "").slice(0, 8);
+    if (digitos.length === 8) return digitos.slice(0, 5) + "-" + digitos.slice(5);
+    return String(valor || "").trim();
+  }
+
+  function codigoItemPedido(produto) {
+    var codigo = String((produto && produto.codigo) || "").trim();
+    if (/^voz-/i.test(codigo)) return "";
+    return codigo;
+  }
+
+  function nomeItemPedido(produto) {
+    var nome = String((produto && produto.produto) || "").trim();
+    nome = nome.replace(/^voz-[a-z0-9]+-\d+\s*-\s*/i, "");
+    if (!codigoItemPedido(produto)) nome = nome.replace(/^\d+\s*-\s*/, "");
+    return nome.trim();
+  }
+
+  function valorUnitarioItem(produto) {
+    if (produto && produto.preco != null && isFinite(Number(produto.preco))) return Number(produto.preco);
+    var qtd = Number(produto && produto.qtd) || 0;
+    var total = Number(produto && produto.valor);
+    if (qtd > 0 && isFinite(total)) return total / qtd;
+    return 0;
+  }
+
+  function valorTotalItem(produto) {
+    if (produto && produto.valor != null && isFinite(Number(produto.valor))) return Number(produto.valor);
+    return valorUnitarioItem(produto) * (Number(produto && produto.qtd) || 0);
+  }
+
+  function celulaPedido(rotulo, valor, classe) {
+    return '<td class="' + (classe || "") + '"><span class="pedido-rotulo">' + escapar(rotulo) + "</span> " +
+      '<span class="pedido-valor">' + escapar(campoPedido(valor)) + "</span></td>";
+  }
+
+  function htmlPedidoOrcamento(item) {
+    var cliente = clienteDoPedido(item);
+    var itens = Array.isArray(item.itens) ? item.itens : [];
+    var total = item.total != null && isFinite(Number(item.total))
+      ? Number(item.total)
+      : itens.reduce(function (soma, produto) { return soma + valorTotalItem(produto); }, 0);
+    var linhas = itens.map(function (produto, indice) {
       return "<tr>" +
-        "<td>" + escapar(produto.produto) + "</td>" +
-        "<td>" + escapar(produto.codigo || "") + "</td>" +
-        '<td class="num">' + escapar(produto.qtd) + "</td>" +
-        '<td class="num">' + moedaPainel(produto.preco) + "</td>" +
-        '<td class="num">' + moedaPainel(produto.valor) + "</td>" +
+        '<td class="pedido-centro">' + (indice + 1) + "</td>" +
+        '<td class="pedido-centro">' + escapar(codigoItemPedido(produto) || "—") + "</td>" +
+        '<td class="pedido-nome">' + escapar(campoPedido(nomeItemPedido(produto))) + "</td>" +
+        '<td class="pedido-centro">' + escapar(String(produto.qtd != null ? produto.qtd : "—")) + "</td>" +
+        '<td class="pedido-direita">R$ ' + moedaPainel(valorUnitarioItem(produto)) + "</td>" +
+        '<td class="pedido-direita">R$ ' + moedaPainel(valorTotalItem(produto)) + "</td>" +
       "</tr>";
-    }).join("");
-    return '<table><thead><tr><th>Produto</th><th>Código</th><th class="num">Qtd</th><th class="num">Vlr. Unit.</th><th class="num">Valor</th></tr></thead><tbody>' +
-      linhas +
-      '</tbody><tfoot><tr><td colspan="4">Total</td><td class="num">R$ ' + moedaPainel(item.total) + "</td></tr></tfoot></table>";
+    }).join("") || '<tr><td colspan="6" class="pedido-vazio">Nenhum item neste orçamento.</td></tr>';
+
+    return '<div class="pedido-doc">' +
+      '<div class="pedido-doc-cabeca">' +
+        '<img class="pedido-doc-logo" src="assets/logo-gigaeletro.jpg?v=3" width="146" height="74" alt="Gigaeletro Material Elétrico">' +
+        "<h3>PEDIDO DE ORÇAMENTO</h3>" +
+      "</div>" +
+      '<table class="pedido-doc-cliente">' +
+        "<tr>" + celulaPedido("Nome:", cliente.nome, "pedido-largo") + celulaPedido("CPF/CNPJ:", documentoVisivel(String(cliente.documento || ""))) + "</tr>" +
+        "<tr>" + celulaPedido("End:", cliente.endereco, "pedido-largo") + celulaPedido("Nr:", cliente.numero) + "</tr>" +
+        "<tr>" +
+          celulaPedido("Cidade:", cliente.cidade, "pedido-cidade") +
+          celulaPedido("Bairro:", cliente.bairro, "pedido-bairro") +
+          celulaPedido("UF:", cliente.uf, "pedido-uf") +
+          celulaPedido("CEP:", cepPedido(cliente.cep), "pedido-cep") +
+        "</tr>" +
+        "<tr>" + celulaPedido("Telefone / Celular:", cliente.telefone) + celulaPedido("e-mail:", cliente.email) + "</tr>" +
+      "</table>" +
+      '<table class="pedido-doc-itens">' +
+        "<thead><tr>" +
+          '<th class="pedido-centro">Itens</th>' +
+          '<th class="pedido-centro">Código</th>' +
+          "<th>Nome</th>" +
+          '<th class="pedido-centro">Qte</th>' +
+          '<th class="pedido-direita">Pr.Unitário</th>' +
+          '<th class="pedido-direita">Total</th>' +
+        "</tr></thead>" +
+        "<tbody>" + linhas + "</tbody>" +
+      "</table>" +
+      '<div class="pedido-doc-rodape">' +
+        '<div class="pedido-doc-nota">' +
+          "<p><strong>Data/Hora:</strong> " + escapar(dataHoraPedido(item.data)) + "</p>" +
+          "<p>" + escapar(notaOrcamentoAdmin(item)) + "</p>" +
+        "</div>" +
+        '<div class="pedido-doc-total">' +
+          "<span>Valor Total</span>" +
+          "<strong>R$ " + moedaPainel(total) + "</strong>" +
+        "</div>" +
+      "</div>" +
+    "</div>";
   }
 
   function htmlDetalhe(item) {
-    return '<div class="gestor-detalhe-meta">' +
-      "<p>" + escapar(dataVisivel(item.data)) + "</p>" +
-      "<p>" + escapar(item.nome) + "</p>" +
-      "<p>" + escapar(documentoVisivel(String(item.documento || ""))) + "</p>" +
-      "<p>" + escapar(item.telefone) + "</p>" +
-    "</div>" + tabelaItens(item);
+    return htmlPedidoOrcamento(item);
   }
 
   function abrirDetalhe(item) {
@@ -635,16 +738,10 @@
     if (!janela) return;
     janela.document.open();
     janela.document.write(
-      "<!DOCTYPE html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>Orçamento Gigaeletro</title>" +
-      "<style>body{font-family:Manrope,Segoe UI,sans-serif;color:#111;margin:24px;font-size:12px}h1{font-size:18px;margin:0 0 8px}p{margin:0 0 4px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border-bottom:1px solid #ddd;padding:4px 6px;text-align:left}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}tfoot td{font-weight:800}.nota{margin-top:16px;font-weight:700;max-width:42rem}</style>" +
-      "</head><body><h1>Gigaeletro</h1>" +
-      "<p>" + escapar(dataVisivel(item.data)) + "</p>" +
-      "<p>" + escapar(item.nome) + "</p>" +
-      "<p>" + escapar(documentoVisivel(String(item.documento || ""))) + "</p>" +
-      "<p>" + escapar(item.telefone) + "</p>" +
-      tabelaItens(item) +
-      '<p class="nota">' + escapar(notaOrcamentoAdmin(item)) + "</p>" +
-      "</body></html>"
+      "<!DOCTYPE html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>Pedido de Orçamento | Gigaeletro</title>" +
+      "<link rel=\"stylesheet\" href=\"css/admin.css?v=38\">" +
+      "<style>body{margin:18px;background:#fff}.gestor-detalhe-corpo{padding:0}.pedido-doc{max-width:820px;margin:0 auto}</style>" +
+      "</head><body>" + htmlPedidoOrcamento(item) + "</body></html>"
     );
     janela.document.close();
     janela.focus();
