@@ -753,7 +753,7 @@ body.gestor .equipe-resumo-tabela th,
 body.gestor .equipe-resumo-tabela td {
   white-space: nowrap;
 }
-.equipe-acoes-modal {
+.equipe-acoes-modal:not([hidden]) {
   width: min(720px, calc(100% - 1.5rem));
   max-width: min(720px, 92vw);
   max-height: min(80vh, 640px);
@@ -833,7 +833,7 @@ body.gestor .equipe-acoes-tabela td {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
-  .equipe-acoes-modal {
+  .equipe-acoes-modal:not([hidden]) {
     width: 92vw;
     max-width: 92vw;
     max-height: min(85vh, 640px);
@@ -883,7 +883,15 @@ body.gestor .equipe-lista-tabela .equipe-toggle {
 }
 
 /* Modal do olho: documento formal "PEDIDO DE ORÇAMENTO" (espelha o PDF). */
-body.gestor .gestor-detalhe {
+body.gestor .gestor-detalhe[hidden],
+body.gestor .modal.gestor-detalhe[hidden],
+.overlay[data-fechar-detalhe][hidden],
+.equipe-acoes-overlay[hidden],
+body.gestor .equipe-acoes-modal[hidden],
+body.gestor .modal.equipe-acoes-modal[hidden] {
+  display: none !important;
+}
+body.gestor .gestor-detalhe:not([hidden]) {
   width: min(840px, calc(100% - 1.25rem));
   max-width: 92vw;
   max-height: min(90vh, 900px);
@@ -1033,7 +1041,7 @@ body.gestor .gestor-detalhe-corpo {
   font-variant-numeric: tabular-nums;
 }
 @media (max-width: 700px) {
-  body.gestor .gestor-detalhe {
+  body.gestor .gestor-detalhe:not([hidden]) {
     width: 92vw;
     max-width: 92vw;
   }

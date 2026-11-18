@@ -124,7 +124,21 @@
     erroLogin.hidden = false;
   }
 
+  function ocultarModaisPainel() {
+    document.querySelectorAll("[data-detalhe], .overlay[data-fechar-detalhe], [data-equipe-acoes-modal], .equipe-acoes-overlay, [data-equipe-acoes-tooltip]").forEach(function (el) {
+      el.hidden = true;
+      el.style.removeProperty("display");
+    });
+    var corpoDetalhe = document.querySelector("[data-detalhe-corpo]");
+    if (corpoDetalhe) corpoDetalhe.innerHTML = "";
+    var corpoEquipe = document.querySelector("[data-equipe-acoes-corpo]");
+    if (corpoEquipe) corpoEquipe.innerHTML = "";
+  }
+
+  ocultarModaisPainel();
+
   function mostrarLogin() {
+    ocultarModaisPainel();
     document.querySelectorAll("[data-area-restrita]").forEach(function (area) { area.hidden = true; });
     limparCampoSenha();
     carregarFuncionariosLogin();
@@ -692,14 +706,25 @@
     if (!detalhe || !detalheCorpo || !item) return;
     detalheCorpo.innerHTML = htmlDetalhe(item);
     detalhe.hidden = false;
+    detalhe.style.removeProperty("display");
     var fundo = document.querySelector(".overlay[data-fechar-detalhe]");
-    if (fundo) fundo.hidden = false;
+    if (fundo) {
+      fundo.hidden = false;
+      fundo.style.removeProperty("display");
+    }
   }
 
   function fecharDetalhe() {
-    if (detalhe) detalhe.hidden = true;
+    if (detalhe) {
+      detalhe.hidden = true;
+      detalhe.style.removeProperty("display");
+    }
+    if (detalheCorpo) detalheCorpo.innerHTML = "";
     var fundo = document.querySelector(".overlay[data-fechar-detalhe]");
-    if (fundo) fundo.hidden = true;
+    if (fundo) {
+      fundo.hidden = true;
+      fundo.style.removeProperty("display");
+    }
   }
 
   function orcamentoPorVozAdmin(item) {
@@ -1659,8 +1684,15 @@
     if (campoEquipeAcoesInicio) campoEquipeAcoesInicio.value = "";
     if (campoEquipeAcoesFim) campoEquipeAcoesFim.value = "";
     atualizarBotaoExcluirAcoes(0);
-    if (modalEquipeAcoes) modalEquipeAcoes.hidden = true;
-    document.querySelectorAll(".equipe-acoes-overlay").forEach(function (el) { el.hidden = true; });
+    if (modalEquipeAcoes) {
+      modalEquipeAcoes.hidden = true;
+      modalEquipeAcoes.style.removeProperty("display");
+    }
+    if (modalEquipeCorpo) modalEquipeCorpo.innerHTML = "";
+    document.querySelectorAll(".equipe-acoes-overlay").forEach(function (el) {
+      el.hidden = true;
+      el.style.removeProperty("display");
+    });
   }
 
   function abrirModalEquipeAcoes(nome) {
@@ -1673,8 +1705,12 @@
     if (campoEquipeAcoesFim) campoEquipeAcoesFim.value = "";
     if (modalEquipeTitulo) modalEquipeTitulo.textContent = "Ações Executadas — " + equipeModalNome;
     renderModalEquipeAcoes();
-    document.querySelectorAll(".equipe-acoes-overlay").forEach(function (el) { el.hidden = false; });
+    document.querySelectorAll(".equipe-acoes-overlay").forEach(function (el) {
+      el.hidden = false;
+      el.style.removeProperty("display");
+    });
     modalEquipeAcoes.hidden = false;
+    modalEquipeAcoes.style.removeProperty("display");
   }
 
   function cadastrarFuncionarioNovo() {
