@@ -1,4 +1,8 @@
-"""GET /api/dashboard-estatisticas na Vercel."""
+"""GET /api/dashboard-estatisticas na Vercel.
+
+Delega a servidor.responder_dashboard / metricas_validas: mesmas regras de
+Orçamentos Recebidos (sem lixeira, sem órfãos, sem status "A Enviar").
+"""
 import sys
 from pathlib import Path
 

@@ -1170,6 +1170,8 @@
   }
 
   function carregarDashboard() {
+    /* Volume/gráficos vêm de /api/dashboard-estatisticas com a mesma regra de
+       Orçamentos Recebidos: ignora lixeira, órfãos e status "A Enviar". */
     var grade = document.querySelector("[data-dash-grid]");
     if (!grade) return;
     var pedido = ++dashPedido;

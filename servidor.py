@@ -2832,22 +2832,52 @@ def instante_painel(valor):
         return None
 
 
+def registro_conta_painel_comercial(registro):
+    """Mesma elegibilidade de Orçamentos Recebidos: ativo, válido e não rascunho A Enviar."""
+    if not isinstance(registro, dict) or not registro.get("id"):
+        return False
+    if registro.get("excluido"):
+        return False
+    return orcamento_visivel_admin(registro)
+
+
 def metricas_validas(metricas, painel):
-    """O Painel Comercial conta os mesmos orçamentos da listagem ativa: todo registro do painel sem
-    excluido: true, inclusive os antigos sem id, sem meio_envio ou sem métrica gravada. metricas.json só
-    entra com o que o painel já descartou por ter passado de PAINEL_LIMITE."""
+    """O Painel Comercial conta os mesmos orçamentos da listagem Orçamentos Recebidos:
+    sem excluido, sem órfãos e sem status A Enviar. metricas.json só completa o que o painel
+    já descartou por ter passado de PAINEL_LIMITE."""
     if painel is None:
-        return metricas
-    ativos = [metrica_do_orcamento(registro) for registro in painel if not registro.get("excluido")]
+        return [
+            item for item in (metricas or [])
+            if isinstance(item, dict) and str(item.get("id") or "").strip()
+        ]
+    ids_rascunho = {
+        str(registro.get("id") or "")
+        for registro in painel
+        if isinstance(registro, dict) and status_envio_de(registro) == STATUS_ENVIO_RASCUNHO
+    }
+    ativos = [
+        metrica_do_orcamento(registro)
+        for registro in painel
+        if registro_conta_painel_comercial(registro)
+    ]
     if len(painel) < PAINEL_LIMITE:
         return ativos
-    instantes = [instante_painel(registro.get("data")) for registro in painel]
+    instantes = [
+        instante_painel(registro.get("data"))
+        for registro in painel
+        if registro_conta_painel_comercial(registro)
+    ]
     instantes = [valor for valor in instantes if valor is not None]
     if not instantes:
         return ativos
     mais_antigo = min(instantes)
     descartados = []
-    for metrica in metricas:
+    for metrica in metricas or []:
+        if not isinstance(metrica, dict):
+            continue
+        ident = str(metrica.get("id") or "")
+        if ident and ident in ids_rascunho:
+            continue
         instante = instante_painel(metrica.get("data"))
         if instante is not None and instante < mais_antigo:
             descartados.append(metrica)
