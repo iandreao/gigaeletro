@@ -18,6 +18,7 @@ class handler(BaseHTTPRequestHandler):
         servidor.responder_auditoria(self)
 
     def do_POST(self):
+        # Inclui /api/equipe/resumo com acao=excluir_logs (funcionario + datas opcionais).
         servidor.responder_equipe_post(self)
 
     def do_PUT(self):

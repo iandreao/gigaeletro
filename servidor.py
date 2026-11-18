@@ -1085,6 +1085,86 @@ def limpar_logs_equipe():
         conn.close()
 
 
+def dia_horario_equipe(horario):
+    match = re.match(r"^(\d{2})/(\d{2})/(\d{4})", str(horario or "").strip())
+    if not match:
+        return ""
+    return "%s-%s-%s" % (match.group(3), match.group(2), match.group(1))
+
+
+def log_bate_exclusao_equipe(dados, funcionario, inicio="", fim=""):
+    if not isinstance(dados, dict):
+        return False
+    if nome_funcionario(dados.get("funcionario")).casefold() != funcionario.casefold():
+        return False
+    # Modal lista apenas ações; exclusão segue o mesmo critério.
+    if str(dados.get("acao") or "") == "Acessou a Área Restrita":
+        return False
+    dia = dia_horario_equipe(dados.get("horario"))
+    if inicio and (not dia or dia < inicio):
+        return False
+    if fim and (not dia or dia > fim):
+        return False
+    return True
+
+
+def excluir_logs_equipe(funcionario, data_inicio="", data_fim=""):
+    funcionario = nome_funcionario(funcionario)
+    if not funcionario:
+        return 0, "Informe o funcionário."
+    inicio = normalizar_data_painel(data_inicio) if str(data_inicio or "").strip() else ""
+    fim = normalizar_data_painel(data_fim) if str(data_fim or "").strip() else ""
+    if str(data_inicio or "").strip() and not inicio:
+        return 0, "Data inicial inválida."
+    if str(data_fim or "").strip() and not fim:
+        return 0, "Data final inválida."
+    if inicio and fim and inicio > fim:
+        return 0, "O intervalo de datas é inválido."
+    if endereco_redis():
+        bruto = redis_pipeline([["LRANGE", EQUIPE_LOGS, 0, EQUIPE_LOGS_LIMITE - 1]])[0] or []
+        mantidos = []
+        excluidos = 0
+        for item in bruto if isinstance(bruto, list) else []:
+            try:
+                dados = json.loads(item) if isinstance(item, str) else item
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if log_bate_exclusao_equipe(dados, funcionario, inicio, fim):
+                excluidos += 1
+                continue
+            if isinstance(dados, dict):
+                mantidos.append(json.dumps(dados, ensure_ascii=False))
+        if excluidos:
+            comandos = [["DEL", EQUIPE_LOGS]]
+            if mantidos:
+                comandos.append(["LPUSH", EQUIPE_LOGS] + list(reversed(mantidos)))
+                comandos.append(["LTRIM", EQUIPE_LOGS, 0, EQUIPE_LOGS_LIMITE - 1])
+            redis_pipeline(comandos)
+        return excluidos, ""
+    if em_vercel():
+        return 0, "Exclusão indisponível: falta REDIS_URL."
+    conn = conectar_equipe()
+    try:
+        linhas = conn.execute(
+            "SELECT id, horario, funcionario, acao, dispositivo FROM equipe_logs"
+        ).fetchall()
+        ids = []
+        for linha in linhas:
+            dados = {
+                "horario": linha["horario"],
+                "funcionario": linha["funcionario"],
+                "acao": linha["acao"],
+            }
+            if log_bate_exclusao_equipe(dados, funcionario, inicio, fim):
+                ids.append(str(linha["id"]))
+        for identificador in ids:
+            conn.execute("DELETE FROM equipe_logs WHERE id = ?", (identificador,))
+        conn.commit()
+        return len(ids), ""
+    finally:
+        conn.close()
+
+
 def resumo_equipe():
     funcionarios = listar_funcionarios_equipe()
     # Sempre inclui Administrador no resumo, mesmo sem cadastro explícito.
@@ -1182,7 +1262,11 @@ def responder_equipe_post(saida):
         "excluir_funcionario",
         "excluir",
     )
-    eh_resumo = caminho.endswith("/resumo") or recurso == "resumo" or acao == "limpar_logs"
+    eh_resumo = (
+        caminho.endswith("/resumo")
+        or recurso == "resumo"
+        or acao in ("limpar_logs", "excluir_logs", "excluir_registros")
+    )
     if eh_log:
         if not token_valido(cookie_de(saida.headers.get("Cookie"))):
             escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
@@ -1234,6 +1318,20 @@ def responder_equipe_post(saida):
         escrever_json(saida, {"ok": True, "funcionario": registro})
         return
     if eh_resumo:
+        if acao in ("excluir_logs", "excluir_registros") or dados.get("excluir_logs"):
+            excluidos, erro = excluir_logs_equipe(
+                dados.get("funcionario") or dados.get("operador"),
+                dados.get("data_inicio") or dados.get("inicio") or "",
+                dados.get("data_fim") or dados.get("fim") or "",
+            )
+            if erro:
+                escrever_json(saida, {"ok": False, "erro": erro}, 400)
+                return
+            dados_resumo = resumo_equipe()
+            dados_resumo["ok"] = True
+            dados_resumo["excluidos"] = excluidos
+            escrever_json(saida, dados_resumo)
+            return
         if acao == "limpar_logs" or dados.get("limpar"):
             limpar_logs_equipe()
             escrever_json(saida, {"ok": True})

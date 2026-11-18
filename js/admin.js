@@ -1381,12 +1381,19 @@
   var equipePedido = 0;
   var equipeDados = { funcionarios: [], resumo: [], logs: [] };
   var equipeSelecionadoId = "";
+  var equipeModalNome = "";
+  var equipeModalInicio = "";
+  var equipeModalFim = "";
   var formEquipe = document.querySelector("[data-equipe-cadastro]");
   var campoEquipeNome = document.querySelector("[data-equipe-nome]");
-  var botaoEquipeCadastrar = document.querySelector("[data-equipe-cadastrar]");
+  var botaoEquipeNovo = document.querySelector("[data-equipe-novo]");
   var botaoEquipeAlterar = document.querySelector("[data-equipe-alterar]");
   var botaoEquipeExcluir = document.querySelector("[data-equipe-excluir]");
-  var botaoEquipeLimpar = document.querySelector("[data-equipe-limpar-selecao]");
+  var campoEquipeAcoesInicio = document.querySelector("[data-equipe-acoes-inicio]");
+  var campoEquipeAcoesFim = document.querySelector("[data-equipe-acoes-fim]");
+  var botaoEquipeAcoesFiltrar = document.querySelector("[data-equipe-acoes-filtrar]");
+  var botaoEquipeAcoesLimparFiltro = document.querySelector("[data-equipe-acoes-limpar-filtro]");
+  var botaoEquipeAcoesExcluir = document.querySelector("[data-equipe-acoes-excluir-registros]");
 
   function avisoEquipeCadastro(texto) {
     var aviso = document.querySelector("[data-equipe-cadastro-aviso]");
@@ -1397,10 +1404,8 @@
 
   function atualizarBotoesEquipe() {
     var temSelecao = !!equipeSelecionadoId;
-    if (botaoEquipeCadastrar) botaoEquipeCadastrar.disabled = temSelecao;
     if (botaoEquipeAlterar) botaoEquipeAlterar.disabled = !temSelecao;
     if (botaoEquipeExcluir) botaoEquipeExcluir.disabled = !temSelecao;
-    if (botaoEquipeLimpar) botaoEquipeLimpar.disabled = !temSelecao;
   }
 
   function limparSelecaoEquipe(manterNome) {
@@ -1468,6 +1473,33 @@
     });
   }
 
+  function diaDoHorarioEquipe(horario) {
+    var match = String(horario || "").match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (!match) return "";
+    return match[3] + "-" + match[2] + "-" + match[1];
+  }
+
+  function logsAcoesFiltrados(nome, inicio, fim) {
+    return logsAcoesFuncionario(nome).filter(function (item) {
+      var dia = diaDoHorarioEquipe(item.horario);
+      if (inicio && (!dia || dia < inicio)) return false;
+      if (fim && (!dia || dia > fim)) return false;
+      return true;
+    });
+  }
+
+  function textoPeriodoEquipe(inicio, fim) {
+    function br(iso) {
+      var partes = String(iso || "").split("-");
+      if (partes.length !== 3) return "";
+      return partes[2] + "/" + partes[1] + "/" + partes[0];
+    }
+    if (inicio && fim) return "de " + br(inicio) + " a " + br(fim);
+    if (inicio) return "a partir de " + br(inicio);
+    if (fim) return "até " + br(fim);
+    return "todo o histórico";
+  }
+
   var tooltipEquipe = document.querySelector("[data-equipe-acoes-tooltip]");
   var modalEquipeAcoes = document.querySelector("[data-equipe-acoes-modal]");
   var modalEquipeTitulo = document.querySelector("[data-equipe-acoes-titulo]");
@@ -1504,8 +1536,32 @@
     tooltipEquipe.style.top = topo + "px";
   }
 
+  function atualizarBotaoExcluirAcoes(quantidade) {
+    if (!botaoEquipeAcoesExcluir) return;
+    botaoEquipeAcoesExcluir.disabled = !(quantidade > 0);
+  }
+
+  function renderModalEquipeAcoes() {
+    if (!modalEquipeCorpo) return;
+    var logs = logsAcoesFiltrados(equipeModalNome, equipeModalInicio, equipeModalFim);
+    atualizarBotaoExcluirAcoes(logs.length);
+    modalEquipeCorpo.innerHTML = logs.length
+      ? '<div class="equipe-acoes-modal-scroll"><table class="gestor-tabela equipe-tabela equipe-acoes-tabela"><thead><tr><th>Horário Exato</th><th>Opção / Ação Executada</th><th>Dispositivo</th></tr></thead><tbody>' +
+        logs.map(function (item) {
+          return "<tr><td>" + escapar(item.horario) + "</td><td>" + escapar(item.acao) + "</td><td>" + escapar(item.dispositivo || "—") + "</td></tr>";
+        }).join("") +
+        "</tbody></table></div>"
+      : '<p class="equipe-acoes-vazio">Nenhuma ação encontrada para o período selecionado.</p>';
+  }
+
   function fecharModalEquipeAcoes() {
     esconderTooltipEquipe();
+    equipeModalNome = "";
+    equipeModalInicio = "";
+    equipeModalFim = "";
+    if (campoEquipeAcoesInicio) campoEquipeAcoesInicio.value = "";
+    if (campoEquipeAcoesFim) campoEquipeAcoesFim.value = "";
+    atualizarBotaoExcluirAcoes(0);
     if (modalEquipeAcoes) modalEquipeAcoes.hidden = true;
     document.querySelectorAll(".equipe-acoes-overlay").forEach(function (el) { el.hidden = true; });
   }
@@ -1513,17 +1569,42 @@
   function abrirModalEquipeAcoes(nome) {
     if (!modalEquipeAcoes || !modalEquipeCorpo) return;
     esconderTooltipEquipe();
-    var logs = logsAcoesFuncionario(nome);
-    if (modalEquipeTitulo) modalEquipeTitulo.textContent = "Ações Executadas — " + nome;
-    modalEquipeCorpo.innerHTML = logs.length
-      ? '<div class="equipe-acoes-modal-scroll"><table class="gestor-tabela equipe-tabela equipe-acoes-tabela"><thead><tr><th>Horário Exato</th><th>Opção / Ação Executada</th><th>Dispositivo</th></tr></thead><tbody>' +
-        logs.map(function (item) {
-          return "<tr><td>" + escapar(item.horario) + "</td><td>" + escapar(item.acao) + "</td><td>" + escapar(item.dispositivo || "—") + "</td></tr>";
-        }).join("") +
-        "</tbody></table></div>"
-      : '<p class="equipe-acoes-vazio">Nenhuma ação executada por este funcionário.</p>';
+    equipeModalNome = String(nome || "");
+    equipeModalInicio = "";
+    equipeModalFim = "";
+    if (campoEquipeAcoesInicio) campoEquipeAcoesInicio.value = "";
+    if (campoEquipeAcoesFim) campoEquipeAcoesFim.value = "";
+    if (modalEquipeTitulo) modalEquipeTitulo.textContent = "Ações Executadas — " + equipeModalNome;
+    renderModalEquipeAcoes();
     document.querySelectorAll(".equipe-acoes-overlay").forEach(function (el) { el.hidden = false; });
     modalEquipeAcoes.hidden = false;
+  }
+
+  function cadastrarFuncionarioNovo() {
+    var nome = String((campoEquipeNome && campoEquipeNome.value) || "").trim();
+    if (!nome) {
+      avisoEquipeCadastro("Informe o nome do funcionário.");
+      if (campoEquipeNome) campoEquipeNome.focus();
+      return;
+    }
+    avisoEquipeCadastro("");
+    postEquipeFuncionario({ nome: nome }).then(function () {
+      limparSelecaoEquipe();
+      carregarAcessosEquipe();
+      carregarFuncionariosLogin();
+    }).catch(function (falha) {
+      avisoEquipeCadastro(falha && falha.message ? falha.message : "Não foi possível cadastrar.");
+    });
+  }
+
+  function acaoBotaoNovoEquipe() {
+    if (equipeSelecionadoId) {
+      limparSelecaoEquipe();
+      avisoEquipeCadastro("");
+      if (campoEquipeNome) campoEquipeNome.focus();
+      return;
+    }
+    cadastrarFuncionarioNovo();
   }
 
   function renderEquipeResumo(resumo) {
@@ -1566,17 +1647,7 @@
   if (formEquipe) {
     formEquipe.addEventListener("submit", function (evento) {
       evento.preventDefault();
-      if (equipeSelecionadoId) return;
-      var nome = String((campoEquipeNome && campoEquipeNome.value) || "").trim();
-      if (!nome) return;
-      avisoEquipeCadastro("");
-      postEquipeFuncionario({ nome: nome }).then(function () {
-        limparSelecaoEquipe();
-        carregarAcessosEquipe();
-        carregarFuncionariosLogin();
-      }).catch(function (falha) {
-        avisoEquipeCadastro(falha && falha.message ? falha.message : "Não foi possível cadastrar.");
-      });
+      acaoBotaoNovoEquipe();
     });
   }
 
@@ -1623,11 +1694,63 @@
     });
   }
 
-  if (botaoEquipeLimpar) {
-    botaoEquipeLimpar.addEventListener("click", function () {
-      limparSelecaoEquipe();
-      avisoEquipeCadastro("");
-      if (campoEquipeNome) campoEquipeNome.focus();
+  if (botaoEquipeAcoesFiltrar) {
+    botaoEquipeAcoesFiltrar.addEventListener("click", function () {
+      equipeModalInicio = campoEquipeAcoesInicio ? String(campoEquipeAcoesInicio.value || "").trim() : "";
+      equipeModalFim = campoEquipeAcoesFim ? String(campoEquipeAcoesFim.value || "").trim() : "";
+      if (equipeModalInicio && equipeModalFim && equipeModalInicio > equipeModalFim) {
+        window.alert("A data inicial não pode ser maior que a data final.");
+        return;
+      }
+      renderModalEquipeAcoes();
+    });
+  }
+
+  if (botaoEquipeAcoesLimparFiltro) {
+    botaoEquipeAcoesLimparFiltro.addEventListener("click", function () {
+      equipeModalInicio = "";
+      equipeModalFim = "";
+      if (campoEquipeAcoesInicio) campoEquipeAcoesInicio.value = "";
+      if (campoEquipeAcoesFim) campoEquipeAcoesFim.value = "";
+      renderModalEquipeAcoes();
+    });
+  }
+
+  if (botaoEquipeAcoesExcluir) {
+    botaoEquipeAcoesExcluir.addEventListener("click", function () {
+      var logs = logsAcoesFiltrados(equipeModalNome, equipeModalInicio, equipeModalFim);
+      if (!logs.length || !equipeModalNome) return;
+      var periodo = textoPeriodoEquipe(equipeModalInicio, equipeModalFim);
+      var mensagem = "Excluir " + logs.length + " registro(s) de ações de " + equipeModalNome +
+        " (" + periodo + ")?\nEsta ação não pode ser desfeita.";
+      if (!window.confirm(mensagem)) return;
+      botaoEquipeAcoesExcluir.disabled = true;
+      fetch("/api/equipe/resumo", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          acao: "excluir_logs",
+          funcionario: equipeModalNome,
+          data_inicio: equipeModalInicio,
+          data_fim: equipeModalFim
+        })
+      }).then(function (resposta) {
+        return resposta.json().catch(function () { return null; }).then(function (corpo) {
+          if (!resposta.ok || !corpo || !corpo.ok) {
+            throw new Error((corpo && corpo.erro) || "Não foi possível excluir os registros.");
+          }
+          return corpo;
+        });
+      }).then(function (corpo) {
+        equipeDados = corpo;
+        renderEquipeCadastro(corpo.funcionarios || []);
+        renderEquipeResumo(corpo.resumo || []);
+        renderModalEquipeAcoes();
+      }).catch(function (falha) {
+        window.alert(falha && falha.message ? falha.message : "Não foi possível excluir os registros.");
+        renderModalEquipeAcoes();
+      });
     });
   }
 

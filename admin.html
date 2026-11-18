@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=36">
+  <link rel="stylesheet" href="css/admin.css?v=37">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -227,12 +227,9 @@
       <section class="equipe-bloco">
         <div class="equipe-cadastro-grupo">
           <form class="equipe-cadastro" data-equipe-cadastro>
-            <input type="text" name="nome" maxlength="60" autocomplete="off" required placeholder="Nome do funcionário (Ex.: João)" aria-label="Nome do funcionário" data-equipe-nome>
+            <input type="text" name="nome" maxlength="60" autocomplete="off" placeholder="Nome do funcionário (Ex.: João)" aria-label="Nome do funcionário" data-equipe-nome>
             <div class="equipe-acoes-form">
-              <button class="btn btn-preto equipe-btn" type="submit" data-equipe-cadastrar>
-                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 2a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2H9v4a1 1 0 1 1-2 0V9H3a1 1 0 1 1 0-2h4V3a1 1 0 0 1 1-1z"/></svg>
-                Cadastrar
-              </button>
+              <button class="btn equipe-btn equipe-btn-novo" type="submit" data-equipe-novo>Novo</button>
               <button class="btn btn-line equipe-btn" type="button" data-equipe-alterar disabled>
                 <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M11.3 1.7a1.5 1.5 0 0 1 2.1 2.1L5.2 12l-2.7.6.6-2.7 8.2-8.2zM2 14h12v1.5H2V14z"/></svg>
                 Alterar
@@ -241,7 +238,6 @@
                 <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M6 2h4l.5 1H14v1.5H2V3h3.5L6 2zm1 4v6H5.5V6H7zm3.5 0v6H9V6h1.5zM3.5 4.5h9l-.7 9.2A1.5 1.5 0 0 1 10.3 15H5.7a1.5 1.5 0 0 1-1.5-1.3L3.5 4.5z"/></svg>
                 Excluir
               </button>
-              <button class="btn btn-line equipe-btn" type="button" data-equipe-limpar-selecao disabled>Novo</button>
             </div>
           </form>
           <p class="gestor-busca-aviso" data-equipe-cadastro-aviso hidden></p>
@@ -293,9 +289,20 @@
       <h2 id="titulo-equipe-acoes" data-equipe-acoes-titulo>Ações Executadas</h2>
       <button type="button" data-equipe-acoes-fechar aria-label="Fechar">×</button>
     </div>
+    <div class="equipe-acoes-filtro" data-equipe-acoes-filtro>
+      <label>Data Inicial
+        <input type="date" data-equipe-acoes-inicio aria-label="Data inicial das ações">
+      </label>
+      <label>Data Final
+        <input type="date" data-equipe-acoes-fim aria-label="Data final das ações">
+      </label>
+      <button class="btn btn-preto equipe-acoes-filtro-btn" type="button" data-equipe-acoes-filtrar>Filtrar</button>
+      <button class="btn btn-line equipe-acoes-filtro-btn" type="button" data-equipe-acoes-limpar-filtro>Limpar</button>
+      <button class="btn btn-line equipe-acoes-filtro-btn equipe-acoes-excluir-btn" type="button" data-equipe-acoes-excluir-registros disabled>Excluir Registros</button>
+    </div>
     <div class="equipe-acoes-modal-corpo" data-equipe-acoes-corpo></div>
   </div>
   <div class="equipe-acoes-tooltip" data-equipe-acoes-tooltip hidden></div>
-  <script src="js/admin.js?v=56"></script>
+  <script src="js/admin.js?v=57"></script>
 </body>
 </html>

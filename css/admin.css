@@ -595,6 +595,17 @@ body.gestor .dash-topo h1 { margin: 0; }
   white-space: nowrap;
 }
 .equipe-cadastro .equipe-btn svg { flex: none; }
+.equipe-btn-novo {
+  background: #111;
+  border-color: #111;
+  color: #fff;
+}
+.equipe-btn-novo:hover,
+.equipe-btn-novo:focus-visible {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+}
 .equipe-btn-excluir { border-color: #fca5a5; color: #b91c1c; }
 .equipe-btn-excluir:hover:not(:disabled) { background: #fef2f2; }
 .equipe-cadastro .equipe-btn:disabled,
@@ -750,6 +761,49 @@ body.gestor .equipe-resumo-tabela td {
   display: flex;
   flex-direction: column;
 }
+.equipe-acoes-filtro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.45rem 0.55rem;
+  padding: 0 1rem 0.65rem;
+}
+.equipe-acoes-filtro label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #475569;
+}
+.equipe-acoes-filtro input[type="date"] {
+  box-sizing: border-box;
+  min-height: 34px;
+  padding: 0 0.45rem;
+  border: 1px solid var(--gray-200, #e2e8f0);
+  border-radius: 0.45rem;
+  background: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.equipe-acoes-filtro-btn {
+  min-height: 34px;
+  padding: 0 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.equipe-acoes-excluir-btn {
+  margin-left: auto;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+.equipe-acoes-excluir-btn:hover:not(:disabled) { background: #fef2f2; }
+.equipe-acoes-excluir-btn:disabled,
+.equipe-acoes-excluir-btn:disabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: transparent;
+}
 .equipe-acoes-modal-corpo { padding: 0.15rem 1rem 1rem; }
 .equipe-acoes-modal-scroll {
   max-height: min(360px, 55vh);
@@ -775,6 +829,10 @@ body.gestor .equipe-acoes-tabela td {
 .equipe-acoes-overlay { z-index: 60; }
 .equipe-acoes-modal { z-index: 61; }
 @media (max-width: 767px) {
+  .equipe-resumo-box {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   .equipe-acoes-modal {
     width: 92vw;
     max-width: 92vw;
@@ -784,6 +842,10 @@ body.gestor .equipe-acoes-tabela td {
     font-size: 0.95rem;
     line-height: 1.25;
   }
+  .equipe-acoes-filtro {
+    padding: 0 0.75rem 0.55rem;
+  }
+  .equipe-acoes-excluir-btn { margin-left: 0; }
   .equipe-acoes-modal-corpo { padding: 0.1rem 0.75rem 0.85rem; }
 }
 body.gestor .equipe-lista-tabela .equipe-toggle {
