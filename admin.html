@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=96">
-  <link rel="stylesheet" href="css/admin.css?v=35">
+  <link rel="stylesheet" href="css/admin.css?v=36">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -261,8 +261,8 @@
       </section>
       <section class="equipe-bloco">
         <h2>Resumo de Engajamento da Equipe</h2>
-        <div class="gestor-tabela-box">
-          <table class="gestor-tabela equipe-tabela">
+        <div class="gestor-tabela-box equipe-resumo-box">
+          <table class="gestor-tabela equipe-tabela equipe-resumo-tabela">
             <thead>
               <tr>
                 <th>Funcionário</th>
@@ -273,30 +273,6 @@
               </tr>
             </thead>
             <tbody data-equipe-resumo></tbody>
-          </table>
-        </div>
-      </section>
-      <section class="equipe-bloco">
-        <div class="equipe-historico-topo">
-          <h2>Histórico de Opções Executadas</h2>
-          <label class="trafego-filtro">Funcionário
-            <select data-equipe-filtro-funcionario aria-label="Filtrar histórico por funcionário">
-              <option value="">Todos</option>
-            </select>
-          </label>
-          <button class="btn btn-line" type="button" data-equipe-limpar-logs>Limpar Logs</button>
-        </div>
-        <div class="gestor-tabela-box">
-          <table class="gestor-tabela equipe-tabela equipe-historico">
-            <thead>
-              <tr>
-                <th>Horário Exato</th>
-                <th>Funcionário</th>
-                <th>Opção / Ação Executada</th>
-                <th>Dispositivo</th>
-              </tr>
-            </thead>
-            <tbody data-equipe-logs></tbody>
           </table>
         </div>
       </section>
@@ -320,6 +296,6 @@
     <div class="equipe-acoes-modal-corpo" data-equipe-acoes-corpo></div>
   </div>
   <div class="equipe-acoes-tooltip" data-equipe-acoes-tooltip hidden></div>
-  <script src="js/admin.js?v=55"></script>
+  <script src="js/admin.js?v=56"></script>
 </body>
 </html>

@@ -1547,33 +1547,6 @@
     }).join("") || '<tr><td colspan="5">Sem dados de engajamento.</td></tr>';
   }
 
-  function popularFiltroEquipe(resumo) {
-    var seletor = document.querySelector("[data-equipe-filtro-funcionario]");
-    if (!seletor) return;
-    var atual = seletor.value;
-    var nomes = (resumo || []).map(function (item) { return item.nome; });
-    seletor.innerHTML = '<option value="">Todos</option>' + nomes.map(function (nome) {
-      return '<option value="' + escapar(nome) + '">' + escapar(nome) + "</option>";
-    }).join("");
-    if (atual) seletor.value = atual;
-  }
-
-  function renderEquipeLogs(logs) {
-    var lista = document.querySelector("[data-equipe-logs]");
-    var filtro = valorFiltro("[data-equipe-filtro-funcionario]");
-    if (!lista) return;
-    var itens = (logs || []).filter(function (item) {
-      return !filtro || String(item.funcionario || "").normalize("NFC") === filtro;
-    });
-    lista.innerHTML = itens.length ? itens.map(function (item) {
-      return "<tr>" +
-        "<td>" + escapar(item.horario) + "</td>" +
-        "<td>" + escapar(item.funcionario) + "</td>" +
-        "<td>" + escapar(item.acao) + "</td>" +
-        "<td>" + escapar(item.dispositivo || "—") + "</td></tr>";
-    }).join("") : '<tr><td colspan="4">Nenhuma ação registrada no período.</td></tr>';
-  }
-
   function carregarAcessosEquipe() {
     var pedido = ++equipePedido;
     fetch("/api/equipe/resumo", { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
@@ -1587,8 +1560,6 @@
       equipeDados = corpo;
       renderEquipeCadastro(corpo.funcionarios || []);
       renderEquipeResumo(corpo.resumo || []);
-      popularFiltroEquipe(corpo.resumo || []);
-      renderEquipeLogs(corpo.logs || []);
     }).catch(function () {});
   }
 
@@ -1711,31 +1682,6 @@
   }
 
   atualizarBotoesEquipe();
-
-  var filtroEquipe = document.querySelector("[data-equipe-filtro-funcionario]");
-  if (filtroEquipe) {
-    filtroEquipe.addEventListener("change", function () {
-      renderEquipeLogs(equipeDados.logs || []);
-    });
-  }
-
-  var limparLogsEquipe = document.querySelector("[data-equipe-limpar-logs]");
-  if (limparLogsEquipe) {
-    limparLogsEquipe.addEventListener("click", function () {
-      if (!window.confirm("Limpar todo o histórico de opções executadas pela equipe?")) return;
-      fetch("/api/equipe/resumo", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ acao: "limpar_logs" })
-      }).then(function (resposta) {
-        return resposta.json().catch(function () { return null; });
-      }).then(function (corpo) {
-        if (!corpo || !corpo.ok) return;
-        carregarAcessosEquipe();
-      }).catch(function () {});
-    });
-  }
 
   document.querySelectorAll("[data-trafego-dias]").forEach(function (botao) {
     botao.addEventListener("click", function () {
