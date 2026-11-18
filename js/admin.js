@@ -636,8 +636,9 @@
     return valorUnitarioItem(produto) * (Number(produto && produto.qtd) || 0);
   }
 
-  function celulaPedido(rotulo, valor, classe) {
-    return '<td class="' + (classe || "") + '"><span class="pedido-rotulo">' + escapar(rotulo) + "</span> " +
+  function celulaPedido(rotulo, valor, colspan, classe) {
+    return '<td colspan="' + (colspan || 1) + '" class="' + (classe || "") + '">' +
+      '<span class="pedido-rotulo">' + escapar(rotulo) + "</span> " +
       '<span class="pedido-valor">' + escapar(campoPedido(valor)) + "</span></td>";
   }
 
@@ -647,14 +648,15 @@
     var total = item.total != null && isFinite(Number(item.total))
       ? Number(item.total)
       : itens.reduce(function (soma, produto) { return soma + valorTotalItem(produto); }, 0);
+    var colunasCliente = Array(12).fill('<col>').join("");
     var linhas = itens.map(function (produto, indice) {
       return "<tr>" +
         '<td class="pedido-centro">' + (indice + 1) + "</td>" +
         '<td class="pedido-centro">' + escapar(codigoItemPedido(produto) || "—") + "</td>" +
         '<td class="pedido-nome">' + escapar(campoPedido(nomeItemPedido(produto))) + "</td>" +
         '<td class="pedido-centro">' + escapar(String(produto.qtd != null ? produto.qtd : "—")) + "</td>" +
-        '<td class="pedido-direita">R$ ' + moedaPainel(valorUnitarioItem(produto)) + "</td>" +
-        '<td class="pedido-direita">R$ ' + moedaPainel(valorTotalItem(produto)) + "</td>" +
+        '<td class="pedido-direita">' + moedaPainel(valorUnitarioItem(produto)) + "</td>" +
+        '<td class="pedido-direita">' + moedaPainel(valorTotalItem(produto)) + "</td>" +
       "</tr>";
     }).join("") || '<tr><td colspan="6" class="pedido-vazio">Nenhum item neste orçamento.</td></tr>';
 
@@ -664,17 +666,35 @@
         "<h3>PEDIDO DE ORÇAMENTO</h3>" +
       "</div>" +
       '<table class="pedido-doc-cliente">' +
-        "<tr>" + celulaPedido("Nome:", cliente.nome, "pedido-largo") + celulaPedido("CPF/CNPJ:", documentoVisivel(String(cliente.documento || ""))) + "</tr>" +
-        "<tr>" + celulaPedido("End:", cliente.endereco, "pedido-largo") + celulaPedido("Nr:", cliente.numero) + "</tr>" +
+        "<colgroup>" + colunasCliente + "</colgroup>" +
         "<tr>" +
-          celulaPedido("Cidade:", cliente.cidade, "pedido-cidade") +
-          celulaPedido("Bairro:", cliente.bairro, "pedido-bairro") +
-          celulaPedido("UF:", cliente.uf, "pedido-uf") +
-          celulaPedido("CEP:", cepPedido(cliente.cep), "pedido-cep") +
+          celulaPedido("Nome:", cliente.nome, 7) +
+          celulaPedido("CPF/CNPJ:", documentoVisivel(String(cliente.documento || "")), 5, "pedido-nowrap") +
         "</tr>" +
-        "<tr>" + celulaPedido("Telefone / Celular:", cliente.telefone) + celulaPedido("e-mail:", cliente.email) + "</tr>" +
+        "<tr>" +
+          celulaPedido("End:", cliente.endereco, 9) +
+          celulaPedido("Nr:", cliente.numero, 3, "pedido-nowrap") +
+        "</tr>" +
+        "<tr>" +
+          celulaPedido("Cidade:", cliente.cidade, 4) +
+          celulaPedido("Bairro:", cliente.bairro, 4) +
+          celulaPedido("UF:", cliente.uf, 1, "pedido-nowrap") +
+          celulaPedido("CEP:", cepPedido(cliente.cep), 3, "pedido-nowrap") +
+        "</tr>" +
+        "<tr>" +
+          celulaPedido("Telefone / Celular:", cliente.telefone, 6, "pedido-nowrap") +
+          celulaPedido("e-mail:", cliente.email, 6, "pedido-nowrap") +
+        "</tr>" +
       "</table>" +
       '<table class="pedido-doc-itens">' +
+        "<colgroup>" +
+          '<col class="pedido-col-itens">' +
+          '<col class="pedido-col-codigo">' +
+          '<col class="pedido-col-nome">' +
+          '<col class="pedido-col-qte">' +
+          '<col class="pedido-col-unit">' +
+          '<col class="pedido-col-total">' +
+        "</colgroup>" +
         "<thead><tr>" +
           '<th class="pedido-centro">Itens</th>' +
           '<th class="pedido-centro">Código</th>' +
@@ -764,8 +784,8 @@
     janela.document.open();
     janela.document.write(
       "<!DOCTYPE html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>Pedido de Orçamento | Gigaeletro</title>" +
-      "<link rel=\"stylesheet\" href=\"css/admin.css?v=38\">" +
-      "<style>body{margin:18px;background:#fff}.gestor-detalhe-corpo{padding:0}.pedido-doc{max-width:820px;margin:0 auto}</style>" +
+      "<link rel=\"stylesheet\" href=\"css/admin.css?v=40\">" +
+      "<style>body{margin:18px;background:#fff}.gestor-detalhe-corpo{padding:0}.pedido-doc{max-width:920px;margin:0 auto}</style>" +
       "</head><body>" + htmlPedidoOrcamento(item) + "</body></html>"
     );
     janela.document.close();
