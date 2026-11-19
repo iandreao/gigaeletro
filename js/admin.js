@@ -765,12 +765,26 @@
   var STATUS_ORCAMENTO = ["Recebido", "Analisado", "Respondido"];
   var VENDEDORES = ["Bruno", "Summer", "Júlio", "Aceliani"];
 
-  function statusAtual(item) {
+  function itemExcluido(item) {
+    var valor = item && item.excluido;
+    if (valor === true || valor === 1) return true;
+    if (valor === false || valor == null) return false;
+    var texto = String(valor).trim().toLowerCase();
+    return texto === "1" || texto === "true" || texto === "sim" || texto === "yes";
+  }
+
+  function statusAtendimento(item) {
     var texto = String((item && item.status) || "").trim();
     if (texto === "A Enviar") return "A Enviar";
     /* Enviado/Pendente/Recebido (e vazio) = status inicial na Área Restrita. */
     if (!texto || texto === "Enviado" || texto === "Pendente" || texto === "Recebido") return "Recebido";
     return STATUS_ORCAMENTO.indexOf(texto) >= 0 ? texto : "Recebido";
+  }
+
+  function statusAtual(item) {
+    /* Coluna Status: excluídos mostram "Excluído"; o atendimento original fica no campo status. */
+    if (itemExcluido(item)) return "Excluído";
+    return statusAtendimento(item);
   }
 
   function vendedorAtual(item) {
@@ -780,6 +794,7 @@
   function classeStatus(valor) {
     if (valor === "Analisado") return "analisado";
     if (valor === "Respondido") return "respondido";
+    if (valor === "Excluído") return "excluido";
     return "recebido";
   }
 
@@ -851,6 +866,7 @@
 
   function linhaLixeira(item) {
     var id = escapar(item.id);
+    var atendimento = statusAtendimento(item);
     return '<tr class="gestor-excluido">' +
       "<td>" + escapar(dataVisivel(item.data)) + "</td>" +
       "<td>" + escapar(item.nome) + "</td>" +
@@ -858,7 +874,9 @@
       "<td>" + escapar(item.telefone) + "</td>" +
       '<td class="num">' + moedaPainel(item.total) + "</td>" +
       '<td class="meio">' + escapar(meioEnvio(item)) + "</td>" +
-      '<td class="status excluido-info">' + escapar(statusAtual(item)) + "</td>" +
+      '<td class="status">' +
+        '<span class="gestor-status-badge gestor-status-excluido" title="Atendimento: ' + escapar(atendimento) + '">Excluído</span>' +
+      "</td>" +
       '<td class="vendedor excluido-info">' + escapar(vendedorAtual(item) || "-") + "</td>" +
       '<td class="acoes"><div class="gestor-acoes">' +
         '<button type="button" data-ver-orcamento="' + id + '" aria-label="Visualizar" title="Visualizar">' + iconeAcao("olho") + "</button>" +
@@ -901,9 +919,43 @@
   var lixeiraComFiltro = false;
   var idsExcluidos = {};
   var idsRestaurados = {};
+  var botaoLixeira = document.querySelector("[data-gestor-lixeira]");
+  var tituloOrcamentos = document.querySelector("[data-titulo-orcamentos]");
 
   function idsOcultos() {
     return modoLixeira ? idsRestaurados : idsExcluidos;
+  }
+
+  function atualizarUiLixeira() {
+    if (botaoLixeira) {
+      botaoLixeira.setAttribute("aria-pressed", modoLixeira ? "true" : "false");
+      botaoLixeira.textContent = modoLixeira ? "Voltar aos Orçamentos" : "Ver Excluídos / Lixeira";
+    }
+    if (tituloOrcamentos) {
+      tituloOrcamentos.textContent = modoLixeira ? "Lixeira: orçamentos excluídos" : "Orçamentos recebidos";
+    }
+  }
+
+  function definirFiltroStatus(valor) {
+    if (campoFiltroStatus) campoFiltroStatus.value = valor || "";
+  }
+
+  function sincronizarModoLixeiraDoFiltro(opcoes) {
+    var cfg = opcoes || {};
+    var querLixeira = (campoFiltroStatus && campoFiltroStatus.value === "Excluído") || cfg.forcarLixeira === true;
+    if (cfg.forcarAtivos === true) querLixeira = false;
+    var mudou = querLixeira !== modoLixeira;
+    modoLixeira = querLixeira;
+    if (mudou) {
+      idsExcluidos = {};
+      idsRestaurados = {};
+      if (modoLixeira) definirFiltroStatus("Excluído");
+      else if (campoFiltroStatus && campoFiltroStatus.value === "Excluído") definirFiltroStatus("");
+    }
+    if (cfg.atalho) lixeiraComFiltro = false;
+    else if (modoLixeira && cfg.buscar) lixeiraComFiltro = true;
+    atualizarUiLixeira();
+    return mudou;
   }
 
   function aplicarFiltrosLocais(lista) {
@@ -911,11 +963,12 @@
     var status = filtros.status;
     var vendedor = filtros.vendedor;
     var ocultos = idsOcultos();
-    var filtrarStatusVendedor = !modoLixeira || lixeiraComFiltro;
+    var filtrarVendedor = !modoLixeira || lixeiraComFiltro;
+    var filtrarStatus = !modoLixeira && status && status !== "Excluído";
     return (lista || []).filter(function (item) {
       if (ocultos[String(item.id)]) return false;
-      if (filtrarStatusVendedor && status && statusAtual(item) !== status) return false;
-      if (filtrarStatusVendedor && vendedor && vendedorAtual(item) !== vendedor) return false;
+      if (filtrarStatus && statusAtendimento(item) !== status) return false;
+      if (filtrarVendedor && vendedor && vendedorAtual(item) !== vendedor) return false;
       return true;
     });
   }
@@ -923,9 +976,10 @@
   function carregarOrcamentos() {
     if (!listaGestor) return;
     if (vazioGestor) vazioGestor.hidden = true;
+    sincronizarModoLixeiraDoFiltro();
     var pedido = ++consultaPainel;
     var filtros = lerFiltrosBusca();
-    /* Ao abrir a Lixeira: lista todos os excluídos. Datas/status só após Buscar. */
+    /* Lixeira via atalho: todos os excluídos. Via filtro/Buscar: respeita datas/CPF. */
     var usarFiltroData = !modoLixeira || lixeiraComFiltro;
     var dataInicio = usarFiltroData ? filtros.dataInicio : "";
     var dataFim = usarFiltroData ? filtros.dataFim : "";
@@ -962,9 +1016,10 @@
       var ocultos = idsOcultos();
       lista = lista.filter(function (atual) {
         if (ocultos[String(atual.id)]) return false;
-        /* Ativos: esconde A Enviar. Lixeira: API já devolve excluídos (com Restaurar). */
-        if (modoLixeira) return true;
-        return statusAtual(atual) !== "A Enviar";
+        /* Ativos: só não excluídos e sem A Enviar. Lixeira: API já devolve excluídos. */
+        if (modoLixeira) return itemExcluido(atual);
+        if (itemExcluido(atual)) return false;
+        return statusAtendimento(atual) !== "A Enviar";
       });
       orcamentosCarregados = lista;
       cargaConcluida = true;
@@ -986,14 +1041,21 @@
   if (formFiltros) {
     formFiltros.addEventListener("submit", function (event) {
       event.preventDefault();
-      if (modoLixeira) lixeiraComFiltro = true;
+      sincronizarModoLixeiraDoFiltro({ buscar: true });
       carregarOrcamentos();
     });
     formFiltros.addEventListener("change", function (event) {
       var alvo = event.target;
       if (!alvo) return;
-      if (alvo.hasAttribute("data-gestor-status") || alvo.hasAttribute("data-gestor-vendedor")) {
-        if (modoLixeira) lixeiraComFiltro = true;
+      if (alvo.hasAttribute("data-gestor-status")) {
+        sincronizarModoLixeiraDoFiltro({ buscar: true });
+        fecharDetalhe();
+        orcamentosCarregados = [];
+        renderOrcamentos([], false);
+        carregarOrcamentos();
+        return;
+      }
+      if (alvo.hasAttribute("data-gestor-vendedor")) {
         renderOrcamentos(aplicarFiltrosLocais(orcamentosCarregados), cargaConcluida);
         return;
       }
@@ -1041,17 +1103,14 @@
     });
   }
 
-  var botaoLixeira = document.querySelector("[data-gestor-lixeira]");
-  var tituloOrcamentos = document.querySelector("[data-titulo-orcamentos]");
   if (botaoLixeira) {
     botaoLixeira.addEventListener("click", function () {
-      modoLixeira = !modoLixeira;
-      lixeiraComFiltro = false;
-      idsExcluidos = {};
-      idsRestaurados = {};
-      botaoLixeira.setAttribute("aria-pressed", modoLixeira ? "true" : "false");
-      botaoLixeira.textContent = modoLixeira ? "Voltar aos Orçamentos" : "Ver Excluídos / Lixeira";
-      if (tituloOrcamentos) tituloOrcamentos.textContent = modoLixeira ? "Lixeira: orçamentos excluídos" : "Orçamentos recebidos";
+      if (modoLixeira) {
+        sincronizarModoLixeiraDoFiltro({ forcarAtivos: true, atalho: true });
+      } else {
+        definirFiltroStatus("Excluído");
+        sincronizarModoLixeiraDoFiltro({ forcarLixeira: true, atalho: true });
+      }
       fecharDetalhe();
       orcamentosCarregados = [];
       renderOrcamentos([], false);

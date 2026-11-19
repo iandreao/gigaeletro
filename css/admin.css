@@ -28,6 +28,21 @@
 .gestor-acoes button[data-restaurar-orcamento]:hover,
 .gestor-acoes button[data-restaurar-orcamento]:focus-visible { color: #166534; background: #f0fdf4; }
 .gestor-tabela td.excluido-info { color: var(--gray-600, #4b5563); font-size: 0.8rem; }
+.gestor-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.gestor-status-badge.gestor-status-excluido {
+  background: #f3f4f6;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+.gestor-tabela select.gestor-status-excluido { background: #f3f4f6; color: #991b1b; }
 /* Uma linha por registro: a tabela cresce na horizontal e o box rola, em vez de espremer o texto. */
 .gestor-tabela-box {
   width: 100%;
@@ -90,7 +105,8 @@ body.gestor .gestor-tabela .gestor-acoes svg {
   height: 14px;
 }
 .gestor-tabela select.gestor-status-pendente,
-.gestor-tabela select.gestor-status-enviado { background: #fef9c3; }
+.gestor-tabela select.gestor-status-enviado,
+.gestor-tabela select.gestor-status-recebido { background: #fef9c3; }
 .gestor-tabela select.gestor-status-analisado { background: #dbeafe; }
 .gestor-tabela select.gestor-status-respondido { background: #dcfce7; }
 .gestor-login {
