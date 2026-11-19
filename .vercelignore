@@ -6,6 +6,8 @@
 .idea/
 .env
 .env.*
+.env.local
+.env*.local
 !.env.example
 
 __pycache__/
