@@ -2330,11 +2330,13 @@
         return;
       }
       if (corpo.verificacao) {
+        /* Sem fallback de localStorage: desafio e lista vêm só da API do CPF/CNPJ consultado. */
+        historicoConsulta = [];
         mostrarIdentidade(corpo.perguntas || {});
         renderRecentes();
         return;
       }
-      historicoConsulta = (Array.isArray(corpo.orcamentos) ? corpo.orcamentos : []).map(registroHistorico).filter(function (item) { return item.id; });
+      historicoConsulta = filtrarHistoricoPorDocumento(corpo.orcamentos, documentoConsulta);
       renderRecentes();
     }).catch(function () {
       if (pedido !== historicoPedido) return;
@@ -2446,7 +2448,8 @@
       if (botao) botao.textContent = "Confirmar Dados";
       if (dados.ok && Array.isArray(dados.orcamentos)) {
         esconderIdentidade();
-        historicoConsulta = dados.orcamentos.map(registroHistorico).filter(function (item) { return item.id; });
+        /* Isolamento: ignora qualquer registro de outro CPF/CNPJ, mesmo se a API errar. */
+        historicoConsulta = filtrarHistoricoPorDocumento(dados.orcamentos, documentoConsulta);
         renderRecentes();
         return;
       }
@@ -2469,7 +2472,20 @@
 
   function documentoDoRegistro(item) {
     if (!item) return "";
-    return apenasDigitos(item.documento || (item.cliente && item.cliente.documento) || "");
+    var topo = apenasDigitos(item.documento || item.cpfCnpj || item.cpf_cnpj || "");
+    var cliente = item.cliente && typeof item.cliente === "object" ? item.cliente : {};
+    var aninhado = apenasDigitos(cliente.documento || cliente.cpfCnpj || cliente.cpf_cnpj || "");
+    /* Se topo e cliente divergem, não atribui a nenhum CPF (evita misturar históricos). */
+    if (topo && aninhado && topo !== aninhado) return "";
+    return topo || aninhado;
+  }
+
+  function filtrarHistoricoPorDocumento(lista, documento) {
+    var doc = apenasDigitos(documento);
+    if (!doc) return [];
+    return (Array.isArray(lista) ? lista : []).map(registroHistorico).filter(function (item) {
+      return item.id && documentoDoRegistro(item) === doc;
+    });
   }
 
   function icone(tipo) {
@@ -2627,9 +2643,8 @@
       }
       return;
     }
-    var itens = historicoConsulta.filter(function (item) {
-      return documentoDoRegistro(item) === documentoConsulta;
-    });
+    /* Exibe estritamente o CPF/CNPJ da busca atual — sem misturar cache de outro documento. */
+    var itens = filtrarHistoricoPorDocumento(historicoConsulta, documentoConsulta);
     if (vazio) {
       vazio.hidden = itens.length > 0;
       vazio.textContent = "Nenhum orçamento salvo para este CPF/CNPJ";

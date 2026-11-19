@@ -11,7 +11,8 @@ Toda a lógica vive em servidor.responder_orcamentos (mesmo código do servidor 
 - GET autenticado (admin): filtra somente enviados (oculta "A Enviar").
 - GET ?lixeira=1 | ?excluidos=1 | ?incluir_excluidos=1: lista todos os excluídos
   (Recebido/Enviado/Pendente/Analisado/Respondido) para Restaurar.
-- GET/POST KBA do cliente: lista inclui "A Enviar" e "Enviado".
+- GET/POST KBA do cliente: lista inclui "A Enviar" e "Enviado",
+  filtrada só pelo CPF/CNPJ (dígitos) — nunca por telefone/e-mail.
 - POST { restaurar: true, id }: remove flags de exclusão (excluido=false).
 - POST envio final (WhatsApp/E-mail): promove o rascunho (mesmo id) para status "Recebido"
   com meio_envio preenchido; remove A Enviar órfãos do mesmo CPF/CNPJ.

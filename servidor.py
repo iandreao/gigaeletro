@@ -2053,7 +2053,11 @@ def preparar_orcamento_resposta(item, lixeira=False):
 
 
 def filtrar_painel(lista, documento, inicio="", fim="", lixeira=False, somente_enviados=False):
-    """lixeira=False devolve só os ativos; lixeira=True, só os excluídos (com Restaurar)."""
+    """lixeira=False devolve só os ativos; lixeira=True, só os excluídos (com Restaurar).
+
+    Com documento informado: igualdade estrita dos dígitos do CPF/CNPJ.
+    PROIBIDO ampliar a busca por telefone, e-mail ou qualquer OR de contato.
+    """
     documento = apenas_digitos(documento)
     bruto_inicio = str(inicio or "").strip()
     bruto_fim = str(fim or "").strip()
@@ -2081,7 +2085,7 @@ def filtrar_painel(lista, documento, inicio="", fim="", lixeira=False, somente_e
             continue
         if fim and (not dia or dia > fim):
             continue
-        if documento and apenas_digitos(str(item.get("documento") or "")) != documento:
+        if documento and documento_do_orcamento(item) != documento:
             continue
         saida.append(preparar_orcamento_resposta(item, lixeira=lixeira))
     saida.sort(key=lambda atual: (str(atual.get("data") or ""), str(atual.get("id") or "")), reverse=True)
@@ -2097,6 +2101,43 @@ def documento_consulta_valido(documento):
     if cpf_valido(documento) or cnpj_valido(documento):
         return documento
     return ""
+
+
+def documento_do_orcamento(item):
+    """CPF/CNPJ canônico do registro (só dígitos). Nunca usa telefone/e-mail.
+
+    Se topo e cliente.documento existirem e divergirem, devolve vazio para o registro
+    não vazar em consulta pública por nenhum dos dois CPFs.
+    """
+    if not isinstance(item, dict):
+        return ""
+    topo = apenas_digitos(str(
+        item.get("documento")
+        or item.get("cpfCnpj")
+        or item.get("cpf_cnpj")
+        or ""
+    ))
+    cliente = item.get("cliente") if isinstance(item.get("cliente"), dict) else {}
+    aninhado = apenas_digitos(str(
+        cliente.get("documento")
+        or cliente.get("cpfCnpj")
+        or cliente.get("cpf_cnpj")
+        or ""
+    ))
+    if topo and aninhado and topo != aninhado:
+        return ""
+    return topo or aninhado
+
+
+def orcamentos_do_documento(lista, documento):
+    """Isolamento estrito: só orçamentos cujo CPF/CNPJ bate exatamente com o pesquisado."""
+    documento = documento_consulta_valido(documento) or apenas_digitos(documento)
+    if not documento:
+        return []
+    return [
+        item for item in (lista or [])
+        if isinstance(item, dict) and documento_do_orcamento(item) == documento
+    ]
 
 
 def mascarar_telefone(valor):
@@ -2116,10 +2157,13 @@ def mascarar_email(valor):
     return (local[:2] if len(local) > 2 else local[:1]) + "***@" + dominio
 
 
-def dados_identidade(registros):
-    """Telefone e e-mail mascarados do orçamento mais recente que tiver cada um (registros já vêm do mais novo)."""
+def dados_identidade(registros, documento=""):
+    """Telefone e e-mail mascarados só de orçamentos do CPF/CNPJ informado (já filtrados)."""
+    documento = apenas_digitos(documento)
     telefone = email = ""
     for registro in registros:
+        if documento and documento_do_orcamento(registro) != documento:
+            continue
         cliente = registro.get("cliente") if isinstance(registro.get("cliente"), dict) else {}
         if not telefone:
             telefone = mascarar_telefone(registro.get("telefone") or cliente.get("celular"))
@@ -2244,7 +2288,7 @@ def excluir_orcamento_painel(identificador, documento="", quem="gestor"):
         alvo = next((item for item in lista if str(item.get("id") or "") == identificador), None)
         if alvo is None:
             return None
-        if documento and str(alvo.get("documento") or "") != documento:
+        if documento and documento_do_orcamento(alvo) != documento:
             return None
         if not alvo.get("excluido"):
             alvo["excluido"] = True
@@ -2455,7 +2499,7 @@ def achar_orcamento_por_id(lista, documento, identificador):
             continue
         if str(item.get("id") or "") != identificador:
             continue
-        if documento and apenas_digitos(str(item.get("documento") or "")) != documento:
+        if documento and documento_do_orcamento(item) != documento:
             continue
         return item
     return None
@@ -2471,7 +2515,7 @@ def achar_rascunho_painel(lista, documento, tipo_orcamento, identificador="", so
                 continue
             if str(item.get("id") or "") != identificador:
                 continue
-            if apenas_digitos(str(item.get("documento") or "")) != documento:
+            if documento_do_orcamento(item) != documento:
                 continue
             if somente_a_enviar and status_envio_de(item) != STATUS_ENVIO_RASCUNHO:
                 return None
@@ -2483,7 +2527,7 @@ def achar_rascunho_painel(lista, documento, tipo_orcamento, identificador="", so
             continue
         if status_envio_de(item) != STATUS_ENVIO_RASCUNHO:
             continue
-        if apenas_digitos(str(item.get("documento") or "")) != documento:
+        if documento_do_orcamento(item) != documento:
             continue
         if candidato_qualquer is None:
             candidato_qualquer = item
@@ -2592,7 +2636,7 @@ def excluir_rascunho_painel(documento, identificador=""):
             if item.get("excluido") or status_envio_de(item) != STATUS_ENVIO_RASCUNHO:
                 restante.append(item)
                 continue
-            if apenas_digitos(str(item.get("documento") or "")) != documento:
+            if documento_do_orcamento(item) != documento:
                 restante.append(item)
                 continue
             if identificador and str(item.get("id") or "") != identificador:
@@ -2610,11 +2654,12 @@ def orcamento_anterior(lista, registro):
     assinatura = assinatura_itens(registro["itens"])
     tipo_registro = str(registro.get("tipoOrcamento") or "").strip() or tipo_orcamento_de(registro)
     id_informado = str(registro.get("id") or "")
-    rascunho = achar_rascunho_painel(lista, registro["documento"], tipo_registro, id_informado)
+    doc_registro = documento_do_orcamento(registro) or apenas_digitos(str(registro.get("documento") or ""))
+    rascunho = achar_rascunho_painel(lista, doc_registro, tipo_registro, id_informado)
     if rascunho is not None:
         return rascunho, "rascunho"
     for item in lista:
-        if item.get("excluido") or str(item.get("documento") or "") != registro["documento"]:
+        if item.get("excluido") or documento_do_orcamento(item) != doc_registro:
             continue
         if status_envio_de(item) == STATUS_ENVIO_RASCUNHO:
             continue
@@ -2698,7 +2743,7 @@ def incluir_orcamento_painel(corpo, meio_envio):
                 if (
                     not marcado_excluido(item)
                     and status_envio_de(item) == STATUS_ENVIO_RASCUNHO
-                    and apenas_digitos(str(item.get("documento") or "")) == documento
+                    and documento_do_orcamento(item) == documento
                 ):
                     continue
                 # Remove duplicata fantasma com o mesmo id (legado).
@@ -2743,7 +2788,7 @@ def incluir_orcamento_painel(corpo, meio_envio):
                     if (
                         not marcado_excluido(item)
                         and status_envio_de(item) == STATUS_ENVIO_RASCUNHO
-                        and apenas_digitos(str(item.get("documento") or "")) == documento
+                        and documento_do_orcamento(item) == documento
                     ):
                         continue
                     if str(item.get("id") or "") == str(registro.get("id") or ""):
@@ -3927,8 +3972,16 @@ IDENTIDADE_INDISPONIVEL = "Não foi possível confirmar sua identidade por aqui.
 
 
 def responder_desafio_identidade(saida, documento, lista):
-    """Primeira etapa do cliente: nunca devolve orçamentos, só as opções mascaradas de telefone e e-mail."""
+    """Primeira etapa do cliente: nunca devolve orçamentos, só as opções mascaradas de telefone e e-mail.
+
+    Desafio e opções saem exclusivamente dos orçamentos do CPF/CNPJ pesquisado — sem OR por contato.
+    """
+    documento = documento_consulta_valido(documento)
+    if not documento:
+        escrever_json(saida, {"ok": False, "erro": "CPF ou CNPJ inválido"}, 400)
+        return
     registros = filtrar_painel(lista, documento)
+    registros = [item for item in registros if documento_do_orcamento(item) == documento]
     if not registros:
         escrever_json(saida, {"ok": True, "orcamentos": []})
         return
@@ -3936,7 +3989,7 @@ def responder_desafio_identidade(saida, documento, lista):
     if restante:
         escrever_json(saida, {"ok": False, "bloqueado": True, "erro": aviso_bloqueio_identidade(restante)}, 429)
         return
-    reais = {campo: valor for campo, valor in dados_identidade(registros).items() if valor}
+    reais = {campo: valor for campo, valor in dados_identidade(registros, documento).items() if valor}
     if not reais or not segredo_sessao():
         escrever_json(saida, {"ok": False, "erro": IDENTIDADE_INDISPONIVEL}, 409)
         return
@@ -3956,10 +4009,11 @@ def responder_validar_identidade(saida, corpo):
         return
     try:
         registros = filtrar_painel(ler_painel(), documento)
+        registros = [item for item in registros if documento_do_orcamento(item) == documento]
     except OSError:
         escrever_json(saida, {"ok": False, "erro": "Não foi possível consultar os orçamentos."}, 500)
         return
-    reais = {campo: valor for campo, valor in dados_identidade(registros).items() if valor}
+    reais = {campo: valor for campo, valor in dados_identidade(registros, documento).items() if valor}
     if not reais or not segredo_sessao():
         escrever_json(saida, {"ok": False, "erro": IDENTIDADE_INDISPONIVEL}, 409)
         return
@@ -3974,7 +4028,11 @@ def responder_validar_identidade(saida, corpo):
     )
     if acertou:
         zerar_identidade(documento)
-        escrever_json(saida, {"ok": True, "orcamentos": registros})
+        # Reforço final: nunca devolver orçamento de outro CPF/CNPJ.
+        escrever_json(saida, {
+            "ok": True,
+            "orcamentos": [item for item in registros if documento_do_orcamento(item) == documento],
+        })
         return
     restantes = KBA_TENTATIVAS - tentativa
     if restantes <= 0:
