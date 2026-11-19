@@ -2472,19 +2472,24 @@
 
   function documentoDoRegistro(item) {
     if (!item) return "";
-    var topo = apenasDigitos(item.documento || item.cpfCnpj || item.cpf_cnpj || "");
+    var topo = apenasDigitos(item.documento || item.cpfCnpj || item.cpf_cnpj || item.cpf || "");
     var cliente = item.cliente && typeof item.cliente === "object" ? item.cliente : {};
-    var aninhado = apenasDigitos(cliente.documento || cliente.cpfCnpj || cliente.cpf_cnpj || "");
+    var aninhado = apenasDigitos(cliente.documento || cliente.cpfCnpj || cliente.cpf_cnpj || cliente.cpf || "");
     /* Se topo e cliente divergem, não atribui a nenhum CPF (evita misturar históricos). */
     if (topo && aninhado && topo !== aninhado) return "";
-    return topo || aninhado;
+    var doc = topo || aninhado;
+    if (doc.length !== 11 && doc.length !== 14) return "";
+    if (doc.length === 11 && !cpfValido(doc)) return "";
+    if (doc.length === 14 && !cnpjValido(doc)) return "";
+    return doc;
   }
 
   function filtrarHistoricoPorDocumento(lista, documento) {
     var doc = apenasDigitos(documento);
-    if (!doc) return [];
+    if ((doc.length !== 11 && doc.length !== 14) || !documentoBuscaValido(doc)) return [];
     return (Array.isArray(lista) ? lista : []).map(registroHistorico).filter(function (item) {
-      return item.id && documentoDoRegistro(item) === doc;
+      var docRegistro = documentoDoRegistro(item);
+      return item.id && docRegistro && docRegistro === doc;
     });
   }
 
@@ -2501,13 +2506,16 @@
 
   function statusEnvioHistorico(item) {
     var texto = String((item && item.status) || "").trim();
-    if (texto !== "A Enviar") return "Enviado";
-    var meio = String((item && item.meio_envio) || "").trim();
-    var pdfId = String((item && item.pdfId) || "").trim();
-    if (meio === "WhatsApp" || meio === "E-mail" || meio === "Comando de Voz" || pdfId) {
-      return "Enviado";
+    if (texto === "A Enviar") {
+      var meio = String((item && item.meio_envio) || "").trim();
+      var pdfId = String((item && item.pdfId) || "").trim();
+      if (meio === "WhatsApp" || meio === "E-mail" || meio === "Comando de Voz" || pdfId) {
+        return "Recebido";
+      }
+      return "A Enviar";
     }
-    return "A Enviar";
+    /* Legado "Enviado"/Pendente e status canônico → Recebido no badge do cliente. */
+    return "Recebido";
   }
 
   function tipoOrcamentoHistorico(item) {

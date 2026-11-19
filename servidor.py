@@ -2085,8 +2085,11 @@ def filtrar_painel(lista, documento, inicio="", fim="", lixeira=False, somente_e
             continue
         if fim and (not dia or dia > fim):
             continue
-        if documento and documento_do_orcamento(item) != documento:
-            continue
+        if documento:
+            doc_registro = documento_do_orcamento(item)
+            # Igualdade estrita de dígitos; rejeita vazio/nulo/diferente — sem fallback de contato.
+            if not doc_registro or len(doc_registro) not in (11, 14) or doc_registro != documento:
+                continue
         saida.append(preparar_orcamento_resposta(item, lixeira=lixeira))
     saida.sort(key=lambda atual: (str(atual.get("data") or ""), str(atual.get("id") or "")), reverse=True)
     return saida
@@ -2104,10 +2107,9 @@ def documento_consulta_valido(documento):
 
 
 def documento_do_orcamento(item):
-    """CPF/CNPJ canônico do registro (só dígitos). Nunca usa telefone/e-mail.
+    """CPF/CNPJ canônico do registro (só dígitos 11/14). Nunca usa telefone/e-mail/nome.
 
-    Se topo e cliente.documento existirem e divergirem, devolve vazio para o registro
-    não vazar em consulta pública por nenhum dos dois CPFs.
+    Vazio, nulo, tamanho inválido ou divergência topo×cliente → "".
     """
     if not isinstance(item, dict):
         return ""
@@ -2115,6 +2117,7 @@ def documento_do_orcamento(item):
         item.get("documento")
         or item.get("cpfCnpj")
         or item.get("cpf_cnpj")
+        or item.get("cpf")
         or ""
     ))
     cliente = item.get("cliente") if isinstance(item.get("cliente"), dict) else {}
@@ -2122,17 +2125,23 @@ def documento_do_orcamento(item):
         cliente.get("documento")
         or cliente.get("cpfCnpj")
         or cliente.get("cpf_cnpj")
+        or cliente.get("cpf")
         or ""
     ))
     if topo and aninhado and topo != aninhado:
         return ""
-    return topo or aninhado
+    doc = topo or aninhado
+    if len(doc) not in (11, 14):
+        return ""
+    if not (cpf_valido(doc) or cnpj_valido(doc)):
+        return ""
+    return doc
 
 
 def orcamentos_do_documento(lista, documento):
     """Isolamento estrito: só orçamentos cujo CPF/CNPJ bate exatamente com o pesquisado."""
-    documento = documento_consulta_valido(documento) or apenas_digitos(documento)
-    if not documento:
+    documento = documento_consulta_valido(documento)
+    if not documento or len(documento) not in (11, 14):
         return []
     return [
         item for item in (lista or [])
