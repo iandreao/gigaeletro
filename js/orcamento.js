@@ -216,6 +216,8 @@
   var sugestaoAtiva = -1;
   var orcamentoSendoEditadoId = "";
   var orcamentoSendoEditadoDocumento = "";
+  var reeditarOrcamentoFinal = false;
+  var abortRascunhoNuvem = null;
   var tipoOrcamentoAtual = "Tradicional";
   var tipoOrcamentoTravado = "";
   var timerRascunhoNuvem = 0;
@@ -1136,16 +1138,27 @@
     }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (corpo) {
         if (!resposta.ok || !corpo || !corpo.ok) throw { erroServidor: corpo && corpo.erro };
-        return String(corpo.id || "");
+        return {
+          id: String(corpo.id || ""),
+          aviso: corpo.aviso || "",
+          emailEnviado: corpo.emailEnviado
+        };
       });
-    }).then(function (idPainel) {
+    }).then(function (resultado) {
+      var idPainel = resultado && resultado.id;
       if (!idPainel) throw { erroServidor: "Não foi possível registrar o orçamento." };
       orcamentoSendoEditadoId = "";
       orcamentoSendoEditadoDocumento = "";
+      reeditarOrcamentoFinal = false;
       envioEmailEmCurso = false;
       if (enviarEmail) enviarEmail.textContent = "Enviar por E-mail";
       limparDepoisDoEnvio();
-      mostrarAviso("Orçamento enviado para " + destino);
+      if (resultado.aviso) mostrarAviso(resultado.aviso);
+      else if (resultado.emailEnviado === false) {
+        mostrarAviso("Orçamento registrado. O e-mail não pôde ser enviado; use o WhatsApp se precisar reenviar o PDF.");
+      } else {
+        mostrarAviso("Orçamento enviado para " + destino);
+      }
     }, function (falha) {
       pausarSyncRascunho = false;
       soltarBotaoEmail();
@@ -1210,7 +1223,7 @@
       pdfId: pdfId || "",
       tipo: cliente.tipo,
       tipoOrcamento: tipoOrcamentoAtivo(),
-      status: "Enviado",
+      status: "Recebido",
       cliente: copiarCliente(cliente),
       itens: itens
     };
@@ -1237,6 +1250,7 @@
     return {
       acao: "rascunho",
       id: orcamentoSendoEditadoId || "",
+      reeditar: !!reeditarOrcamentoFinal,
       status: "A Enviar",
       tipoOrcamento: tipoOrcamentoAtivo(),
       nome: cliente.nome || "",
@@ -1252,6 +1266,10 @@
     window.clearTimeout(timerRascunhoNuvem);
     timerRascunhoNuvem = 0;
     syncRascunhoEmCurso += 1;
+    if (abortRascunhoNuvem) {
+      try { abortRascunhoNuvem.abort(); } catch (erroAbort) { /* ignore */ }
+      abortRascunhoNuvem = null;
+    }
   }
 
   function sincronizarRascunhoNuvem(imediato) {
@@ -1263,10 +1281,15 @@
       if (!documento) return;
       var ticket = ++syncRascunhoEmCurso;
       var corpo = payloadRascunhoNuvem();
+      if (abortRascunhoNuvem) {
+        try { abortRascunhoNuvem.abort(); } catch (erroAbort) { /* ignore */ }
+      }
+      abortRascunhoNuvem = typeof AbortController === "function" ? new AbortController() : null;
+      var sinal = abortRascunhoNuvem ? abortRascunhoNuvem.signal : undefined;
       if (!corpo.itens.length) {
         var url = "/api/orcamentos?rascunho=1&documento=" + encodeURIComponent(documento);
         if (orcamentoSendoEditadoId) url += "&id=" + encodeURIComponent(orcamentoSendoEditadoId);
-        fetch(url, { method: "DELETE", cache: "no-store" }).then(function () {
+        fetch(url, { method: "DELETE", cache: "no-store", signal: sinal }).then(function () {
           if (ticket !== syncRascunhoEmCurso) return;
           orcamentoSendoEditadoId = "";
           orcamentoSendoEditadoDocumento = "";
@@ -1277,7 +1300,9 @@
       fetch("/api/orcamentos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(corpo)
+        body: JSON.stringify(corpo),
+        signal: sinal,
+        cache: "no-store"
       }).then(function (resposta) {
         return resposta.json().catch(function () { return null; }).then(function (dados) {
           if (ticket !== syncRascunhoEmCurso) return;
@@ -1298,11 +1323,12 @@
 
   function gravarPainelGestor(cliente, pdfId) {
     var corpo = dadosPainel(cliente, pdfId, "WhatsApp");
+    corpo.status = "Recebido";
+    corpo.meio_envio = "WhatsApp";
     return fetch("/api/orcamentos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(corpo),
-      keepalive: true,
       cache: "no-store"
     }).then(function (resposta) {
       return resposta.json().catch(function () { return null; }).then(function (publicado) {
@@ -1315,11 +1341,13 @@
   function publicarPainel(cliente, pdfId) {
     cancelarSyncRascunhoPendente();
     pausarSyncRascunho = true;
+    reeditarOrcamentoFinal = false;
     return gravarPainelGestor(cliente, pdfId).then(function (idPainel) {
-      /* O mesmo id do rascunho vira Enviado: nunca DELETE nele. */
+      /* O mesmo id do rascunho vira Recebido: nunca DELETE nele. */
       if (idPainel) {
         orcamentoSendoEditadoId = "";
         orcamentoSendoEditadoDocumento = "";
+        reeditarOrcamentoFinal = false;
       }
       return idPainel;
     }, function (erro) {
@@ -1508,11 +1536,12 @@
   }
 
   function limparDepoisDoEnvio() {
-    /* Impede DELETE/upsert de rascunho por cima do registro recém marcado Enviado. */
+    /* Impede DELETE/upsert de rascunho por cima do registro recém marcado Recebido. */
     pausarSyncRascunho = true;
     cancelarSyncRascunhoPendente();
     orcamentoSendoEditadoId = "";
     orcamentoSendoEditadoDocumento = "";
+    reeditarOrcamentoFinal = false;
     var fisico = formCliente && formCliente.querySelector('input[name="tipo"][value="pf"]');
     if (fisico) fisico.checked = true;
     limparCamposCliente();
@@ -1523,8 +1552,8 @@
     if (enviar) enviar.textContent = "Enviar por WhatsApp";
     document.dispatchEvent(new CustomEvent("gv-travar-tipo-orcamento", { detail: { travar: false } }));
     document.dispatchEvent(new CustomEvent("gv-orcamento-enviado"));
-    /* Carrinho e id já limpos: libera sync para o próximo orçamento. */
-    pausarSyncRascunho = false;
+    /* Só libera sync no próximo tick, com carrinho e documento já vazios. */
+    window.setTimeout(function () { pausarSyncRascunho = false; }, 0);
   }
 
   function preencherCliente(cliente) {
@@ -2278,7 +2307,13 @@
 
   function statusEnvioHistorico(item) {
     var texto = String((item && item.status) || "").trim();
-    return texto === "A Enviar" ? "A Enviar" : "Enviado";
+    if (texto !== "A Enviar") return "Enviado";
+    var meio = String((item && item.meio_envio) || "").trim();
+    var pdfId = String((item && item.pdfId) || "").trim();
+    if (meio === "WhatsApp" || meio === "E-mail" || meio === "Comando de Voz" || pdfId) {
+      return "Enviado";
+    }
+    return "A Enviar";
   }
 
   function tipoOrcamentoHistorico(item) {
@@ -2358,6 +2393,7 @@
     selecionados = itens;
     orcamentoSendoEditadoId = String(id || "");
     orcamentoSendoEditadoDocumento = registro.documento || documentoConsulta;
+    reeditarOrcamentoFinal = statusEnvioHistorico(registro) !== "A Enviar";
     tipoOrcamentoAtual = registro.tipoOrcamento || tipoOrcamentoHistorico(registro);
     tipoOrcamentoTravado = tipoOrcamentoAtual;
     if (registro.cliente) preencherCliente(registro.cliente);

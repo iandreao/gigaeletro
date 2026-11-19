@@ -775,10 +775,22 @@
 
   function statusAtendimento(item) {
     var texto = String((item && item.status) || "").trim();
-    if (texto === "A Enviar") return "A Enviar";
-    /* Enviado/Pendente/Recebido (e vazio) = status inicial na Área Restrita. */
-    if (!texto || texto === "Enviado" || texto === "Pendente" || texto === "Recebido") return "Recebido";
+    if (texto === "A Enviar") {
+      /* Legado rebaixado: PDF oficial ou canal final = Recebido (paridade com status_envio_de). */
+      var meio = String((item && item.meio_envio) || "").trim();
+      var pdfId = String((item && item.pdfId) || "").trim();
+      if (meio === "WhatsApp" || meio === "E-mail" || meio === "Comando de Voz" || pdfId) return "Recebido";
+      return "A Enviar";
+    }
+    /* Vazio/None/Pendente/Enviado/Em aberto/Novo/Recebido = status inicial Recebido. */
+    if (!texto || texto === "None" || texto === "null" || texto === "Enviado" || texto === "Pendente" || texto === "Recebido" || texto === "Em aberto" || texto === "Novo") {
+      return "Recebido";
+    }
     return STATUS_ORCAMENTO.indexOf(texto) >= 0 ? texto : "Recebido";
+  }
+
+  function filtroStatusEhExcluido(valor) {
+    return String(valor || "").normalize("NFC").trim().toLowerCase() === "excluído";
   }
 
   function statusAtual(item) {
@@ -942,7 +954,7 @@
 
   function sincronizarModoLixeiraDoFiltro(opcoes) {
     var cfg = opcoes || {};
-    var querLixeira = (campoFiltroStatus && campoFiltroStatus.value === "Excluído") || cfg.forcarLixeira === true;
+    var querLixeira = (campoFiltroStatus && filtroStatusEhExcluido(campoFiltroStatus.value)) || cfg.forcarLixeira === true;
     if (cfg.forcarAtivos === true) querLixeira = false;
     var mudou = querLixeira !== modoLixeira;
     modoLixeira = querLixeira;
@@ -950,7 +962,7 @@
       idsExcluidos = {};
       idsRestaurados = {};
       if (modoLixeira) definirFiltroStatus("Excluído");
-      else if (campoFiltroStatus && campoFiltroStatus.value === "Excluído") definirFiltroStatus("");
+      else if (campoFiltroStatus && filtroStatusEhExcluido(campoFiltroStatus.value)) definirFiltroStatus("");
     }
     if (cfg.atalho) lixeiraComFiltro = false;
     else if (modoLixeira && cfg.buscar) lixeiraComFiltro = true;
@@ -964,7 +976,7 @@
     var vendedor = filtros.vendedor;
     var ocultos = idsOcultos();
     var filtrarVendedor = !modoLixeira || lixeiraComFiltro;
-    var filtrarStatus = !modoLixeira && status && status !== "Excluído";
+    var filtrarStatus = !modoLixeira && status && !filtroStatusEhExcluido(status);
     return (lista || []).filter(function (item) {
       if (ocultos[String(item.id)]) return false;
       if (filtrarStatus && statusAtendimento(item) !== status) return false;

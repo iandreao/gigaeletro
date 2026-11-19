@@ -2,9 +2,9 @@
 
 Toda a lógica vive em servidor.responder_orcamentos (mesmo código do servidor local):
 
-- POST { acao: "rascunho", documento, itens, tipoOrcamento, id? }
+- POST { acao: "rascunho", documento, itens, tipoOrcamento, id?, reeditar? }
   upsert com status "A Enviar"; itens=[] remove o rascunho.
-  Não rebaixa Enviado sem id explícito de edição.
+  Não rebaixa Recebido/Enviado sem reeditar=true.
 - DELETE ?rascunho=1&documento=...&id=...
   remove rascunho "A Enviar" vazio / correspondente (nunca Enviado).
 - GET autenticado (admin): filtra somente enviados (oculta "A Enviar").
@@ -12,8 +12,9 @@ Toda a lógica vive em servidor.responder_orcamentos (mesmo código do servidor 
   (Recebido/Enviado/Pendente/Analisado/Respondido) para Restaurar.
 - GET/POST KBA do cliente: lista inclui "A Enviar" e "Enviado".
 - POST { restaurar: true, id }: remove flags de exclusão (excluido=false).
-- POST envio final (WhatsApp/E-mail): promove o rascunho (mesmo id) para status "Enviado"
+- POST envio final (WhatsApp/E-mail): promove o rascunho (mesmo id) para status "Recebido"
   com meio_envio preenchido; remove A Enviar órfãos do mesmo CPF/CNPJ.
+- GET admin normaliza status ativo vazio/Pendente/Enviado → "Recebido".
 """
 import sys
 from pathlib import Path

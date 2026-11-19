@@ -1974,19 +1974,39 @@ def marcado_excluido(item):
     return texto in ("1", "true", "sim", "yes")
 
 
-def status_envio_de(item):
-    """Ciclo multi-dispositivo: A Enviar (rascunho) ou Enviado (e legados de atendimento)."""
-    texto = str((item or {}).get("status") or "").strip()
+def status_atendimento_padrao():
+    """Primeiro status ativo do filtro da Área Restrita."""
+    return STATUS_ATENDIMENTO_RECEBIDO
+
+
+def normalizar_status_atendimento(valor):
+    """Mapeia status legados/vazios para o canônico da Área Restrita."""
+    texto = str(valor or "").strip()
     if texto == STATUS_ENVIO_RASCUNHO:
         return STATUS_ENVIO_RASCUNHO
-    if texto == STATUS_ENVIO_FINAL:
+    if texto in ("Analisado", "Respondido"):
+        return texto
+    # Vazio, None, Pendente, Enviado, Em aberto, Novo, Recebido → Recebido.
+    return STATUS_ATENDIMENTO_RECEBIDO
+
+
+def status_envio_de(item):
+    """Ciclo multi-dispositivo: A Enviar (rascunho puro) vs concluído (Recebido e legados)."""
+    if not isinstance(item, dict):
         return STATUS_ENVIO_FINAL
-    # Recebido/Pendente/Analisado/Respondido e registros sem status já foram concluídos pelo cliente.
+    texto = str(item.get("status") or "").strip()
+    if texto == STATUS_ENVIO_RASCUNHO:
+        meio = str(item.get("meio_envio") or "").strip()
+        pdf_id = str(item.get("pdfId") or "").strip().lower()
+        # Já houve PDF oficial ou canal final: não é rascunho (corrige rebaixamento legado).
+        if meio in MEIOS_ENVIO or id_pdf_valido(pdf_id):
+            return STATUS_ENVIO_FINAL
+        return STATUS_ENVIO_RASCUNHO
     return STATUS_ENVIO_FINAL
 
 
 def orcamento_visivel_admin(item):
-    """Rascunhos A Enviar ficam fora da listagem ativa. A lixeira é tratada em filtrar_painel."""
+    """Rascunhos A Enviar (sem envio/PDF) ficam fora da listagem ativa. Lixeira à parte."""
     return status_envio_de(item) != STATUS_ENVIO_RASCUNHO
 
 
@@ -2006,6 +2026,24 @@ def tipo_orcamento_de(corpo, itens=None):
     return "Tradicional"
 
 
+def preparar_orcamento_resposta(item, lixeira=False):
+    """Normaliza status ativo para o padrão Recebido sem perder Analisado/Respondido."""
+    if not isinstance(item, dict):
+        return item
+    copia = dict(item)
+    if lixeira or marcado_excluido(copia):
+        return copia
+    if status_envio_de(copia) == STATUS_ENVIO_RASCUNHO:
+        return copia
+    status_campo = str(copia.get("status") or "").strip()
+    if status_campo == STATUS_ENVIO_RASCUNHO:
+        # Legado rebaixado com PDF/canal: expõe como Recebido na Área Restrita.
+        copia["status"] = status_atendimento_padrao()
+    else:
+        copia["status"] = normalizar_status_atendimento(status_campo)
+    return copia
+
+
 def filtrar_painel(lista, documento, inicio="", fim="", lixeira=False, somente_enviados=False):
     """lixeira=False devolve só os ativos; lixeira=True, só os excluídos (com Restaurar)."""
     documento = apenas_digitos(documento)
@@ -2023,8 +2061,8 @@ def filtrar_painel(lista, documento, inicio="", fim="", lixeira=False, somente_e
             continue
         if lixeira:
             # Lixeira: todos os excluídos (Recebido/Enviado/Pendente/Analisado/Respondido).
-            # Só ignora rascunho A Enviar sem itens.
-            if status_envio_de(item) == STATUS_ENVIO_RASCUNHO:
+            # Só ignora rascunho A Enviar puro sem itens.
+            if str(item.get("status") or "").strip() == STATUS_ENVIO_RASCUNHO and status_envio_de(item) == STATUS_ENVIO_RASCUNHO:
                 itens = item.get("itens") if isinstance(item.get("itens"), list) else []
                 if not itens:
                     continue
@@ -2037,7 +2075,7 @@ def filtrar_painel(lista, documento, inicio="", fim="", lixeira=False, somente_e
             continue
         if documento and apenas_digitos(str(item.get("documento") or "")) != documento:
             continue
-        saida.append(item)
+        saida.append(preparar_orcamento_resposta(item, lixeira=lixeira))
     saida.sort(key=lambda atual: (str(atual.get("data") or ""), str(atual.get("id") or "")), reverse=True)
     return saida
 
@@ -2242,14 +2280,24 @@ def devolver_orcamento_painel(original):
 
 
 def status_atendimento(valor):
-    """Status interno da Área Restrita. Recebido unifica Enviado/Pendente legados."""
+    """Status interno da Área Restrita. Recebido unifica Enviado/Pendente/vazios."""
     texto = str(valor or "").strip()
     if texto == STATUS_ENVIO_RASCUNHO:
         return ""
-    if texto in (STATUS_ATENDIMENTO_RECEBIDO, STATUS_ENVIO_FINAL, "Pendente"):
-        return STATUS_ATENDIMENTO_RECEBIDO
     if texto in ("Analisado", "Respondido"):
         return texto
+    if texto in (
+        STATUS_ATENDIMENTO_RECEBIDO,
+        STATUS_ENVIO_FINAL,
+        "Pendente",
+        "Em aberto",
+        "Novo",
+        "",
+    ):
+        return STATUS_ATENDIMENTO_RECEBIDO
+    # Qualquer outro status ativo desconhecido cai no padrão Recebido.
+    if texto:
+        return STATUS_ATENDIMENTO_RECEBIDO
     return ""
 
 
@@ -2389,25 +2437,24 @@ def segundos_desde(data, agora):
 
 
 def achar_rascunho_painel(lista, documento, tipo_orcamento, identificador="", somente_a_enviar=True):
-    """Localiza rascunho A Enviar (por id, tipo ou qualquer aberto do CPF/CNPJ)."""
+    """Localiza rascunho puro (status_envio_de = A Enviar). Ignora legado rebaixado com PDF/canal."""
     documento = apenas_digitos(documento)
     identificador = str(identificador or "")
     if identificador and id_painel_valido(identificador):
         for item in lista:
-            if item.get("excluido"):
+            if marcado_excluido(item):
                 continue
             if str(item.get("id") or "") != identificador:
                 continue
             if apenas_digitos(str(item.get("documento") or "")) != documento:
                 continue
             if somente_a_enviar and status_envio_de(item) != STATUS_ENVIO_RASCUNHO:
-                # Id aponta para Enviado: não reutiliza como rascunho nesta busca.
-                break
+                return None
             return item
     candidato_tipo = None
     candidato_qualquer = None
     for item in lista:
-        if item.get("excluido"):
+        if marcado_excluido(item):
             continue
         if status_envio_de(item) != STATUS_ENVIO_RASCUNHO:
             continue
@@ -2424,7 +2471,7 @@ def achar_rascunho_painel(lista, documento, tipo_orcamento, identificador="", so
 
 def upsert_rascunho_painel(corpo):
     """Upsert de rascunho multi-dispositivo. Existência = itens.length > 0; total R$ 0,00 é válido.
-    Nunca rebaixa um registro já Enviado: só atualiza status A Enviar (ou cria outro)."""
+    Nunca rebaixa Recebido/Enviado/Pendente sem reeditar=true."""
     if not isinstance(corpo, dict):
         return None
     documento = apenas_digitos(corpo.get("documento") or "")
@@ -2446,16 +2493,20 @@ def upsert_rascunho_painel(corpo):
     if not id_pdf_valido(pdf_id):
         pdf_id = ""
     identificador = str(corpo.get("id") or "")
+    reeditar = bool(corpo.get("reeditar"))
     with PAINEL_LOCK:
         lista = ler_painel()
-        # Com id explícito (edição), pode reassumir Enviado → A Enviar. Sem id, só rascunhos abertos.
+        # Só rebaixa concluído → A Enviar com reeditar explícito (edição em Meus Orçamentos).
         anterior = achar_rascunho_painel(
             lista,
             documento,
             tipo_orcamento,
             identificador,
-            somente_a_enviar=not id_painel_valido(identificador),
+            somente_a_enviar=not (reeditar and id_painel_valido(identificador)),
         )
+        if anterior is not None and not reeditar and status_envio_de(anterior) != STATUS_ENVIO_RASCUNHO:
+            # Auto-save atrasado após WhatsApp/E-mail/Voz: não rebaixa Recebido.
+            anterior = None
         if anterior is not None:
             anterior["data"] = agora_painel().isoformat(timespec="seconds")
             anterior["nome"] = nome
@@ -2473,7 +2524,11 @@ def upsert_rascunho_painel(corpo):
             anterior["cliente"] = cliente_do_painel(corpo, nome, documento, telefone)
             anterior["status"] = STATUS_ENVIO_RASCUNHO
             anterior["tipoOrcamento"] = tipo_orcamento
-            anterior["meio_envio"] = ""
+            if reeditar:
+                # Reedição explícita em Meus Orçamentos: volta a rascunho puro.
+                anterior["meio_envio"] = ""
+            elif str(anterior.get("meio_envio") or "").strip() not in MEIOS_ENVIO:
+                anterior["meio_envio"] = ""
             gravar_painel(lista)
             return dict(anterior)
         registro = {
@@ -2553,7 +2608,7 @@ def orcamento_anterior(lista, registro):
 
 
 def incluir_orcamento_painel(corpo, meio_envio):
-    """Converte rascunho A Enviar em Enviado (mesmo id) ou cria o registro final. Sem duplicar A Enviar."""
+    """Converte rascunho A Enviar em Recebido (mesmo id) ou cria o registro final. Sem duplicar A Enviar."""
     if not isinstance(corpo, dict):
         return None
     if meio_envio not in MEIOS_ENVIO:
@@ -2582,7 +2637,7 @@ def incluir_orcamento_painel(corpo, meio_envio):
         "total": round(sum(item["valor"] for item in itens), 2),
         "pdfId": pdf_id,
         "cliente": cliente_do_painel(corpo, nome, documento, telefone),
-        "status": STATUS_ENVIO_FINAL,
+        "status": status_atendimento_padrao(),
         "vendedor": "",
         "meio_envio": meio_envio,
         "tipoOrcamento": tipo_orcamento,
@@ -2591,9 +2646,9 @@ def incluir_orcamento_painel(corpo, meio_envio):
         lista = ler_painel()
         anterior, motivo = orcamento_anterior(lista, registro)
         if motivo == "repetido":
-            # Reforço: se o "repetido" ainda estiver A Enviar, promove para Enviado.
-            if status_envio_de(anterior) == STATUS_ENVIO_RASCUNHO:
-                anterior["status"] = STATUS_ENVIO_FINAL
+            # Reforço: se o "repetido" ainda estiver A Enviar, promove para Recebido.
+            if str(anterior.get("status") or "").strip() == STATUS_ENVIO_RASCUNHO or status_envio_de(anterior) == STATUS_ENVIO_RASCUNHO:
+                anterior["status"] = status_atendimento_padrao()
                 anterior["meio_envio"] = meio_envio
                 anterior["data"] = registro["data"]
                 anterior["itens"] = registro["itens"]
@@ -2608,7 +2663,7 @@ def incluir_orcamento_painel(corpo, meio_envio):
             print("painel: envio repetido ignorado (%s)" % anterior.get("id"), file=sys.stderr, flush=True)
             return dict(anterior, repetido=True)
         if motivo in ("voz", "rascunho"):
-            # Atualiza o mesmo registro: status Enviado + meio_envio; remove qualquer outro A Enviar órfão do doc.
+            # Atualiza o mesmo registro: status Recebido + meio_envio; remove qualquer outro A Enviar órfão do doc.
             registro["id"] = str(anterior.get("id") or registro["id"])
             registro["vendedor"] = anterior.get("vendedor") or ""
             registro["pdfId"] = registro["pdfId"] or str(anterior.get("pdfId") or "")
@@ -2619,7 +2674,7 @@ def incluir_orcamento_painel(corpo, meio_envio):
                 if item is anterior:
                     continue
                 if (
-                    not item.get("excluido")
+                    not marcado_excluido(item)
                     and status_envio_de(item) == STATUS_ENVIO_RASCUNHO
                     and apenas_digitos(str(item.get("documento") or "")) == documento
                 ):
@@ -2629,8 +2684,8 @@ def incluir_orcamento_painel(corpo, meio_envio):
             lista = nova
         else:
             lista.insert(0, registro)
-        # Garante status final mesmo se o dict anterior tiver sido reaproveitado.
-        registro["status"] = STATUS_ENVIO_FINAL
+        # Garante status final canônico da Área Restrita.
+        registro["status"] = status_atendimento_padrao()
         registro["meio_envio"] = meio_envio
         gravar_painel(lista[:PAINEL_LIMITE])
     try:
@@ -2688,6 +2743,88 @@ def gravar_metricas(lista):
     temporario = destino.with_suffix(".json.tmp")
     temporario.write_bytes(conteudo)
     os.replace(temporario, destino)
+
+
+def limpar_orcamentos_homologacao():
+    """Zera somente painel + métricas de orçamentos (arquivo local e/ou Blob).
+
+    Não altera SQLite (produtos/equipe/acessos), Redis (equipe/tráfego), catálogo nem auditoria.
+    """
+    antes_painel = 0
+    antes_metricas = 0
+    try:
+        antes_painel = len(ler_painel())
+    except OSError:
+        antes_painel = -1
+    try:
+        antes_metricas = len(ler_metricas())
+    except OSError:
+        antes_metricas = -1
+    with PAINEL_LOCK:
+        gravar_painel([])
+        # Com BLOB ativo o gravar_painel não espelha o arquivo local: zera os dois.
+        if not em_vercel():
+            gravar_painel_arquivo([])
+    with METRICAS_LOCK:
+        gravar_metricas([])
+        if not em_vercel():
+            destino = caminho_metricas()
+            destino.parent.mkdir(parents=True, exist_ok=True)
+            temporario = destino.with_suffix(".json.tmp")
+            temporario.write_bytes(b"[]")
+            os.replace(temporario, destino)
+    with KBA_LOCK:
+        KBA_ERROS.clear()
+    pdfs_locais = 0
+    pasta = diretorio_pdf()
+    if pasta.is_dir() and not em_vercel():
+        for arquivo in pasta.glob("*.pdf"):
+            try:
+                arquivo.unlink()
+                pdfs_locais += 1
+            except OSError:
+                pass
+    return {
+        "painel_antes": max(antes_painel, 0),
+        "metricas_antes": max(antes_metricas, 0),
+        "painel": 0,
+        "metricas": 0,
+        "pdfs_locais": pdfs_locais,
+        "armazenamento": "blob" if token_blob() else "arquivo",
+    }
+
+
+def responder_limpar_orcamentos_homologacao(saida):
+    """POST /api/limpar-orcamentos-homologacao — uso único na homologação (sessão admin)."""
+    if saida.command != "POST":
+        saida.send_error(405)
+        return
+    if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+        escrever_json(saida, {"ok": False, "erro": "Acesso restrito."}, 401)
+        return
+    bruto = ler_corpo(saida)
+    try:
+        dados = json.loads((bruto or b"{}").decode("utf-8") or "{}")
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        dados = None
+    if not isinstance(dados, dict):
+        escrever_json(saida, {"ok": False, "erro": "Confirmação inválida."}, 400)
+        return
+    confirmacao = str(dados.get("confirmacao") or "").strip().upper()
+    if confirmacao != "LIMPAR ORCAMENTOS":
+        escrever_json(
+            saida,
+            {"ok": False, "erro": 'Envie {"confirmacao":"LIMPAR ORCAMENTOS"} no corpo JSON.'},
+            400,
+        )
+        return
+    try:
+        resultado = limpar_orcamentos_homologacao()
+    except OSError as erro:
+        print("homologacao: falha ao limpar orçamentos (%s)" % erro, file=sys.stderr, flush=True)
+        escrever_json(saida, {"ok": False, "erro": "Não foi possível limpar os orçamentos."}, 500)
+        return
+    escrever_json(saida, {"ok": True, "limpo": resultado})
 
 
 def item_de_voz(item):
@@ -3447,10 +3584,6 @@ def disparar_resend(chave, payload):
 
 
 def responder_enviar_orcamento_email(saida):
-    chave = variavel_sem_aspas("RESEND_API_KEY")
-    if not chave:
-        escrever_json(saida, {"ok": False, "erro": "Envio por e-mail indisponível no momento."}, 503)
-        return
     try:
         tamanho = int(saida.headers.get("Content-Length", "0") or "0")
     except ValueError:
@@ -3497,6 +3630,7 @@ def responder_enviar_orcamento_email(saida):
         # Como no WhatsApp: sem o PDF publicado, o orçamento entra no painel sem o link.
         print("email: PDF não guardado (%s)" % erro, file=sys.stderr, flush=True)
         pedido["pdfId"] = ""
+    # Sempre promove A Enviar → Recebido no painel antes do Resend (Área Restrita não depende do e-mail).
     try:
         registro = incluir_orcamento_painel(pedido, meio_envio_da_rota("E-mail", pedido))
     except OSError as erro:
@@ -3508,6 +3642,18 @@ def responder_enviar_orcamento_email(saida):
     if registro.get("repetido"):
         # O primeiro pedido já gravou e está mandando este e-mail.
         escrever_json(saida, {"ok": True, "id": registro["id"], "pdfId": str(registro.get("pdfId") or "")})
+        return
+    chave = variavel_sem_aspas("RESEND_API_KEY")
+    if not chave:
+        # Painel já está Recebido; o cliente vê o registro mesmo sem Resend local.
+        registrar_metrica(registro)
+        escrever_json(saida, {
+            "ok": True,
+            "id": registro["id"],
+            "pdfId": str(registro.get("pdfId") or ""),
+            "emailEnviado": False,
+            "aviso": "Orçamento registrado. Envio por e-mail indisponível no momento; use o WhatsApp se precisar reenviar o PDF.",
+        })
         return
     texto, corpo = mensagem_orcamento_email(nome, pedido)
     payload = {
@@ -3528,20 +3674,32 @@ def responder_enviar_orcamento_email(saida):
     except urllib.error.HTTPError as erro:
         detalhe = erro.read(600).decode("utf-8", "replace")
         print("email: Resend recusou (%s) %s" % (erro.code, detalhe), file=sys.stderr, flush=True)
-        desfazer_orcamento_email(registro)
-        mensagem = "Não foi possível enviar o e-mail agora. Tente novamente ou use o WhatsApp."
+        # Mantém Recebido no painel (igual ao WhatsApp); só avisa que o e-mail falhou.
+        registrar_metrica(registro)
+        mensagem = "Orçamento registrado, mas o e-mail não foi enviado. Tente novamente ou use o WhatsApp."
         if erro.code in (401, 403, 422):
-            # Chave, domínio ou remetente mal configurados: o cliente não resolve tentando de novo.
-            mensagem = "Envio por e-mail indisponível no momento. Use o WhatsApp."
-        escrever_json(saida, {"ok": False, "erro": mensagem}, 502)
+            mensagem = "Orçamento registrado. Envio por e-mail indisponível no momento. Use o WhatsApp."
+        escrever_json(saida, {
+            "ok": True,
+            "id": registro["id"],
+            "pdfId": str(registro.get("pdfId") or ""),
+            "emailEnviado": False,
+            "aviso": mensagem,
+        })
         return
     except (urllib.error.URLError, OSError, ValueError) as erro:
         print("email: falha ao falar com o Resend (%s)" % erro, file=sys.stderr, flush=True)
-        desfazer_orcamento_email(registro)
-        escrever_json(saida, {"ok": False, "erro": "Não foi possível enviar o e-mail agora. Tente novamente ou use o WhatsApp."}, 502)
+        registrar_metrica(registro)
+        escrever_json(saida, {
+            "ok": True,
+            "id": registro["id"],
+            "pdfId": str(registro.get("pdfId") or ""),
+            "emailEnviado": False,
+            "aviso": "Orçamento registrado, mas o e-mail não foi enviado. Tente novamente ou use o WhatsApp.",
+        })
         return
     registrar_metrica(registro)
-    escrever_json(saida, {"ok": True, "id": registro["id"], "pdfId": registro["pdfId"], "emailId": str(retorno.get("id") or "")})
+    escrever_json(saida, {"ok": True, "id": registro["id"], "pdfId": registro["pdfId"], "emailId": str(retorno.get("id") or ""), "emailEnviado": True})
 
 
 def desfazer_orcamento_email(registro):
@@ -4007,7 +4165,7 @@ def responder_orcamentos(saida):
     escrever_json(saida, {
         "ok": True,
         "id": registro["id"],
-        "status": registro.get("status") or STATUS_ENVIO_FINAL,
+        "status": registro.get("status") or status_atendimento_padrao(),
     })
 
 
@@ -4208,6 +4366,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if caminho == "/api/enviar-orcamento-email":
             responder_enviar_orcamento_email(self)
+            return
+        if caminho == "/api/limpar-orcamentos-homologacao":
+            responder_limpar_orcamentos_homologacao(self)
             return
         if caminho.startswith("/api/equipe/"):
             responder_equipe_post(self)
