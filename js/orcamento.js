@@ -440,9 +440,18 @@
       if (!EMAIL_ATIVO) enviarEmail.title = "Envio por e-mail em breve";
     }
     document.addEventListener("gv-itens-orcamento", function (evento) {
-      incluirItensVoz(evento && evento.detail);
+      var ok = incluirItensVoz(evento && evento.detail);
+      if (evento && evento.detail && typeof evento.detail === "object") evento.detail.ok = ok;
     });
   }
+
+  window.GigaModalidadeOrcamento = {
+    atual: modalidadeListaAtual,
+    sincronizar: sincronizarModalidadeOrcamento,
+    confirmarTroca: confirmarTrocaModalidade,
+    limparParaTroca: limparListaParaTrocaModalidade,
+    incluirItensVoz: incluirItensVoz
+  };
 
   if (limparOrcamento) {
     limparOrcamento.innerHTML = icone("lixeira") + "<span>Limpar Lista</span>";
@@ -567,10 +576,9 @@
 
   function adicionar(codigo) {
     if (document.body.dataset.gvCatalogoTravado === "1") return;
-    /* Item de catálogo entra no lugar da lista de voz, e só neste momento. */
-    if (selecionados.some(itemVoz)) {
-      selecionados = selecionados.filter(function (item) { return !itemVoz(item); });
-      limparVozDoOrcamento();
+    if (tipoOrcamentoTravado === "Comando de Voz" || modalidadeListaAtual() === "voz") {
+      mostrarAviso("Não é possível misturar itens do Catálogo com itens de Comando de Voz no mesmo orçamento.");
+      return;
     }
     var produto = catalogo.find(function (item) { return item.codigo === codigo; });
     if (!produto) return;
@@ -584,6 +592,8 @@
         qtd: 1
       });
     }
+    tipoOrcamentoAtual = "Tradicional";
+    sincronizarModalidadeOrcamento();
     salvarPedido();
     renderResumo();
     liberarEnvio();
@@ -617,6 +627,7 @@
         qtd: qtd
       };
     }).filter(function (item) { return item.qtd > 0; });
+    sincronizarModalidadeOrcamento();
     salvarPedido();
     renderResumo();
   }
@@ -642,8 +653,12 @@
   }
 
   function setCatalogo(aberto) {
-    /* O catálogo abre no modo tradicional, mesmo que ainda exista lista de voz no quadro. */
-    if (aberto && document.body.dataset.gvCatalogoTravado === "1") return;
+    if (aberto && (document.body.dataset.gvCatalogoTravado === "1" || tipoOrcamentoTravado === "Comando de Voz" || modalidadeListaAtual() === "voz")) {
+      if (modalidadeListaAtual() === "voz" || tipoOrcamentoTravado === "Comando de Voz") {
+        mostrarAviso("Não é possível misturar itens do Catálogo com itens de Comando de Voz no mesmo orçamento.");
+      }
+      return;
+    }
     if (aberto) {
       setHistorico(false);
       setRestrita(false);
@@ -1549,6 +1564,7 @@
       tipoOrcamentoTravado = "";
       document.dispatchEvent(new CustomEvent("gv-travar-tipo-orcamento", { detail: { travar: false } }));
     }
+    sincronizarModalidadeOrcamento();
     liberarEnvio();
   }
 
@@ -1915,9 +1931,62 @@
     return String(item && item.codigo || "").indexOf("voz-") === 0;
   }
 
+  function modalidadeListaAtual() {
+    /* "tradicional" | "voz" | null — estado explícito da lista "Seu orçamento". */
+    if (selecionados.some(itemVoz) || itensVoz().length) return "voz";
+    if (selecionados.length) return "tradicional";
+    return null;
+  }
+
+  function sincronizarModalidadeOrcamento() {
+    var modalidade = modalidadeListaAtual();
+    if (modalidade === "voz") tipoOrcamentoAtual = "Comando de Voz";
+    else if (modalidade === "tradicional") tipoOrcamentoAtual = "Tradicional";
+    document.dispatchEvent(new CustomEvent("gv-modalidade-orcamento", {
+      detail: {
+        modalidade: modalidade,
+        tipo: tipoOrcamentoTravado || tipoOrcamentoAtual || "",
+        travado: !!tipoOrcamentoTravado
+      }
+    }));
+    return modalidade;
+  }
+
+  function limparListaParaTrocaModalidade() {
+    limparSnapshotEnvioOriginal();
+    limparIdOrcamentoEmEdicao();
+    tipoOrcamentoTravado = "";
+    selecionados = [];
+    limparVozDoOrcamento();
+    try { localStorage.removeItem(CHAVE_RASCUNHO); } catch (erroLocal) { /* ignore */ }
+    renderResumo();
+    liberarEnvio();
+    if (resumoVazio) {
+      resumoVazio.hidden = false;
+      resumoVazio.textContent = "Nenhum produto no orçamento.";
+    }
+    document.dispatchEvent(new CustomEvent("gv-travar-tipo-orcamento", { detail: { travar: false } }));
+    document.dispatchEvent(new CustomEvent("gv-orcamento-limpo"));
+    sincronizarModalidadeOrcamento();
+  }
+
+  function confirmarTrocaModalidade(novaModalidade) {
+    var atual = modalidadeListaAtual();
+    var destino = novaModalidade === "voz" || novaModalidade === "Comando de Voz" ? "voz" : "tradicional";
+    if (!atual || atual === destino) return true;
+    if (!window.confirm("Você já possui itens adicionados no modo atual. Trocar o tipo de orçamento limpará a lista atual. Deseja continuar?")) {
+      return false;
+    }
+    limparListaParaTrocaModalidade();
+    return true;
+  }
+
   function incluirItensVoz(pacote) {
-    if (!Array.isArray(pacote)) return;
-    /* Novos produtos falados são somados à lista atual, sem apagar o que já está no orçamento. */
+    if (!Array.isArray(pacote) || !pacote.length) return false;
+    if (tipoOrcamentoTravado === "Tradicional" || modalidadeListaAtual() === "tradicional") {
+      mostrarAviso("Não é possível misturar itens de Comando de Voz com itens do Catálogo no mesmo orçamento.");
+      return false;
+    }
     var carimbo = Date.now().toString(36);
     pacote.forEach(function (item, indice) {
       var nome = String((item && (item.rotulo || item.texto)) || "").trim();
@@ -1931,9 +2000,11 @@
       });
     });
     tipoOrcamentoAtual = "Comando de Voz";
+    sincronizarModalidadeOrcamento();
     salvarPedido();
     renderResumo();
     liberarEnvio();
+    return true;
   }
 
   function carrinhoValido() {
@@ -2515,6 +2586,7 @@
       }
     } catch (erroLocal) { /* ignore */ }
     renderResumo();
+    sincronizarModalidadeOrcamento();
     if (enviar) enviar.textContent = "Enviar por WhatsApp";
     liberarEnvio();
     if (avisoEnvio) avisoEnvio.hidden = true;
@@ -2526,6 +2598,7 @@
     document.dispatchEvent(new CustomEvent("gv-abrir-tipo-orcamento", {
       detail: { tipo: tipoOrcamentoTravado }
     }));
+    atualizarValidadeTela({ exibir: true, voz: tipoOrcamentoTravado === "Comando de Voz" });
   }
 
   function formatarEnvio(iso) {
