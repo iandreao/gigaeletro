@@ -9,11 +9,66 @@
     { "src": "assets/**/*", "use": "@vercel/static" },
     { "src": "data/catalogo.json", "use": "@vercel/static" },
     {
-      "src": "api/**/*.py",
+      "src": "api/catalogo.py",
       "use": "@vercel/python",
       "config": {
         "includeFiles": ["servidor.py", "data/catalogo.json"]
       }
+    },
+    {
+      "src": "api/orcamentos.py",
+      "use": "@vercel/python",
+      "config": { "includeFiles": ["servidor.py"] }
+    },
+    {
+      "src": "api/enviar-orcamento-email.py",
+      "use": "@vercel/python",
+      "config": { "includeFiles": ["servidor.py"] }
+    },
+    {
+      "src": "api/orcamento-pdf.py",
+      "use": "@vercel/python",
+      "config": { "includeFiles": ["servidor.py"] }
+    },
+    {
+      "src": "api/ver-pdf.py",
+      "use": "@vercel/python",
+      "config": { "includeFiles": ["servidor.py"] }
+    },
+    {
+      "src": "api/dashboard-estatisticas.py",
+      "use": "@vercel/python",
+      "config": { "includeFiles": ["servidor.py"] }
+    },
+    {
+      "src": "api/registrar-acesso.py",
+      "use": "@vercel/python",
+      "config": { "includeFiles": ["servidor.py"] }
+    },
+    {
+      "src": "api/login.py",
+      "use": "@vercel/python",
+      "config": { "includeFiles": ["servidor.py"] }
+    },
+    {
+      "src": "api/logout.py",
+      "use": "@vercel/python",
+      "config": { "includeFiles": ["servidor.py"] }
+    },
+    {
+      "src": "api/sessao.py",
+      "use": "@vercel/python",
+      "config": { "includeFiles": ["servidor.py"] }
+    },
+    {
+      "src": "api/auditoria.py",
+      "use": "@vercel/python",
+      "config": { "includeFiles": ["servidor.py"] }
+    },
+    {
+      "src": "api/admin/metricas-acesso.py",
+      "use": "@vercel/python",
+      "config": { "includeFiles": ["servidor.py"] }
     }
   ],
   "headers": [

@@ -1194,10 +1194,18 @@
     refletirTipoOrcamento();
   }
 
+  function limparSnapshotEnvioOrcamento() {
+    if (window.GigaSnapshotEnvio && typeof window.GigaSnapshotEnvio.limpar === "function") {
+      window.GigaSnapshotEnvio.limpar();
+    }
+    /* Não cria rascunho paralelo ao reeditar: o id original só some no limpar/envio do orcamento.js. */
+  }
+
   function concluirFluxoOrcamento() {
     pararEscuta();
     limparTranscricao();
     limparIntencoes();
+    limparSnapshotEnvioOrcamento();
     modoIntencoes = false;
     escolhaTradicional = false;
     tipoOrcamentoTravado = "";
@@ -1212,6 +1220,7 @@
 
   function aoLimparOrcamento() {
     /* Lista de voz já saiu do quadro: o catálogo volta, salvo se o cliente ainda está ditando ou escolhendo. */
+    limparSnapshotEnvioOrcamento();
     if (gravador && !gravador.hidden) return;
     if (raiz && document.body.contains(raiz)) return;
     modoIntencoes = false;

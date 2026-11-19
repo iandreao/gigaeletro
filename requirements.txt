@@ -1,0 +1,1 @@
+# Sem dependências externas: servidor.py e api/*.py usam só a stdlib do Python.

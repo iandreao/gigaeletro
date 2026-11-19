@@ -2,9 +2,10 @@
 
 Toda a lógica vive em servidor.responder_orcamentos (mesmo código do servidor local):
 
-- POST { acao: "rascunho", documento, itens, tipoOrcamento, id?, reeditar? }
+- POST { acao: "rascunho", documento, itens, tipoOrcamento, id? }
   upsert com status "A Enviar"; itens=[] remove o rascunho.
-  Não rebaixa Recebido/Enviado sem reeditar=true.
+  Nunca rebaixa Recebido/Enviado (reedição só no POST final com o mesmo id).
+- POST envio final com id existente: atualiza o mesmo registro (sem duplicar).
 - DELETE ?rascunho=1&documento=...&id=...
   remove rascunho "A Enviar" vazio / correspondente (nunca Enviado).
 - GET autenticado (admin): filtra somente enviados (oculta "A Enviar").
