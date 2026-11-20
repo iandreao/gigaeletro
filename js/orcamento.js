@@ -576,10 +576,8 @@
 
   function adicionar(codigo) {
     if (document.body.dataset.gvCatalogoTravado === "1") return;
-    if (tipoOrcamentoTravado === "Comando de Voz" || modalidadeListaAtual() === "voz") {
-      mostrarAviso("Não é possível misturar itens do Catálogo com itens de Comando de Voz no mesmo orçamento.");
-      return;
-    }
+    /* Modalidade voz ativa: bloqueio silencioso (UI já desabilita o catálogo). */
+    if (tipoOrcamentoTravado === "Comando de Voz" || modalidadeListaAtual() === "voz") return;
     var produto = catalogo.find(function (item) { return item.codigo === codigo; });
     if (!produto) return;
     var atual = selecionados.find(function (item) { return item.codigo === codigo; });
@@ -653,10 +651,8 @@
   }
 
   function setCatalogo(aberto) {
+    /* Modalidade voz / catálogo travado: não abre e não exibe alerta — a UI já bloqueia o clique. */
     if (aberto && (document.body.dataset.gvCatalogoTravado === "1" || tipoOrcamentoTravado === "Comando de Voz" || modalidadeListaAtual() === "voz")) {
-      if (modalidadeListaAtual() === "voz" || tipoOrcamentoTravado === "Comando de Voz") {
-        mostrarAviso("Não é possível misturar itens do Catálogo com itens de Comando de Voz no mesmo orçamento.");
-      }
       return;
     }
     if (aberto) {
@@ -1971,22 +1967,21 @@
   }
 
   function confirmarTrocaModalidade(novaModalidade) {
+    /* UX: modalidade oposta fica desabilitada na interface; troca só após Limpar Lista / novo orçamento. */
     var atual = modalidadeListaAtual();
     var destino = novaModalidade === "voz" || novaModalidade === "Comando de Voz" ? "voz" : "tradicional";
-    if (!atual || atual === destino) return true;
-    if (!window.confirm("Você já possui itens adicionados no modo atual. Trocar o tipo de orçamento limpará a lista atual. Deseja continuar?")) {
-      return false;
+    if (tipoOrcamentoTravado) {
+      var travado = tipoOrcamentoTravado === "Comando de Voz" ? "voz" : "tradicional";
+      return travado === destino;
     }
-    limparListaParaTrocaModalidade();
-    return true;
+    if (!atual || atual === destino) return true;
+    return false;
   }
 
   function incluirItensVoz(pacote) {
     if (!Array.isArray(pacote) || !pacote.length) return false;
-    if (tipoOrcamentoTravado === "Tradicional" || modalidadeListaAtual() === "tradicional") {
-      mostrarAviso("Não é possível misturar itens de Comando de Voz com itens do Catálogo no mesmo orçamento.");
-      return false;
-    }
+    /* Modalidade tradicional ativa: bloqueio silencioso (UI já desabilita a voz). */
+    if (tipoOrcamentoTravado === "Tradicional" || modalidadeListaAtual() === "tradicional") return false;
     var carimbo = Date.now().toString(36);
     pacote.forEach(function (item, indice) {
       var nome = String((item && (item.rotulo || item.texto)) || "").trim();
@@ -2848,9 +2843,7 @@
     atualizarValidadeTela(detalhe.voz != null ? { voz: detalhe.voz } : undefined);
   });
 
-  document.addEventListener("gv-tipo-orcamento-bloqueado", function () {
-    window.alert("Este orçamento está em edição no modo " + (tipoOrcamentoTravado || tipoOrcamentoAtivo()) + ". Para trocar entre Tradicional e Comando de Voz, envie o orçamento ou clique em Início.");
-  });
+  /* gv-tipo-orcamento-bloqueado: sem alerta — a modalidade oposta já fica desabilitada na UI. */
 
   function normalizar(valor) {
     return String(valor || "")

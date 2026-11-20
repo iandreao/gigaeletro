@@ -164,6 +164,31 @@
   outline-offset: 2px;
 }
 
+/* Modalidade incompatível (reedição ou lista já preenchida): bloqueio visual sem alerta. */
+.gv-card.is-disabled,
+.gv-card[aria-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+  box-shadow: none;
+  border-color: rgba(26, 26, 26, 0.14);
+}
+
+.gv-card.is-disabled .gv-card-btn,
+.gv-card-btn:disabled,
+.gv-card-btn[aria-disabled="true"] {
+  opacity: 1;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.gv-cards:hover .gv-card.is-disabled:hover,
+.gv-cards:hover .gv-card[aria-disabled="true"]:hover {
+  border-color: rgba(26, 26, 26, 0.14);
+  box-shadow: none;
+  background: #ffffff;
+}
+
 .gv-card-texto {
   margin: 0;
   width: 100%;
