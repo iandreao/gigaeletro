@@ -918,24 +918,60 @@
     ].join("\n");
   }
 
-  function urlWhatsApp(texto) {
-    const textoWhats = texto;
-    const urlFinal = `https://wa.me/${destinoWhatsApp()}?text=${encodeURIComponent(textoWhats)}`;
-    return urlFinal;
+  function urlWhatsAppApp(texto) {
+    return "whatsapp://send?phone=" + destinoWhatsApp() + "&text=" + encodeURIComponent(texto || "");
+  }
+
+  function urlWhatsAppWeb(texto) {
+    return "https://wa.me/" + destinoWhatsApp() + "?text=" + encodeURIComponent(texto || "");
   }
 
   function dispararWhatsApp(texto) {
-    const url = urlWhatsApp(texto);
-    /* Roda depois do upload do PDF, fora do toque do cliente: o Safari do iPhone bloqueia
-       window.open e target="_blank" nesse momento, mas não a navegação da própria aba. */
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (isMobile) {
-      window.location.href = url;
-      return;
+    /* 1) Protocolo nativo: abre o app sem aba intermediária api.whatsapp.com.
+       2) Fallback: se a janela ainda tem foco após ~1,5s (sem app instalado), abre wa.me. */
+    var urlApp = urlWhatsAppApp(texto);
+    var urlWeb = urlWhatsAppWeb(texto);
+    var perdeuFoco = false;
+    function marcarPerdaFoco() { perdeuFoco = true; }
+    function aoVisibilidade() {
+      if (document.hidden) perdeuFoco = true;
     }
-    /* iPad com iPadOS se apresenta como Mac e bloqueadores de pop-up devolvem null. */
-    const aba = window.open(url, "_blank");
-    if (!aba) window.location.href = url;
+    window.addEventListener("blur", marcarPerdaFoco);
+    document.addEventListener("visibilitychange", aoVisibilidade);
+
+    try {
+      var iframe = document.createElement("iframe");
+      iframe.setAttribute("aria-hidden", "true");
+      iframe.tabIndex = -1;
+      iframe.style.cssText = "display:none;width:0;height:0;border:0;position:absolute;left:-9999px";
+      iframe.src = urlApp;
+      document.body.appendChild(iframe);
+      window.setTimeout(function () {
+        if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      }, 2500);
+    } catch (erroIframe) { /* ignore */ }
+
+    try {
+      var link = document.createElement("a");
+      link.href = urlApp;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (erroLink) {
+      try { window.location.href = urlApp; } catch (erroLoc) { /* ignore */ }
+    }
+
+    window.setTimeout(function () {
+      window.removeEventListener("blur", marcarPerdaFoco);
+      document.removeEventListener("visibilitychange", aoVisibilidade);
+      if (perdeuFoco || !document.hasFocus()) return;
+      var aba = window.open(urlWeb, "gigaeletro_whatsapp");
+      if (!aba) {
+        /* Último recurso: só navega a aba atual se o pop-up for bloqueado. */
+        window.location.href = urlWeb;
+      }
+    }, 1500);
   }
 
   function honeypotPreenchido() {
@@ -1409,7 +1445,7 @@
   var timerSucessoEnvio = 0;
 
   function mostrarSucessoEnvio() {
-    mostrarAviso("Orçamento enviado com sucesso via Whatsapp");
+    mostrarAviso("Orçamento registrado! Conclua o envio no WhatsApp.");
   }
 
   function encerrarSucessoEnvio() {
@@ -1441,7 +1477,12 @@
       return;
     }
     avisoEnvio.classList.add("gv-aviso-livre");
-    avisoEnvio.classList.toggle("gv-aviso-sucesso", texto === "Orçamento enviado com sucesso via Whatsapp" || String(texto || "").indexOf("Orçamento enviado para ") === 0);
+    avisoEnvio.classList.toggle(
+      "gv-aviso-sucesso",
+      texto === "Orçamento registrado! Conclua o envio no WhatsApp."
+        || texto === "Orçamento enviado com sucesso via Whatsapp"
+        || String(texto || "").indexOf("Orçamento enviado para ") === 0
+    );
     avisoEnvio.hidden = false;
     avisoEnvio.style.display = "";
     avisoEnvio.textContent = texto;
