@@ -3552,9 +3552,11 @@ def data_validade_orcamento(base=None):
 
 
 def pedido_por_voz(pedido):
-    """Comando de Voz: campo metodo/meio_envio ou maioria dos itens sem código e sem preço."""
+    """Comando de Voz: tipoOrcamento/metodo/meio_envio ou maioria dos itens sem código e sem preço."""
     if not isinstance(pedido, dict):
         return False
+    if str(pedido.get("tipoOrcamento") or pedido.get("tipo_orcamento") or "").strip() == "Comando de Voz":
+        return True
     metodo = str(pedido.get("metodo") or "").strip().lower()
     if metodo in ("gigavoz", "voz", "comando de voz", "intencoes"):
         return True
@@ -3569,33 +3571,47 @@ def pedido_por_voz(pedido):
     return voz * 2 > len(itens)
 
 
-def nota_orcamento(por_voz=False, base=None):
+def mensagem_envio_orcamento(por_voz=False, base=None):
+    """Texto padrão do WhatsApp e do e-mail (corpo), por modalidade."""
     if por_voz:
         return (
-            "Este orçamento foi gerado por comando de voz, o preço dos itens listados, "
-            "o estoque e o frete, serão informados no WhatsApp ou no E-mail."
+            "Segue em anexo o seu pedido de orçamento gerado por comando de voz. "
+            "Os preços dos itens listados, o estoque e o frete serão informados por WhatsApp ou e-mail."
         )
     return (
-        "O preço dos itens listados vale até %s. O estoque e o frete serão informados no WhatsApp ou no E-mail."
+        "Segue em anexo o seu pedido de orçamento. Os preços dos itens listados valem até %s. "
+        "O estoque e o frete serão informados por WhatsApp ou e-mail."
+        % data_validade_orcamento(base)
+    )
+
+
+def nota_orcamento(por_voz=False, base=None):
+    """Nota do rodapé do PDF e do quadro na tela."""
+    if por_voz:
+        return (
+            "Nota: Este orçamento foi gerado por comando de voz. "
+            "Os preços dos itens listados, o estoque e o frete serão informados por WhatsApp ou e-mail."
+        )
+    return (
+        "Nota: Os preços dos itens listados valem até %s. "
+        "O estoque e o frete serão informados por WhatsApp ou e-mail."
         % data_validade_orcamento(base)
     )
 
 
 def mensagem_orcamento_email(nome, pedido=None):
     saudacao = "Olá, %s!" % nome if nome else "Olá!"
-    nota = nota_orcamento(pedido_por_voz(pedido))
+    mensagem = mensagem_envio_orcamento(pedido_por_voz(pedido))
     texto = (
         saudacao + "\n\n"
-        "Segue em anexo o seu pedido de orçamento da Gigaeletro.\n"
-        + nota + "\n\n"
+        + mensagem + "\n\n"
         "Gigaeletro Material Elétrico\n"
         "https://gigaeletro.com.br"
     )
     corpo = (
         '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#1a1a1a">'
         "<p>" + html.escape(saudacao) + "</p>"
-        "<p>Segue em anexo o seu pedido de orçamento da <strong>Gigaeletro</strong>.</p>"
-        "<p>" + html.escape(nota).replace(
+        "<p>" + html.escape(mensagem).replace(
             "WhatsApp",
             '<a href="https://wa.me/5527998235652">WhatsApp</a>',
             1,

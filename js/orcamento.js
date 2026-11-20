@@ -895,22 +895,35 @@
     return digitos;
   }
 
+  function mensagemEnvioOrcamento(porVoz, base) {
+    if (porVoz) {
+      return "Segue em anexo o seu pedido de orçamento gerado por comando de voz. Os preços dos itens listados, o estoque e o frete serão informados por WhatsApp ou e-mail.";
+    }
+    return "Segue em anexo o seu pedido de orçamento. Os preços dos itens listados valem até " + dataValidade(base) + ". O estoque e o frete serão informados por WhatsApp ou e-mail.";
+  }
+
   function textoOrcamento(cliente, id) {
     const idOrcamento = String(id || "").trim();
     const nomeCliente = String(cliente && cliente.tipo || "").toUpperCase() === "PJ"
       ? String((cliente && cliente.razaoSocial) || (cliente && cliente.nome) || "").trim()
       : String((cliente && cliente.nome) || "").trim();
     const celularCliente = String((cliente && cliente.celular) || "").trim();
+    const porVoz = tipoOrcamentoAtivo() === "Comando de Voz" || orcamentoPorVoz();
+    const mensagem = mensagemEnvioOrcamento(porVoz);
     if (!idOrcamento) {
       return [
-        "Olá, estamos processando sua lista de materiais para orçamento e um especialista irá atendê-lo em breve.",
+        "Olá!",
+        "",
+        mensagem,
         "",
         `${nomeCliente} – Contato ${celularCliente}`
       ].join("\n");
     }
     const link = SITE_PDF + "/api/ver-pdf?id=" + idOrcamento;
     return [
-      "Olá, clicar no link abaixo para ver a lista dos materiais a serem orçados.",
+      "Olá!",
+      "",
+      mensagem,
       "",
       link,
       "",
@@ -2829,25 +2842,24 @@
   }
 
   function orcamentoPorVoz(itens) {
+    if (tipoOrcamentoTravado === "Comando de Voz") return true;
+    if (tipoOrcamentoTravado === "Tradicional") return false;
     var lista = Array.isArray(itens) ? itens : selecionados;
     if ((lista || []).some(itemVoz)) return true;
     if (!Array.isArray(itens) && vozInclusa()) return true;
+    if (tipoOrcamentoAtual === "Comando de Voz") return true;
     var botao = document.getElementById("btnTipoOrcamento");
     return !!(botao && botao.getAttribute("aria-pressed") === "true");
   }
 
   function textoAvisoOrcamento(opcoes) {
+    /* Tela e PDF usam a mesma Nota; WhatsApp/E-mail usam mensagemEnvioOrcamento. */
     var cfg = opcoes || {};
     var porVoz = cfg.voz != null ? !!cfg.voz : orcamentoPorVoz(cfg.itens);
     if (porVoz) {
-      return cfg.pdf
-        ? "Nota: Este orçamento foi gerado por comando de voz, o preço dos itens listados, o estoque e o frete, serão informados no WhatsApp ou no E-mail."
-        : "O preço dos itens solicitados, o estoque e o frete serão informados no WhatsApp ou no E-mail.";
+      return "Nota: Este orçamento foi gerado por comando de voz. Os preços dos itens listados, o estoque e o frete serão informados por WhatsApp ou e-mail.";
     }
-    var data = dataValidade(cfg.base);
-    return cfg.pdf
-      ? "Nota: O preço dos itens listados vale até " + data + ". O estoque e o frete serão informados no WhatsApp ou no E-mail."
-      : "O preço dos itens vale até " + data + ". O estoque e o frete serão informados no WhatsApp ou no E-mail.";
+    return "Nota: Os preços dos itens listados valem até " + dataValidade(cfg.base) + ". O estoque e o frete serão informados por WhatsApp ou e-mail.";
   }
 
   function textoValidade(base) {

@@ -30,9 +30,9 @@
   function textoAvisoPdf(itens, base) {
     var porVoz = (itens || []).some(itemVoz);
     if (porVoz) {
-      return "Nota: Este orçamento foi gerado por comando de voz, o preço dos itens listados, o estoque e o frete, serão informados no WhatsApp ou no E-mail.";
+      return "Nota: Este orçamento foi gerado por comando de voz. Os preços dos itens listados, o estoque e o frete serão informados por WhatsApp ou e-mail.";
     }
-    return "Nota: O preço dos itens listados vale até " + dataValidade(base) + ". O estoque e o frete serão informados no WhatsApp ou no E-mail.";
+    return "Nota: Os preços dos itens listados valem até " + dataValidade(base) + ". O estoque e o frete serão informados por WhatsApp ou e-mail.";
   }
 
   function normalizarItens(itens) {
