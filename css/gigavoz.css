@@ -164,7 +164,7 @@
   outline-offset: 2px;
 }
 
-/* Modalidade incompatível (reedição ou lista já preenchida): bloqueio visual sem alerta. */
+/* Modalidade incompatível / reedição: bloqueio visual sem alerta. */
 .gv-card.is-disabled,
 .gv-card[aria-disabled="true"] {
   opacity: 0.45;
@@ -187,6 +187,19 @@
   border-color: rgba(26, 26, 26, 0.14);
   box-shadow: none;
   background: #ffffff;
+}
+
+/* Menus superiores durante alteração/reedição de orçamento. */
+body.home .nav #btnTipoOrcamento.is-disabled,
+body.home .nav #btnTipoOrcamento[aria-disabled="true"],
+body.home .nav [data-abrir-historico].is-disabled,
+body.home .nav [data-abrir-historico][aria-disabled="true"],
+body.home[data-gv-edicao-orcamento="1"] .nav #btnTipoOrcamento,
+body.home[data-gv-edicao-orcamento="1"] .nav [data-abrir-historico] {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .gv-card-texto {

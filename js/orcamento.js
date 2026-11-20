@@ -485,6 +485,8 @@
   var historicoBuscando = false;
 
   function setHistorico(aberto) {
+    /* Reedição em curso: "Meus Orçamentos" fica desabilitado na UI. */
+    if (aberto && tipoOrcamentoTravado) return;
     if (aberto) {
       setCatalogo(false);
       setRestrita(false);
@@ -508,7 +510,16 @@
   }
 
   document.querySelectorAll("[data-abrir-historico]").forEach(function (botao) {
-    botao.addEventListener("click", function () { setHistorico(true); });
+    botao.addEventListener("click", function (evento) {
+      if (botao.classList.contains("is-disabled") || botao.getAttribute("aria-disabled") === "true" || tipoOrcamentoTravado) {
+        if (evento) {
+          evento.preventDefault();
+          evento.stopPropagation();
+        }
+        return;
+      }
+      setHistorico(true);
+    });
   });
   document.querySelectorAll("[data-fechar-historico]").forEach(function (botao) {
     botao.addEventListener("click", function () { setHistorico(false); });

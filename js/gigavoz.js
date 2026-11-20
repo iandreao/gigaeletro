@@ -94,21 +94,53 @@
     }
   }
 
+  function definirControleMenu(el, desabilitado) {
+    if (!el) return;
+    el.classList.toggle("is-disabled", !!desabilitado);
+    el.setAttribute("aria-disabled", desabilitado ? "true" : "false");
+    if (desabilitado) {
+      el.setAttribute("tabindex", "-1");
+      if ("disabled" in el) el.disabled = true;
+    } else {
+      el.removeAttribute("tabindex");
+      if ("disabled" in el) el.disabled = false;
+    }
+  }
+
+  function emEdicaoOrcamento() {
+    return tipoOrcamentoTravado === "Tradicional" || tipoOrcamentoTravado === "Comando de Voz";
+  }
+
   function aplicarRestricaoModalidadeUI() {
+    var edicao = emEdicaoOrcamento();
     var ativa = modalidadeAtivaRestrita();
+    if (edicao) document.body.dataset.gvEdicaoOrcamento = "1";
+    else delete document.body.dataset.gvEdicaoOrcamento;
     if (ativa) document.body.dataset.gvModalidadeAtiva = ativa;
     else delete document.body.dataset.gvModalidadeAtiva;
+
+    /* Menus superiores: só desabilitados no modo alteração/reedição. */
+    definirControleMenu(document.getElementById("btnTipoOrcamento"), edicao);
+    document.querySelectorAll("[data-abrir-historico]").forEach(function (el) {
+      definirControleMenu(el, edicao);
+    });
 
     var escopo = raiz && document.body.contains(raiz) ? raiz : document;
     var cardTrad = escopo.querySelector('[data-gv-card="tradicional"]');
     var cardVoz = escopo.querySelector('[data-gv-card="voz"]');
-    definirCardModalidade(cardTrad, ativa === "voz");
-    definirCardModalidade(cardVoz, ativa === "tradicional");
+    if (edicao) {
+      /* Reedição: tipo já travado — ambos os cards ficam desabilitados. */
+      definirCardModalidade(cardTrad, true);
+      definirCardModalidade(cardVoz, true);
+    } else {
+      definirCardModalidade(cardTrad, ativa === "voz");
+      definirCardModalidade(cardVoz, ativa === "tradicional");
+    }
 
     var botao = document.getElementById("btnVerCatalogo");
     if (!botao) return;
-    if (ativa === "voz") {
-      botao.textContent = "Iniciar Comando de Voz";
+    if (ativa === "voz" || (edicao && tipoOrcamentoTravado === "Comando de Voz")) {
+      botao.textContent = "Comando de Voz";
       botao.dataset.gvModalidade = "voz";
       botao.hidden = false;
       botao.disabled = false;
@@ -116,12 +148,17 @@
       botao.setAttribute("aria-disabled", "false");
       return;
     }
-    if (ativa === "tradicional") {
+    if (ativa === "tradicional" || (edicao && tipoOrcamentoTravado === "Tradicional")) {
       botao.textContent = "Ver Catálogo de Produtos";
       botao.dataset.gvModalidade = "tradicional";
       botao.hidden = false;
+      botao.disabled = false;
+      botao.removeAttribute("disabled");
+      botao.setAttribute("aria-disabled", "false");
       return;
     }
+    botao.textContent = "Ver Catálogo de Produtos";
+    botao.dataset.gvModalidade = "tradicional";
     botao.hidden = false;
   }
 
@@ -140,7 +177,7 @@
     var efetiva = restrita || modalidade;
     var gravadorAberto = !!(gravador && !gravador.hidden);
     if (efetiva === "voz" || (!restrita && (tipoOrcamentoTravado === "Comando de Voz" || modoIntencoes || gravadorAberto))) {
-      botao.textContent = "Iniciar Comando de Voz";
+      botao.textContent = emEdicaoOrcamento() ? "Comando de Voz" : "Iniciar Comando de Voz";
       botao.dataset.gvModalidade = "voz";
     } else {
       botao.textContent = "Ver Catálogo de Produtos";
@@ -300,7 +337,8 @@
 
   function alternarTipoOrcamento(evento) {
     if (evento) evento.preventDefault();
-    /* Sempre abre a escolha; a modalidade oposta (se houver lista/reedição) aparece desabilitada. */
+    /* Em reedição o menu fica desabilitado; não abre a escolha. */
+    if (emEdicaoOrcamento()) return;
     if (modoGigaVozAberto() && !raiz) desligarModoGigaVoz();
     if (raiz && document.body.contains(raiz)) {
       aplicarRestricaoModalidadeUI();
@@ -311,6 +349,11 @@
 
   function aplicarTipoOrcamentoTravado(tipo) {
     tipoOrcamentoTravado = tipo === "Comando de Voz" || tipo === "Tradicional" ? tipo : "";
+    if (tipoOrcamentoTravado) {
+      /* Reedição: fecha a escolha central; menus e cards ficam travados. */
+      if (raiz) { raiz.remove(); raiz = null; }
+      fecharHistoricoAberto();
+    }
     if (tipoOrcamentoTravado === "Comando de Voz") {
       escolhaTradicional = false;
       modoIntencoes = true;
@@ -332,8 +375,8 @@
       if (!confirmarTrocaModalidade("voz")) return;
       escolhaTradicional = false;
       modoIntencoes = true;
-      /* Reedição: só sincroniza UI; não abre o gravador nem limpa a lista carregada. */
-      if (!tipoOrcamentoTravado) abrirGravador();
+      /* Reedição: só sincroniza UI; o botão "Comando de Voz" abre o microfone sob demanda. */
+      if (!emEdicaoOrcamento()) abrirGravador();
       else {
         if (raiz) { raiz.remove(); raiz = null; }
         if (gravador) gravador.hidden = true;
@@ -341,10 +384,11 @@
       }
       atualizarBotaoPrincipalModalidade("voz");
       refletirTipoOrcamento({ exibir: true });
+      aplicarRestricaoModalidadeUI();
       return;
     }
     if (!confirmarTrocaModalidade("tradicional")) return;
-    if (modoGigaVozAberto() && !tipoOrcamentoTravado) desligarModoGigaVoz();
+    if (modoGigaVozAberto() && !emEdicaoOrcamento()) desligarModoGigaVoz();
     else {
       if (raiz) { raiz.remove(); raiz = null; }
       if (gravador) gravador.hidden = true;
@@ -354,7 +398,8 @@
     liberarCatalogo();
     refletirTipoOrcamento({ exibir: true });
     atualizarBotaoPrincipalModalidade("tradicional");
-    if (!tipoOrcamentoTravado) {
+    aplicarRestricaoModalidadeUI();
+    if (!emEdicaoOrcamento()) {
       var produtos = document.getElementById("btnProdutos");
       if (produtos) produtos.click();
     }
