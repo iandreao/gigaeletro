@@ -11,9 +11,6 @@
   font: inherit;
   font-size: 0.85rem;
 }
-.gestor-filtros .gestor-lixeira { margin-bottom: 0; }
-.gestor-filtros .gestor-lixeira[aria-pressed="true"],
-.gestor-filtros .gestor-lixeira[aria-pressed="true"]:hover { background: var(--yellow); border-color: var(--yellow); }
 .gestor-acoes button[data-restaurar-orcamento] {
   width: auto;
   min-width: 28px;

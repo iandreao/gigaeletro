@@ -928,45 +928,28 @@
 
   var consultaPainel = 0;
   var modoLixeira = false;
-  var lixeiraComFiltro = false;
   var idsExcluidos = {};
   var idsRestaurados = {};
-  var botaoLixeira = document.querySelector("[data-gestor-lixeira]");
   var tituloOrcamentos = document.querySelector("[data-titulo-orcamentos]");
 
   function idsOcultos() {
     return modoLixeira ? idsRestaurados : idsExcluidos;
   }
 
-  function atualizarUiLixeira() {
-    if (botaoLixeira) {
-      botaoLixeira.setAttribute("aria-pressed", modoLixeira ? "true" : "false");
-      botaoLixeira.textContent = modoLixeira ? "Voltar aos Orçamentos" : "Ver Excluídos / Lixeira";
-    }
-    if (tituloOrcamentos) {
-      tituloOrcamentos.textContent = modoLixeira ? "Lixeira: orçamentos excluídos" : "Orçamentos recebidos";
-    }
+  function atualizarTituloOrcamentos() {
+    if (tituloOrcamentos) tituloOrcamentos.textContent = "Orçamentos Recebidos";
   }
 
-  function definirFiltroStatus(valor) {
-    if (campoFiltroStatus) campoFiltroStatus.value = valor || "";
-  }
-
-  function sincronizarModoLixeiraDoFiltro(opcoes) {
-    var cfg = opcoes || {};
-    var querLixeira = (campoFiltroStatus && filtroStatusEhExcluido(campoFiltroStatus.value)) || cfg.forcarLixeira === true;
-    if (cfg.forcarAtivos === true) querLixeira = false;
+  function sincronizarModoLixeiraDoFiltro() {
+    /* Excluídos só via filtro Status — sem botão de atalho para a lixeira. */
+    var querLixeira = !!(campoFiltroStatus && filtroStatusEhExcluido(campoFiltroStatus.value));
     var mudou = querLixeira !== modoLixeira;
     modoLixeira = querLixeira;
     if (mudou) {
       idsExcluidos = {};
       idsRestaurados = {};
-      if (modoLixeira) definirFiltroStatus("Excluído");
-      else if (campoFiltroStatus && filtroStatusEhExcluido(campoFiltroStatus.value)) definirFiltroStatus("");
     }
-    if (cfg.atalho) lixeiraComFiltro = false;
-    else if (modoLixeira && cfg.buscar) lixeiraComFiltro = true;
-    atualizarUiLixeira();
+    atualizarTituloOrcamentos();
     return mudou;
   }
 
@@ -975,12 +958,11 @@
     var status = filtros.status;
     var vendedor = filtros.vendedor;
     var ocultos = idsOcultos();
-    var filtrarVendedor = !modoLixeira || lixeiraComFiltro;
     var filtrarStatus = !modoLixeira && status && !filtroStatusEhExcluido(status);
     return (lista || []).filter(function (item) {
       if (ocultos[String(item.id)]) return false;
       if (filtrarStatus && statusAtendimento(item) !== status) return false;
-      if (filtrarVendedor && vendedor && vendedorAtual(item) !== vendedor) return false;
+      if (vendedor && vendedorAtual(item) !== vendedor) return false;
       return true;
     });
   }
@@ -991,16 +973,12 @@
     sincronizarModoLixeiraDoFiltro();
     var pedido = ++consultaPainel;
     var filtros = lerFiltrosBusca();
-    /* Lixeira via atalho: todos os excluídos. Via filtro/Buscar: respeita datas/CPF. */
-    var usarFiltroData = !modoLixeira || lixeiraComFiltro;
-    var dataInicio = usarFiltroData ? filtros.dataInicio : "";
-    var dataFim = usarFiltroData ? filtros.dataFim : "";
-    var cpf = usarFiltroData ? filtros.cpf_cnpj : "";
-    var url = "/api/orcamentos?dataInicio=" + encodeURIComponent(dataInicio) +
-      "&dataFim=" + encodeURIComponent(dataFim) +
-      "&cpf_cnpj=" + encodeURIComponent(cpf) +
+    /* Status=Excluído consulta a lixeira; demais filtros (data/CPF/vendedor) continuam valendo. */
+    var url = "/api/orcamentos?dataInicio=" + encodeURIComponent(filtros.dataInicio) +
+      "&dataFim=" + encodeURIComponent(filtros.dataFim) +
+      "&cpf_cnpj=" + encodeURIComponent(filtros.cpf_cnpj) +
       (modoLixeira ? "&lixeira=1&excluidos=1" : "");
-    console.log("[orcamentos] busca", filtros, { modoLixeira: modoLixeira, lixeiraComFiltro: lixeiraComFiltro }, url);
+    console.log("[orcamentos] busca", filtros, { modoLixeira: modoLixeira }, url);
     fetch(url, { cache: "no-store", credentials: "same-origin" }).then(function (resposta) {
       if (resposta.status === 401) {
         mostrarAvisoBusca("Sessão expirada. Entre novamente na área restrita.");
@@ -1053,14 +1031,14 @@
   if (formFiltros) {
     formFiltros.addEventListener("submit", function (event) {
       event.preventDefault();
-      sincronizarModoLixeiraDoFiltro({ buscar: true });
+      sincronizarModoLixeiraDoFiltro();
       carregarOrcamentos();
     });
     formFiltros.addEventListener("change", function (event) {
       var alvo = event.target;
       if (!alvo) return;
       if (alvo.hasAttribute("data-gestor-status")) {
-        sincronizarModoLixeiraDoFiltro({ buscar: true });
+        sincronizarModoLixeiraDoFiltro();
         fecharDetalhe();
         orcamentosCarregados = [];
         renderOrcamentos([], false);
@@ -1072,7 +1050,6 @@
         return;
       }
       if (alvo.hasAttribute("data-gestor-data-inicio") || alvo.hasAttribute("data-gestor-data-fim") || alvo.hasAttribute("data-gestor-documento")) {
-        if (modoLixeira) lixeiraComFiltro = true;
         carregarOrcamentos();
       }
     });
@@ -1112,21 +1089,6 @@
       }
       var restaurar = event.target.closest("[data-restaurar-orcamento]");
       if (restaurar) restaurarOrcamento(acharOrcamento(restaurar.getAttribute("data-restaurar-orcamento")));
-    });
-  }
-
-  if (botaoLixeira) {
-    botaoLixeira.addEventListener("click", function () {
-      if (modoLixeira) {
-        sincronizarModoLixeiraDoFiltro({ forcarAtivos: true, atalho: true });
-      } else {
-        definirFiltroStatus("Excluído");
-        sincronizarModoLixeiraDoFiltro({ forcarLixeira: true, atalho: true });
-      }
-      fecharDetalhe();
-      orcamentosCarregados = [];
-      renderOrcamentos([], false);
-      carregarOrcamentos();
     });
   }
 
