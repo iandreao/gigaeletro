@@ -342,7 +342,23 @@
   }
 
   document.querySelectorAll("[data-abrir-catalogo]").forEach(function (botao) {
-    botao.addEventListener("click", function () { setCatalogo(true); });
+    botao.addEventListener("click", function (evento) {
+      if (botao.disabled || botao.classList.contains("is-disabled") || botao.getAttribute("aria-disabled") === "true") {
+        if (evento) {
+          evento.preventDefault();
+          evento.stopPropagation();
+        }
+        return;
+      }
+      if (document.body.dataset.gvCatalogoTravado === "1" || tipoOrcamentoTravado === "Comando de Voz" || modalidadeListaAtual() === "voz") {
+        if (evento) {
+          evento.preventDefault();
+          evento.stopPropagation();
+        }
+        return;
+      }
+      setCatalogo(true);
+    });
   });
   document.querySelectorAll("[data-fechar-catalogo]").forEach(function (botao) {
     botao.addEventListener("click", function () { setCatalogo(false); });

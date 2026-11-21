@@ -756,14 +756,22 @@ input.gv-intencoes-input {
   display: none !important;
 }
 
-/* Inativo até o clique em Tradicional: aparência apagada, cursor de bloqueio e sem efeito de hover. */
+/* Catálogo / Produtos bloqueados no Comando de Voz (ou até escolher Tradicional). */
+#btnVerCatalogo.is-disabled,
 #btnVerCatalogo:disabled,
-#btnVerCatalogo:disabled:hover {
+#btnVerCatalogo:disabled:hover,
+#btnVerCatalogo[aria-disabled="true"],
+body.home .nav #btnProdutos.is-disabled,
+body.home .nav #btnProdutos:disabled,
+body.home .nav #btnProdutos[aria-disabled="true"],
+body.home[data-gv-modalidade-ativa="voz"] #btnVerCatalogo,
+body.home[data-gv-modalidade-ativa="voz"] #btnProdutos {
   opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
   background: #000;
   border-color: #000;
   color: var(--white);
-  cursor: not-allowed;
   box-shadow: none;
 }
 
