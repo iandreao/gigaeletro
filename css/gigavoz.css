@@ -290,10 +290,15 @@ body.home[data-gv-edicao-orcamento="1"] .nav [data-abrir-historico] {
     padding: 4px 8px 6px;
   }
 
+  .gv-welcome-modal .gv-titulo,
   .gv-titulo {
     margin: 0 0 0.2rem;
-    font-size: 0.96rem;
-    line-height: 1.36;
+    font-size: 15.5px;
+    font-weight: 700;
+    font-style: italic;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
   }
 
   .gv-cards {
