@@ -71,19 +71,23 @@
 }
 
 .gv-titulo {
-  /* Sobe uma linha para os botões ganharem respiro. */
+  /* Mensagem principal padronizada: legível e equilibrada acima dos cards. */
   display: block;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   width: 100%;
   max-width: none;
-  margin: -0.75rem 0 0;
+  margin: 0.15rem 0 0.35rem;
+  padding: 0 0.15rem;
   color: #1a1a1a;
-  font-size: 1.14rem;
+  font-size: 1.08rem;
   font-style: italic;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.35;
+  letter-spacing: -0.015em;
+  line-height: 1.4;
   text-align: center;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .gv-texto {
@@ -258,11 +262,13 @@ body.home[data-gv-edicao-orcamento="1"] .nav [data-abrir-historico] {
   }
 
   .gv-welcome-modal {
-    padding: 0.25rem 12px 0.85rem;
+    padding: 0.45rem 12px 0.9rem;
   }
 
   .gv-titulo {
-    font-size: 1.05rem;
+    margin: 0.1rem 0 0.45rem;
+    font-size: 0.98rem;
+    line-height: 1.42;
   }
 
   .gv-card {

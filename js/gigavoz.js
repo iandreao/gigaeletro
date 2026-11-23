@@ -39,7 +39,7 @@
     fundo.innerHTML =
       '<div class="gv-welcome-modal" role="dialog" aria-modal="true" aria-labelledby="gv-titulo">' +
         '<div class="gv-etapa" data-gv-etapa="escolha">' +
-          '<h2 class="gv-titulo" id="gv-titulo">Olá, seja muito bem-vindo! É um grande prazer atendê-lo — escolha o Tipo de Orçamento que preferir.</h2>' +
+          '<h2 class="gv-titulo" id="gv-titulo">As melhores soluções para sua empresa e sua residência, você encontra na GigaEletro. Faça seu orçamento.</h2>' +
           '<div class="gv-cards">' +
             '<div class="gv-card" data-gv-card="tradicional">' +
               '<button class="gv-card-btn" type="button" data-gv-acao="catalogo">TRADICIONAL</button>' +
