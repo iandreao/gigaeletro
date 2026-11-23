@@ -2009,7 +2009,7 @@
   }
 
   function modalidadeListaAtual() {
-    /* "tradicional" | "voz" | null — estado explícito da lista "Seu orçamento". */
+    /* "tradicional" | "voz" | null — estado explícito da lista "Itens do Orçamento". */
     if (selecionados.some(itemVoz) || itensVoz().length) return "voz";
     if (selecionados.length) return "tradicional";
     return null;

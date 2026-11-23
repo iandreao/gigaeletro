@@ -561,9 +561,10 @@
     var catalogo = document.getElementById("btnVerCatalogo");
     var tipoRect = tipo ? tipo.getBoundingClientRect() : null;
     var catRect = catalogo ? catalogo.getBoundingClientRect() : null;
-    /* Escolha e voz cobrem Tipo de Pessoa e param 20px antes de Ver Catálogo. */
+    /* Escolha e voz cobrem Tipo de Pessoa e param perto de Ver Catálogo (folga menor no mobile). */
+    var folgaCatalogo = window.matchMedia("(max-width: 980px)").matches ? 10 : 20;
     var topo = tipoRect ? tipoRect.top : formRect.top;
-    var base = catRect && catRect.top > topo + 120 ? catRect.top - 20 : formRect.bottom;
+    var base = catRect && catRect.top > topo + 120 ? catRect.top - folgaCatalogo : formRect.bottom;
     var topoVoz = topo;
     var baseVoz = base;
     return {
@@ -633,7 +634,7 @@
     var fotoDir = foto ? foto.getBoundingClientRect().right : 0;
     var lateral = document.querySelector(".quote-side");
     var lateralEsq = lateral ? lateral.getBoundingClientRect().left : 0;
-    /* Faixa central: da fachada até "Seu orçamento" quando ele está ao lado; senão, até a borda da tela. */
+    /* Faixa central: da fachada até "Itens do Orçamento" quando ele está ao lado; senão, até a borda da tela. */
     var faixaEsq = fotoDir > 0 ? fotoDir + 8 : 12;
     var faixaDir = fotoDir > 0 && lateralEsq > faixaEsq ? lateralEsq - 8 : window.innerWidth - 12;
     var identidade = modal.querySelector("[data-historico-identidade]");
@@ -649,7 +650,7 @@
     modal.style.transform = "translateY(-50%)";
     modal.style.width = largura + "px";
     modal.style.maxWidth = largura + "px";
-    /* Com a fachada à vista e "Seu orçamento" abaixo da coluna central, o modal sobe para não cobri-lo. */
+    /* Com a fachada à vista e "Itens do Orçamento" abaixo da coluna central, o modal sobe para não cobri-lo. */
     if (!lateral || fotoDir <= 0 || lateralEsq > faixaEsq) return;
     var altura = modal.offsetHeight;
     var cabecalho = document.querySelector(".site-header");

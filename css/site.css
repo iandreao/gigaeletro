@@ -912,11 +912,11 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
   }
   body.home .bar {
     min-height: 0;
-    padding-top: 2px;
+    padding-top: 0;
     padding-bottom: 2px;
   }
   body.home .hero-grid {
-    padding: 0 0 8px;
+    padding: 2px 0 6px;
   }
   body.home .quote-side { max-height: 468px; }
   body.home .cliente-form {
@@ -2011,6 +2011,16 @@ body.gestor .admin-page {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: 0;
+  }
+  body.home .site-header {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  body.home .bar {
+    min-height: 0;
+    padding-top: 0;
     padding-bottom: 0;
   }
   body.home main,
@@ -2022,6 +2032,11 @@ body.gestor .admin-page {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+  }
+  body.home .hero-grid {
+    padding-top: 2px;
+    padding-bottom: 0;
+    gap: 6px;
   }
   body.home .hero-par {
     flex: 1 1 auto;
@@ -2039,10 +2054,16 @@ body.gestor .admin-page {
     display: flex;
     flex-direction: column;
   }
+  body.home .hero-acao {
+    margin-top: 0;
+    padding-top: 0;
+  }
   body.home .hero-acao [data-abrir-catalogo] {
     flex: none;
     display: block;
     visibility: visible;
+    margin-top: 4px !important;
+    margin-bottom: 4px !important;
   }
   body.home .hero-copy,
   body.home .site-footer {
@@ -2055,11 +2076,19 @@ body.gestor .admin-page {
     overflow-x: hidden;
     overflow-y: auto;
   }
+  /* Com boas-vindas/voz abertos: encolhe o vão do formulário para subir Catálogo + orçamento. */
+  body.home:has(> .gv-backdrop) .hero-acao .cliente-form,
+  body.home:has(> .gv-recorder-container:not([hidden])) .hero-acao .cliente-form {
+    flex: 0 1 auto;
+    max-height: min(44dvh, 360px);
+  }
+  body.home .hero-acao .cliente-form .form-linha.form-tipo {
+    margin-bottom: 10px !important;
+  }
   body.home .hero-acao [data-abrir-catalogo] {
     position: relative;
     z-index: 2;
   }
-  body.home .hero-grid { padding-bottom: 0; }
   .catalogo-modal,
   .historico-modal {
     top: 50%;
@@ -2113,14 +2142,15 @@ body.gestor .admin-page {
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
+    margin-top: 2px;
     margin-bottom: 0;
     overflow: hidden;
   }
   body.home .quote-side > ul.cart-list {
     display: block !important;
-    height: 143px !important;
+    height: 200px !important;
     min-height: 0 !important;
-    max-height: 143px !important;
+    max-height: 200px !important;
     flex: none !important;
     overflow-x: hidden !important;
     overflow-y: auto !important;
@@ -2131,9 +2161,9 @@ body.gestor .admin-page {
   body.home .quote-side > .empty:not([hidden]) {
     box-sizing: border-box;
     flex: none !important;
-    height: 143px !important;
-    min-height: 143px !important;
-    max-height: 143px !important;
+    height: 200px !important;
+    min-height: 200px !important;
+    max-height: 200px !important;
     margin: 0;
     overflow: auto;
   }
