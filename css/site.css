@@ -2076,11 +2076,14 @@ body.gestor .admin-page {
     overflow-x: hidden;
     overflow-y: auto;
   }
-  /* Com boas-vindas/voz abertos: encolhe o vão do formulário para subir Catálogo + orçamento. */
-  body.home:has(> .gv-backdrop) .hero-acao .cliente-form,
+  /* Boas-vindas: formulário acompanha a altura do quadro (JS). Voz: mantém área útil. */
+  body.home:has(> .gv-backdrop) .hero-acao .cliente-form {
+    flex: 0 0 auto;
+    overflow: hidden !important;
+  }
   body.home:has(> .gv-recorder-container:not([hidden])) .hero-acao .cliente-form {
-    flex: 0 1 auto;
-    max-height: min(44dvh, 360px);
+    flex: 1 1 0%;
+    max-height: min(50dvh, 400px);
   }
   body.home .hero-acao .cliente-form .form-linha.form-tipo {
     margin-bottom: 10px !important;
@@ -2143,7 +2146,7 @@ body.gestor .admin-page {
     min-height: 0 !important;
     max-height: none !important;
     margin-top: 2px;
-    margin-bottom: 0;
+    margin-bottom: max(12px, env(safe-area-inset-bottom, 0px));
     overflow: hidden;
   }
   body.home .quote-side > ul.cart-list {
@@ -2178,7 +2181,7 @@ body.gestor .admin-page {
     bottom: auto;
     width: auto;
     margin: 0;
-    padding: 0.4rem 0.75rem env(safe-area-inset-bottom, 0px);
+    padding: 0.35rem 0.75rem 0.45rem;
     background: var(--white);
     border-top: 1px solid #000;
     box-shadow: none;

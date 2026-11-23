@@ -290,14 +290,15 @@ body.home[data-gv-edicao-orcamento="1"] .nav [data-abrir-historico] {
     padding: 4px 8px 6px;
   }
 
-  .gv-welcome-modal {
-    padding: 0.15rem 10px 0.35rem;
-  }
-
   .gv-titulo {
-    margin: 0 0 0.15rem;
+    margin: 0 0 0.2rem;
     font-size: 0.96rem;
     line-height: 1.36;
+  }
+
+  .gv-cards {
+    margin-bottom: 0;
+    padding-bottom: 0;
   }
 
   .gv-card {
@@ -929,6 +930,25 @@ body.home .site-header .nav button {
   height: var(--gv-voz-altura, var(--gv-escolha-altura, auto)) !important;
   min-height: var(--gv-voz-altura, 0px) !important;
   max-height: var(--gv-voz-altura, calc(100dvh - 16px)) !important;
+}
+
+/* Mobile: quadro de boas-vindas cola no conteúdo (sem sobra abaixo de COMANDO DE VOZ). */
+@media (max-width: 767px) {
+  .gv-welcome-modal {
+    height: auto !important;
+    min-height: unset !important;
+    max-height: none !important;
+    padding: 14px 10px !important;
+    overflow: visible;
+  }
+
+  .gv-etapa[data-gv-etapa="escolha"] {
+    height: auto !important;
+    min-height: 0 !important;
+    flex: 0 0 auto !important;
+    justify-content: flex-start;
+    gap: 0.35rem;
+  }
 }
 
 @media (min-width: 981px) {

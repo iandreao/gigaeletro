@@ -325,6 +325,7 @@
       raiz.remove();
       raiz = null;
     }
+    limparAlturaFormularioMobile();
     refletirTipoOrcamento({ exibir: false });
   }
 
@@ -406,6 +407,7 @@
     liberarCatalogo();
     raiz.remove();
     raiz = null;
+    limparAlturaFormularioMobile();
     refletirTipoOrcamento({ exibir: true });
     atualizarBotaoPrincipalModalidade("tradicional");
     /* Com os dados já completos, o próximo passo é o catálogo; senão, o preenchimento. */
@@ -528,6 +530,7 @@
     pararEscuta();
     if (gravador) gravador.remove();
     enviandoLista = false;
+    limparAlturaFormularioMobile();
     criarGravador();
     limparIntencoes();
     limparTranscricao();
@@ -601,6 +604,38 @@
     return Math.min(416, formRect.width);
   }
 
+  function ehMobileHome() {
+    return window.matchMedia("(max-width: 767px)").matches;
+  }
+
+  function limparAlturaFormularioMobile() {
+    var form = document.querySelector(".hero-centro .cliente-form") || document.querySelector(".cliente-form");
+    if (!form) return;
+    form.style.removeProperty("height");
+    form.style.removeProperty("max-height");
+    form.style.removeProperty("min-height");
+    form.style.removeProperty("flex");
+  }
+
+  function sincronizarFormularioComEscolhaMobile(modal) {
+    if (!ehMobileHome() || !modal || !document.body.contains(modal)) {
+      limparAlturaFormularioMobile();
+      return;
+    }
+    var form = document.querySelector(".hero-centro .cliente-form") || document.querySelector(".cliente-form");
+    if (!form) return;
+    /* Mantém a mesma folga atual entre a borda inferior do quadro e Ver Catálogo. */
+    var folga = 10;
+    var modalRect = modal.getBoundingClientRect();
+    var formRect = form.getBoundingClientRect();
+    if (modalRect.height < 40 || formRect.width < 1) return;
+    var altura = Math.max(120, Math.round(modalRect.bottom - formRect.top + folga));
+    form.style.setProperty("height", altura + "px", "important");
+    form.style.setProperty("max-height", altura + "px", "important");
+    form.style.setProperty("min-height", "0px", "important");
+    form.style.setProperty("flex", "0 0 auto", "important");
+  }
+
   function publicarColuna(medida) {
     if (!medida) return;
     var raizCss = document.documentElement;
@@ -608,7 +643,12 @@
     raizCss.style.setProperty("--gv-escolha-largura", medida.width + "px");
     raizCss.style.setProperty("--gv-escolha-esq", medida.left + "px");
     raizCss.style.setProperty("--gv-escolha-topo", medida.top + "px");
-    raizCss.style.setProperty("--gv-escolha-altura", medida.height + "px");
+    if (ehMobileHome() && document.querySelector(".gv-welcome-modal")) {
+      /* No mobile a escolha usa altura do conteúdo; a voz continua com a faixa medida. */
+      raizCss.style.removeProperty("--gv-escolha-altura");
+    } else {
+      raizCss.style.setProperty("--gv-escolha-altura", medida.height + "px");
+    }
     raizCss.style.setProperty("--gv-voz-topo", medida.vozTop + "px");
     raizCss.style.setProperty("--gv-voz-altura", medida.vozHeight + "px");
     if (!medida.catalogo) return;
@@ -623,9 +663,20 @@
     var medida = medirColunaCentral();
     if (!medida) return;
     publicarColuna(medida);
-    if (!modal) return;
+    if (!modal) {
+      limparAlturaFormularioMobile();
+      return;
+    }
     modal.style.setProperty("--gv-escolha-topo", medida.top + "px", "important");
+    if (ehMobileHome()) {
+      modal.style.removeProperty("--gv-escolha-altura");
+      window.requestAnimationFrame(function () {
+        sincronizarFormularioComEscolhaMobile(modal);
+      });
+      return;
+    }
     modal.style.setProperty("--gv-escolha-altura", medida.height + "px", "important");
+    limparAlturaFormularioMobile();
   }
 
   function centralizarModalHome(modal) {
@@ -1415,6 +1466,7 @@
       raiz.remove();
       raiz = null;
     }
+    limparAlturaFormularioMobile();
     liberarCatalogo();
     refletirTipoOrcamento({ exibir: false });
     aplicarRestricaoModalidadeUI();
@@ -1429,6 +1481,7 @@
     limparIntencoes();
     limparTranscricao();
     if (gravador) gravador.hidden = true;
+    limparAlturaFormularioMobile();
     liberarCatalogo();
     refletirTipoOrcamento({ exibir: false });
     aplicarRestricaoModalidadeUI();
