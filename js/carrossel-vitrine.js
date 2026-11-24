@@ -2,6 +2,7 @@
   "use strict";
 
   var INTERVALO_MS = 3500;
+  /* Caminhos relativos limpos — devem coincidir com /img/carrossel/*.png no deploy Vercel. */
   var SLIDES = [
     { src: "img/carrossel/cabos.png", titulo: "Cabos e Fios Elétricos" },
     { src: "img/carrossel/lampadas.png", titulo: "Lâmpadas Diversas" },

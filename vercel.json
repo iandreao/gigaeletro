@@ -7,6 +7,7 @@
     { "src": "css/**/*", "use": "@vercel/static" },
     { "src": "js/**/*", "use": "@vercel/static" },
     { "src": "assets/**/*", "use": "@vercel/static" },
+    { "src": "img/**/*", "use": "@vercel/static" },
     { "src": "data/catalogo.json", "use": "@vercel/static" },
     {
       "src": "api/catalogo.py",
@@ -111,9 +112,16 @@
         { "key": "Pragma", "value": "no-cache" },
         { "key": "Expires", "value": "0" }
       ]
+    },
+    {
+      "source": "/img/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }
+      ]
     }
   ],
   "routes": [
+    { "src": "/img/(.*)", "dest": "/img/$1" },
     {
       "src": "/((?!api/).*)",
       "has": [{ "type": "host", "value": { "eq": "gigaeletro.vercel.app" } }],
