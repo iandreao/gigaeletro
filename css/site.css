@@ -114,7 +114,8 @@ body.home .hero-centro {
 body.home .hero-copy {
   container-type: inline-size;
   min-width: 0;
-  margin-top: 0;
+  margin: 0;
+  padding: 0;
 }
 body.home .hero h1 {
   display: flex;
@@ -126,32 +127,36 @@ body.home .hero h1 {
   padding: 0;
   white-space: normal;
   text-align: center;
-  font-size: clamp(0.92rem, 1.35vw, 1.22rem);
+  font-size: clamp(0.95rem, 1.2vw, 1.1rem);
   font-family: "Playfair Display", serif;
   font-weight: 700;
   letter-spacing: 0;
-  line-height: 1.2;
+  line-height: 1.15;
   color: var(--gray-900);
 }
 body.home .hero h1 strong { font-weight: 900; }
 body.home .hero-missao-rotulo {
   display: block;
-  margin: 0 0 4px;
+  margin: 0;
   color: #6b5a2e;
   font-family: "Manrope", "Segoe UI", sans-serif;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  line-height: 1.2;
+  font-size: clamp(1.15rem, 1.45vw, 1.25rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.15;
   text-transform: uppercase;
 }
 body.home .hero-missao-texto {
   display: block;
-  max-width: 36ch;
-  margin: 0;
-  font-weight: 700;
-  line-height: 1.25;
-  text-wrap: balance;
+  max-width: none;
+  margin: 2px 0 0;
+  color: var(--gray-900);
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-size: clamp(0.95rem, 1.15vw, 1.05rem);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 body.home .hero-copy p {
   max-width: none;
@@ -185,7 +190,7 @@ body.home .hero-acao {
   flex-direction: column;
   justify-content: flex-start;
   gap: 0;
-  margin-top: 8px;
+  margin-top: 4px;
   overflow: visible;
 }
 body.home .cliente-form {
@@ -1060,6 +1065,10 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
     margin: 8px 0 0;
     padding: 0;
   }
+  body.home .hero-copy {
+    margin: 0 0 2px;
+    padding: 0;
+  }
   body.home .hero-acao {
     display: flex;
     flex: 1 1 auto;
@@ -1069,7 +1078,7 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
     height: auto;
     min-height: 0;
     margin-top: 0;
-    padding-top: 16px;
+    padding-top: 2px;
   }
   body.home .hero-acao > div {
     display: flex;
