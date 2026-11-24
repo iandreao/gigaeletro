@@ -36,6 +36,8 @@
   object-fit: contain;
   opacity: 0.1;
   filter: grayscale(20%);
+  mix-blend-mode: multiply;
+  pointer-events: none;
 }
 
 .carrossel-vitrine__viewport {
