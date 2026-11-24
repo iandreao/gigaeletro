@@ -113,9 +113,14 @@ body.home .hero-centro {
 }
 body.home .hero-copy {
   container-type: inline-size;
+  box-sizing: border-box;
   min-width: 0;
-  margin: 0;
-  padding: 0;
+  margin: 0 0 14px;
+  padding: 8px 20px;
+  border: 1px solid #e5c100;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff3a8 0%, #ffe566 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 body.home .hero h1 {
   display: flex;
@@ -132,13 +137,13 @@ body.home .hero h1 {
   font-weight: 700;
   letter-spacing: 0;
   line-height: 1.15;
-  color: var(--gray-900);
+  color: #2c2605;
 }
 body.home .hero h1 strong { font-weight: 900; }
 body.home .hero-missao-rotulo {
   display: block;
   margin: 0;
-  color: #6b5a2e;
+  color: #2c2605;
   font-family: "Manrope", "Segoe UI", sans-serif;
   font-size: clamp(1.15rem, 1.45vw, 1.25rem);
   font-weight: 800;
@@ -150,7 +155,7 @@ body.home .hero-missao-texto {
   display: block;
   max-width: none;
   margin: 2px 0 0;
-  color: var(--gray-900);
+  color: #2c2605;
   font-family: "Manrope", "Segoe UI", sans-serif;
   font-size: clamp(0.95rem, 1.15vw, 1.05rem);
   font-weight: 600;
@@ -1066,8 +1071,8 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
     padding: 0;
   }
   body.home .hero-copy {
-    margin: 0 0 2px;
-    padding: 0;
+    margin: 0 0 14px;
+    padding: 8px 20px;
   }
   body.home .hero-acao {
     display: flex;
@@ -1078,7 +1083,7 @@ address { margin-top: 1rem; font-style: normal; color: var(--muted); }
     height: auto;
     min-height: 0;
     margin-top: 0;
-    padding-top: 2px;
+    padding-top: 4px;
   }
   body.home .hero-acao > div {
     display: flex;
