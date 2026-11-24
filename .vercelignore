@@ -1,4 +1,8 @@
 # Bundles serverless: manter só o necessário para api/ + estáticos.
+# img/carrossel/ deve ir no deploy (não ignorar).
+!img/
+!img/carrossel/
+!img/carrossel/**
 .git/
 .github/
 .cursor/
