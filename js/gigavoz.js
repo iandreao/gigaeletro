@@ -582,13 +582,11 @@
   }
 
   function medirFaixaCatalogo(formRect) {
-    var texto = document.querySelector("[data-carrossel-vitrine]")
-      || document.querySelector(".hero-copy")
-      || document.querySelector(".hero-copy h1");
+    var texto = document.querySelector(".hero-copy h1") || document.querySelector(".hero-copy");
     var botao = document.getElementById("btnVerCatalogo");
     var textoRect = texto ? texto.getBoundingClientRect() : null;
     var botaoRect = botao ? botao.getBoundingClientRect() : null;
-    /* Logo abaixo da vitrine/título e até cobrir Ver Catálogo, na largura da coluna. */
+    /* Logo abaixo do texto institucional e até cobrir Ver Catálogo, na largura da coluna. */
     var topo = textoRect && textoRect.height > 1 ? textoRect.bottom + 12 : formRect.top;
     var base = botaoRect && botaoRect.height > 1 ? botaoRect.bottom : formRect.bottom;
     if (base < topo + 120) base = Math.max(formRect.bottom, topo + 160);
