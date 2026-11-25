@@ -50,3 +50,13 @@ htmlcov/
 node_modules/
 package-lock.json
 yarn.lock
+
+# Robô local de sync (não vai no bundle serverless).
+scripts/
+scripts/**
+logs/
+logs/**
+requirements-sync.txt
+Estoque*
+*.xlsx
+*.xls

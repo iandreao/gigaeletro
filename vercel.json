@@ -16,6 +16,13 @@
       }
     },
     {
+      "src": "api/sincronizar-catalogo.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["servidor.py", "data/catalogo.json"]
+      }
+    },
+    {
       "src": "api/orcamentos.py",
       "use": "@vercel/python",
       "config": { "includeFiles": ["servidor.py"] }
@@ -131,6 +138,7 @@
     { "src": "/api/equipe/log", "dest": "/api/auditoria.py?equipe=log" },
     { "src": "/api/equipe/resumo", "dest": "/api/auditoria.py?equipe=resumo" },
     { "src": "/api/orcamentos", "dest": "/api/orcamentos.py" },
+    { "src": "/api/sincronizar-catalogo", "dest": "/api/sincronizar-catalogo.py" },
     { "src": "/api/(.*)", "dest": "/api/$1.py" },
     { "src": "/admin-estoque", "dest": "/admin.html" },
     { "handle": "filesystem" }

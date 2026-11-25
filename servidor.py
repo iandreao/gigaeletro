@@ -35,12 +35,15 @@ import urllib.request
 import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent
 FONTE_CATALOGO = ROOT / "data" / "catalogo.json"
+CENTAVO = Decimal("0.01")
+CATALOGO_ULTIMA_SYNC_BLOB = "catalogo/ultima_sync.json"
 # Valores de teste usados só fora da Vercel; em produção valem ADMIN_PASSWORD e SEGREDO_SESSAO.
 SENHA_TESTE_LOCAL = "GigaAdmin2026"
 SEGREDO_TESTE_LOCAL = "gigaeletro-sessao-local"
@@ -56,6 +59,7 @@ PAINEL_BLOB = "orcamentos/painel.json"
 PAINEL_LIMITE = 2000
 # Na Vercel o /tmp é de uma instância só: o catálogo publicado pela área restrita fica no Blob.
 CATALOGO_BLOB = "catalogo/catalogo.json"
+CATALOGO_SYNC_BLOB = CATALOGO_ULTIMA_SYNC_BLOB
 # Cada instância reaproveita o catálogo baixado por esse prazo, para a home não baixar ~550 KB a cada visita.
 CATALOGO_CACHE_SEGUNDOS = 60
 CATALOGO_CACHE = {"conteudo": b"", "ate": 0.0}
@@ -419,31 +423,330 @@ def publicar_catalogo_blob(produtos):
 
 
 def catalogo_publicado():
-    """JSON pronto do catálogo do site quando há Blob; None no computador, onde vale a tabela produtos."""
-    if not token_blob():
-        return None
+    """Prioriza Vercel Blob (catalogo/catalogo.json); fallback para data/catalogo.json local."""
     agora = time.time()
     with CATALOGO_CACHE_LOCK:
         if CATALOGO_CACHE["conteudo"] and CATALOGO_CACHE["ate"] > agora:
             return CATALOGO_CACHE["conteudo"]
-    conteudo = baixar_blob(CATALOGO_BLOB, consistente=True)
-    if conteudo is None:
-        # Blob fora do ar: fica o último catálogo que esta instância conhece.
-        if CATALOGO_CACHE["conteudo"]:
-            return CATALOGO_CACHE["conteudo"]
+    if token_blob():
+        conteudo = baixar_blob(CATALOGO_BLOB, consistente=True)
+        if conteudo is None:
+            if CATALOGO_CACHE["conteudo"]:
+                return CATALOGO_CACHE["conteudo"]
+            try:
+                return FONTE_CATALOGO.read_bytes() if FONTE_CATALOGO.is_file() else b"[]"
+            except OSError:
+                return b"[]"
+        if not conteudo:
+            try:
+                conteudo = FONTE_CATALOGO.read_bytes() if FONTE_CATALOGO.is_file() else b"[]"
+            except OSError:
+                conteudo = b"[]"
+        with CATALOGO_CACHE_LOCK:
+            CATALOGO_CACHE.update(conteudo=conteudo, ate=agora + CATALOGO_CACHE_SEGUNDOS)
+        return conteudo
+    try:
+        return FONTE_CATALOGO.read_bytes() if FONTE_CATALOGO.is_file() else b"[]"
+    except OSError:
+        return b"[]"
+
+
+def decimal_centavos(valor):
+    """Converte número/texto BR/US em Decimal quantizado em 2 casas (ROUND_HALF_UP)."""
+    if valor is None:
+        raise InvalidOperation("vazio")
+    if isinstance(valor, Decimal):
+        return valor.quantize(CENTAVO, rounding=ROUND_HALF_UP)
+    if isinstance(valor, int) and not isinstance(valor, bool):
+        return Decimal(valor).quantize(CENTAVO, rounding=ROUND_HALF_UP)
+    if isinstance(valor, float):
+        return Decimal(str(valor)).quantize(CENTAVO, rounding=ROUND_HALF_UP)
+    texto = str(valor).strip().replace("R$", "").replace(" ", "")
+    if not texto:
+        raise InvalidOperation("vazio")
+    if "," in texto and "." in texto:
+        if texto.rfind(",") > texto.rfind("."):
+            texto = texto.replace(".", "").replace(",", ".")
+        else:
+            texto = texto.replace(",", "")
+    elif "," in texto:
+        texto = texto.replace(".", "").replace(",", ".")
+    return Decimal(texto).quantize(CENTAVO, rounding=ROUND_HALF_UP)
+
+
+def formatar_decimal(valor):
+    return format(decimal_centavos(valor), "f")
+
+
+def token_sync_catalogo():
+    return (os.environ.get("CATALOGO_SYNC_TOKEN") or "").strip()
+
+
+def autorizacao_sync_catalogo(entrada):
+    esperado = token_sync_catalogo()
+    if not esperado:
+        return False
+    bruto = (entrada.headers.get("Authorization") or "").strip()
+    if not bruto.lower().startswith("bearer "):
+        return False
+    informado = bruto[7:].strip()
+    if not informado or len(informado) != len(esperado):
+        return False
+    return hmac.compare_digest(informado, esperado)
+
+
+def auditoria_itens_catalogo(itens):
+    """Recalcula qtd / soma_preco / soma_estoque com Decimal a partir da lista do site."""
+    qtd = 0
+    soma_preco = Decimal("0.00")
+    soma_estoque = Decimal("0.00")
+    for item in itens or []:
+        if not isinstance(item, dict):
+            continue
+        nome = str(item.get("produto") or item.get("nome") or "").strip()
+        if not nome:
+            continue
         try:
-            return FONTE_CATALOGO.read_bytes() if FONTE_CATALOGO.is_file() else b"[]"
-        except OSError:
-            return b"[]"
-    if not conteudo:
-        # Nenhuma planilha publicada ainda: vale o catálogo do deploy (se estiver no bundle).
+            preco = decimal_centavos(item.get("preco"))
+            estoque = decimal_centavos(item.get("estoque"))
+        except (InvalidOperation, ValueError, TypeError):
+            continue
+        qtd += 1
+        soma_preco += preco
+        soma_estoque += estoque
+    soma_preco = soma_preco.quantize(CENTAVO, rounding=ROUND_HALF_UP)
+    soma_estoque = soma_estoque.quantize(CENTAVO, rounding=ROUND_HALF_UP)
+    return {
+        "qtd_itens": qtd,
+        "soma_preco": formatar_decimal(soma_preco),
+        "soma_estoque": formatar_decimal(soma_estoque),
+        "_soma_preco": soma_preco,
+        "_soma_estoque": soma_estoque,
+    }
+
+
+def normalizar_itens_sync(itens_brutos):
+    limpos = []
+    for item in itens_brutos or []:
+        if not isinstance(item, dict):
+            continue
+        codigo = re.sub(r"[^\d]", "", str(item.get("codigo") or ""))
+        nome = str(item.get("nome") or item.get("produto") or "").strip()
+        if not codigo or not nome:
+            continue
         try:
-            conteudo = FONTE_CATALOGO.read_bytes() if FONTE_CATALOGO.is_file() else b"[]"
-        except OSError:
-            conteudo = b"[]"
-    with CATALOGO_CACHE_LOCK:
-        CATALOGO_CACHE.update(conteudo=conteudo, ate=agora + CATALOGO_CACHE_SEGUNDOS)
+            preco = decimal_centavos(item.get("preco"))
+            estoque = decimal_centavos(item.get("estoque"))
+        except (InvalidOperation, ValueError, TypeError):
+            continue
+        if estoque <= 0:
+            continue
+        limpos.append({
+            "codigo": codigo,
+            "produto": nome,
+            "estoque": formatar_decimal(estoque),
+            "preco": float(formatar_decimal(preco)),
+        })
+    return limpos
+
+
+def gravar_catalogo_sync(produtos):
+    """Grava no Blob (produção) e/ou data/catalogo.json + SQLite (dev)."""
+    conteudo = json.dumps(produtos, ensure_ascii=False).encode("utf-8")
+    if token_blob():
+        if not enviar_json_blob(CATALOGO_BLOB, conteudo):
+            raise OSError("blob")
+        with CATALOGO_CACHE_LOCK:
+            CATALOGO_CACHE.update(conteudo=conteudo, ate=time.time() + CATALOGO_CACHE_SEGUNDOS)
+    if not em_vercel():
+        FONTE_CATALOGO.parent.mkdir(parents=True, exist_ok=True)
+        temporario = FONTE_CATALOGO.with_suffix(".json.tmp")
+        temporario.write_bytes(conteudo)
+        os.replace(temporario, FONTE_CATALOGO)
+        try:
+            banco = caminho_banco()
+            preparar_banco(banco)
+            conn = conectar(banco)
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute("DELETE FROM produtos")
+                linhas = []
+                for item in produtos:
+                    try:
+                        preco = float(formatar_decimal(item.get("preco")))
+                    except (TypeError, ValueError, InvalidOperation):
+                        continue
+                    linhas.append((
+                        str(item.get("codigo") or ""),
+                        str(item.get("produto") or ""),
+                        "" if item.get("estoque") is None else str(item.get("estoque")),
+                        preco,
+                    ))
+                if linhas:
+                    conn.executemany(
+                        "INSERT INTO produtos (codigo, nome, estoque, preco) VALUES (?, ?, ?, ?)",
+                        linhas,
+                    )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+        except Exception:
+            # Catálogo JSON já está no disco; SQLite é auxiliar no local.
+            pass
     return conteudo
+
+
+def ler_catalogo_apos_gravacao():
+    if token_blob():
+        bruto = baixar_blob(CATALOGO_BLOB, consistente=True)
+        if bruto is None:
+            raise OSError("blob-leitura")
+        if not bruto:
+            return []
+        dados = json.loads(bruto.decode("utf-8"))
+        return dados if isinstance(dados, list) else []
+    if FONTE_CATALOGO.is_file():
+        dados = json.loads(FONTE_CATALOGO.read_text(encoding="utf-8"))
+        return dados if isinstance(dados, list) else []
+    return []
+
+
+def responder_sincronizar_catalogo(saida):
+    if saida.command != "POST":
+        escrever_json(saida, {"ok": False, "erro": "Método não permitido."}, 405)
+        return
+    if not token_sync_catalogo():
+        escrever_json(saida, {"ok": False, "erro": "CATALOGO_SYNC_TOKEN não configurado no servidor."}, 503)
+        return
+    if not autorizacao_sync_catalogo(saida):
+        escrever_json(saida, {"ok": False, "erro": "Não autorizado."}, 401)
+        return
+    corpo = ler_corpo(saida)
+    if corpo is None:
+        escrever_json(saida, {"ok": False, "erro": "Corpo inválido ou grande demais."}, 413)
+        return
+    try:
+        payload = json.loads(corpo.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        escrever_json(saida, {"ok": False, "erro": "JSON inválido."}, 400)
+        return
+    if not isinstance(payload, dict):
+        escrever_json(saida, {"ok": False, "erro": "Payload inválido."}, 400)
+        return
+    itens_brutos = payload.get("itens")
+    auditoria = payload.get("auditoria") or {}
+    if not isinstance(itens_brutos, list) or not isinstance(auditoria, dict):
+        escrever_json(saida, {"ok": False, "erro": "Campos itens/auditoria obrigatórios."}, 400)
+        return
+
+    produtos = normalizar_itens_sync(itens_brutos)
+    recebida = auditoria_itens_catalogo(produtos)
+    try:
+        qtd_ref = int(auditoria.get("qtd_itens"))
+        soma_preco_ref = decimal_centavos(auditoria.get("soma_preco"))
+        soma_estoque_ref = decimal_centavos(auditoria.get("soma_estoque"))
+    except (TypeError, ValueError, InvalidOperation):
+        escrever_json(saida, {
+            "ok": False,
+            "erro": "Auditoria de origem inválida.",
+            "recebida": {
+                "qtd_itens": recebida["qtd_itens"],
+                "soma_preco": recebida["soma_preco"],
+                "soma_estoque": recebida["soma_estoque"],
+            },
+        }, 422)
+        return
+
+    if recebida["qtd_itens"] == 0 or (
+        recebida["qtd_itens"] != qtd_ref
+        or recebida["_soma_preco"] != soma_preco_ref
+        or recebida["_soma_estoque"] != soma_estoque_ref
+    ):
+        escrever_json(saida, {
+            "ok": False,
+            "erro": "Batimento de recebimento falhou (diferença diferente de zero).",
+            "recebida": {
+                "qtd_itens": recebida["qtd_itens"],
+                "soma_preco": recebida["soma_preco"],
+                "soma_estoque": recebida["soma_estoque"],
+            },
+            "origem": {
+                "qtd_itens": qtd_ref,
+                "soma_preco": formatar_decimal(soma_preco_ref),
+                "soma_estoque": formatar_decimal(soma_estoque_ref),
+            },
+        }, 422)
+        return
+
+    try:
+        gravar_catalogo_sync(produtos)
+        gravados = ler_catalogo_apos_gravacao()
+    except Exception as erro:
+        escrever_json(saida, {
+            "ok": False,
+            "erro": "Falha ao gravar/releitura do catálogo: %s" % type(erro).__name__,
+        }, 502)
+        return
+
+    confirmacao = auditoria_itens_catalogo(gravados)
+    if (
+        confirmacao["qtd_itens"] != recebida["qtd_itens"]
+        or confirmacao["_soma_preco"] != recebida["_soma_preco"]
+        or confirmacao["_soma_estoque"] != recebida["_soma_estoque"]
+    ):
+        escrever_json(saida, {
+            "ok": False,
+            "erro": "Batimento pós-gravação falhou (diferença diferente de zero).",
+            "recebida": {
+                "qtd_itens": recebida["qtd_itens"],
+                "soma_preco": recebida["soma_preco"],
+                "soma_estoque": recebida["soma_estoque"],
+            },
+            "gravada": {
+                "qtd_itens": confirmacao["qtd_itens"],
+                "soma_preco": confirmacao["soma_preco"],
+                "soma_estoque": confirmacao["soma_estoque"],
+            },
+        }, 422)
+        return
+
+    resumo = {
+        "ok": True,
+        "arquivo_origem": str(auditoria.get("arquivo_origem") or ""),
+        "data_geracao": str(auditoria.get("data_geracao") or datetime.utcnow().isoformat() + "Z"),
+        "data_sync": datetime.utcnow().isoformat() + "Z",
+        "descartados_tipo": auditoria.get("descartados_tipo"),
+        "descartados_estoque_zero": auditoria.get("descartados_estoque_zero"),
+        "origem": {
+            "qtd_itens": qtd_ref,
+            "soma_preco": formatar_decimal(soma_preco_ref),
+            "soma_estoque": formatar_decimal(soma_estoque_ref),
+        },
+        "vercel_auditoria": {
+            "qtd_itens": confirmacao["qtd_itens"],
+            "soma_preco": confirmacao["soma_preco"],
+            "soma_estoque": confirmacao["soma_estoque"],
+        },
+    }
+    try:
+        enviar_json_blob(CATALOGO_SYNC_BLOB, json.dumps(resumo, ensure_ascii=False).encode("utf-8"))
+    except Exception:
+        pass
+    if not em_vercel():
+        try:
+            destino = ROOT / "data" / "ultima_sync.json"
+            destino.write_text(json.dumps(resumo, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError:
+            pass
+    escrever_json(saida, {
+        "ok": True,
+        "vercel_auditoria": resumo["vercel_auditoria"],
+        "arquivo_origem": resumo["arquivo_origem"],
+        "data_sync": resumo["data_sync"],
+    })
 
 
 def decodificar(conteudo):
@@ -4442,6 +4745,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if caminho == "/api/auditoria":
             responder_equipe_post(self)
+            return
+        if caminho == "/api/sincronizar-catalogo":
+            responder_sincronizar_catalogo(self)
             return
         if caminho != "/api/catalogo":
             self.send_error(404)
