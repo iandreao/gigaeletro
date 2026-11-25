@@ -94,6 +94,32 @@ def limpar_codigo(valor) -> str:
     return re.sub(r"[^\d]", "", texto)
 
 
+PASTA_ORIGEM_PRINCIPAL = Path(r"C:\EstoqueProdutos")
+PASTA_ORIGEM_FALLBACK = Path.home() / "Documents" / "EstoqueProdutos"
+
+
+def resolver_pasta_origem(pasta_arg: str | None) -> Path:
+    """Prioriza C:\\EstoqueProdutos; fallback Documents\\EstoqueProdutos."""
+    if pasta_arg:
+        informada = Path(pasta_arg)
+        if informada.is_dir():
+            return informada
+        raise FileNotFoundError(
+            "Pasta de origem inexistente: %s\n"
+            "Crie a pasta C:\\EstoqueProdutos e salve nela a planilha exportada do Uniplus (Estoque *.xlsx)."
+            % informada
+        )
+    if PASTA_ORIGEM_PRINCIPAL.is_dir():
+        return PASTA_ORIGEM_PRINCIPAL
+    if PASTA_ORIGEM_FALLBACK.is_dir():
+        return PASTA_ORIGEM_FALLBACK
+    raise FileNotFoundError(
+        "Pasta de origem inexistente.\n"
+        "Crie a pasta C:\\EstoqueProdutos e salve nela a planilha exportada do Uniplus (Estoque *.xlsx).\n"
+        "(Fallback também aceito: %s)" % PASTA_ORIGEM_FALLBACK
+    )
+
+
 def achar_xlsx(pasta: Path, arquivo: str | None) -> Path:
     if arquivo:
         caminho = Path(arquivo)
@@ -102,7 +128,9 @@ def achar_xlsx(pasta: Path, arquivo: str | None) -> Path:
         return caminho
     if not pasta.is_dir():
         raise FileNotFoundError(
-            "Pasta de origem inexistente: %s\nCrie a pasta e exporte o Estoque do Uniplus nela." % pasta
+            "Pasta de origem inexistente: %s\n"
+            "Crie a pasta C:\\EstoqueProdutos e salve nela a planilha exportada do Uniplus (Estoque *.xlsx)."
+            % pasta
         )
     candidatos = [
         item for item in pasta.iterdir()
@@ -115,7 +143,10 @@ def achar_xlsx(pasta: Path, arquivo: str | None) -> Path:
             if item.is_file() and item.suffix.lower() == ".xlsx" and item.name.lower().startswith("estoque")
         ]
     if not candidatos:
-        raise FileNotFoundError("Nenhum Estoque *.xlsx em %s" % pasta)
+        raise FileNotFoundError(
+            "Nenhum Estoque *.xlsx em %s\n"
+            "Salve a planilha exportada do Uniplus em C:\\EstoqueProdutos." % pasta
+        )
     candidatos.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     return candidatos[0]
 
@@ -283,8 +314,8 @@ def main() -> int:
     parser.add_argument("--arquivo", help="Caminho do .xlsx de origem")
     parser.add_argument(
         "--pasta",
-        default=str(Path.home() / "Documents" / "EstoqueProdutos"),
-        help="Pasta com Estoque *.xlsx",
+        default=None,
+        help="Pasta com Estoque *.xlsx (padrão: C:\\EstoqueProdutos; fallback: Documents\\EstoqueProdutos)",
     )
     parser.add_argument(
         "--api",
@@ -300,11 +331,13 @@ def main() -> int:
         return 2
 
     try:
-        origem_path = achar_xlsx(Path(args.pasta), args.arquivo)
+        pasta_origem = resolver_pasta_origem(args.pasta)
+        origem_path = achar_xlsx(pasta_origem, args.arquivo)
     except FileNotFoundError as erro:
         log("ERRO: %s" % erro)
         return 2
 
+    log("Pasta de origem: %s" % pasta_origem)
     log("Lendo origem: %s" % origem_path)
     itens, meta = ler_origem_xlsx(origem_path)
     qtd_o, soma_po, soma_eo = totais(itens)
