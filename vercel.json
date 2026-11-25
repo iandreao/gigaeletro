@@ -121,18 +121,6 @@
     }
   ],
   "routes": [
-    {
-      "src": "/((?!api/).*)",
-      "has": [{ "type": "host", "value": { "eq": "gigaeletro.vercel.app" } }],
-      "status": 301,
-      "headers": { "Location": "https://gigaeletro.com.br/$1" }
-    },
-    {
-      "src": "/(.*)",
-      "has": [{ "type": "host", "value": { "eq": "www.gigaeletro.com.br" } }],
-      "status": 301,
-      "headers": { "Location": "https://gigaeletro.com.br/$1" }
-    },
     { "src": "/api/pdf/([A-Za-z0-9-]+)", "dest": "/api/ver-pdf.py?id=$1" },
     { "src": "/api/equipe/funcionarios", "dest": "/api/auditoria.py?equipe=funcionarios" },
     { "src": "/api/equipe/log", "dest": "/api/auditoria.py?equipe=log" },
@@ -140,6 +128,18 @@
     { "src": "/api/orcamentos", "dest": "/api/orcamentos.py" },
     { "src": "/api/sincronizar-catalogo", "dest": "/api/sincronizar-catalogo.py" },
     { "src": "/api/(.*)", "dest": "/api/$1.py" },
+    {
+      "src": "/((?!api/).*)",
+      "has": [{ "type": "host", "value": { "eq": "gigaeletro.vercel.app" } }],
+      "status": 301,
+      "headers": { "Location": "https://gigaeletro.com.br/$1" }
+    },
+    {
+      "src": "/((?!api/).*)",
+      "has": [{ "type": "host", "value": { "eq": "www.gigaeletro.com.br" } }],
+      "status": 301,
+      "headers": { "Location": "https://gigaeletro.com.br/$1" }
+    },
     { "src": "/admin-estoque", "dest": "/admin.html" },
     { "handle": "filesystem" }
   ]
