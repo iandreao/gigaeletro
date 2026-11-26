@@ -614,9 +614,12 @@ body.gestor .admin-page .drop-cliente.has-file .drop-texto {
 body.gestor .admin-page .drop-arquivo {
   display: block;
   max-width: 100%;
-  margin-top: 0.15rem;
-  color: #1c1917;
-  font-size: 0.95rem;
+  margin-top: 0.2rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.3rem;
+  background: rgba(255, 212, 0, 0.28);
+  color: #111;
+  font-size: 1rem;
   font-weight: 800;
   line-height: 1.35;
   word-break: break-word;
@@ -626,7 +629,7 @@ body.gestor .admin-page .drop-arquivo[hidden] {
 }
 body.gestor .admin-page .file-name-estoque {
   margin: 0.35rem 0 0;
-  color: #1c1917;
+  color: #111;
   font-size: 0.9rem;
   font-weight: 800;
 }
@@ -634,7 +637,7 @@ body.gestor .admin-page .btn-processar-estoque:not(:disabled),
 body.gestor .admin-page .btn-processar-estoque.is-pronto:not(:disabled) {
   background: #FFD400 !important;
   border-color: #FFD400 !important;
-  color: #1a1a1a !important;
+  color: #111 !important;
   font-weight: 800;
   opacity: 1;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
