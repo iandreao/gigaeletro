@@ -121,6 +121,7 @@
     { "src": "/api/orcamentos", "dest": "/api/orcamentos.py" },
     { "src": "/api/catalogo/status-sync", "dest": "/api/catalogo.py?acao=status-sync" },
     { "src": "/api/catalogo/upload-manual", "dest": "/api/catalogo.py?acao=upload-manual" },
+    { "src": "/api/catalogo/alerta-sync", "dest": "/api/catalogo.py?acao=alerta-sync" },
     { "src": "/api/sincronizar-catalogo", "dest": "/api/catalogo.py?sync=1" },
     { "src": "/api/(.*)", "dest": "/api/$1.py" },
     {

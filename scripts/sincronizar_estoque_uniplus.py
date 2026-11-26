@@ -7,9 +7,15 @@ import csv
 import os
 import re
 import sys
-from datetime import datetime, timezone
+import unicodedata
+from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover
+    ZoneInfo = None  # type: ignore
 
 try:
     import openpyxl
@@ -36,10 +42,29 @@ LOG_FILE = LOGS / "sync_catalogo.log"
 CENTAVO = Decimal("0.01")
 TIPO_REVEND = re.compile(r"^00(\s*-|\b)", re.I)
 PADRAO_ESTOQUE = re.compile(r"^estoque\s+.+\.xlsx?$", re.I)
+RE_GERADO = re.compile(
+    r"Gerado\s+em\s+(\d{2}/\d{2}/(?:\d{2}|\d{4}))(?:\s+(\d{2}:\d{2}:\d{2}))?",
+    re.I,
+)
+TITULOS_ESPERADOS = {
+    0: ("Código", ("codigo",)),
+    1: ("Nome", ("nome",)),
+    3: ("Preço Unit", ("preco unit",)),
+    4: ("Estoque", ("estoque",)),
+    5: ("Tipo de produto", ("tipo de produto",)),
+}
 MSG_CRIAR_PASTA = (
     "Crie a pasta C:\\EstoqueProdutos e salve nela a planilha exportada do Uniplus "
     "(Estoque *.xls / *.xlsx)."
 )
+
+
+class ValidacaoPlanilhaErro(Exception):
+    def __init__(self, tipo: str, mensagem: str, detalhe: str = ""):
+        super().__init__(mensagem)
+        self.tipo = tipo
+        self.detalhe = detalhe
+        self.mensagem = mensagem
 
 
 def log(msg: str) -> None:
@@ -181,42 +206,118 @@ def _ler_linhas_xls(caminho: Path):
     return linhas
 
 
+def agora_sp() -> datetime:
+    if ZoneInfo is not None:
+        return datetime.now(ZoneInfo("America/Sao_Paulo"))
+    return datetime.now(timezone(timedelta(hours=-3)))
+
+
+def normalizar_titulo(valor) -> str:
+    texto = unicodedata.normalize("NFD", str(valor or ""))
+    texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
+    texto = re.sub(r"\s+", " ", texto).strip().lower()
+    if texto.endswith("."):
+        texto = texto[:-1].rstrip()
+    return texto
+
+
+def parse_data_carimbo(texto_data: str) -> date:
+    partes = str(texto_data or "").strip().split("/")
+    if len(partes) != 3:
+        raise ValueError("data")
+    dia, mes, ano = int(partes[0]), int(partes[1]), int(partes[2])
+    if ano < 100:
+        ano += 2000
+    return date(ano, mes, dia)
+
+
+def extrair_carimbo(linhas):
+    for linha in reversed(list(linhas or [])):
+        if not linha:
+            continue
+        textos = [str(celula(list(linha), 0) or "").strip()]
+        textos.append(" ".join(str(c or "").strip() for c in linha if str(c or "").strip()))
+        for texto in textos:
+            match = RE_GERADO.search(texto or "")
+            if not match:
+                continue
+            carimbo = re.sub(r"\s+", " ", match.group(0).strip())
+            return carimbo, match.group(1)
+    return None, None
+
+
+def validar_data_geracao(linhas):
+    hoje = agora_sp().date()
+    hoje_txt = hoje.strftime("%d/%m/%Y")
+    carimbo, data_txt = extrair_carimbo(linhas)
+    if not carimbo or not data_txt:
+        raise ValidacaoPlanilhaErro(
+            "data_invalida",
+            "Carimbo de geração não encontrado (Gerado em DD/MM/AA HH:MM:SS). Hoje: %s." % hoje_txt,
+            "(carimbo não encontrado)",
+        )
+    try:
+        data_arquivo = parse_data_carimbo(data_txt)
+    except ValueError as erro:
+        raise ValidacaoPlanilhaErro(
+            "data_invalida",
+            "Data do carimbo inválida: %s. Hoje: %s." % (carimbo, hoje_txt),
+            carimbo,
+        ) from erro
+    if data_arquivo != hoje:
+        raise ValidacaoPlanilhaErro(
+            "data_invalida",
+            "Planilha não é de hoje. Carimbo: %s. Hoje (America/Sao_Paulo): %s." % (carimbo, hoje_txt),
+            carimbo,
+        )
+    return carimbo
+
+
+def achar_cabecalho(linhas):
+    for indice, linha in enumerate(list(linhas or [])[:40]):
+        if normalizar_titulo(celula(list(linha or []), 0)) == "codigo":
+            return indice
+    return -1
+
+
+def validar_titulos(linhas):
+    indice = achar_cabecalho(linhas)
+    if indice < 0:
+        raise ValidacaoPlanilhaErro(
+            "estrutura_invalida",
+            'Cabeçalho não encontrado. Esperado Coluna 1 "Código".',
+            'Coluna 1: esperado "Código"',
+        )
+    linha = list(linhas[indice] or [])
+    divergencias = []
+    for posicao, (rotulo, aceitos) in TITULOS_ESPERADOS.items():
+        encontrado = str(celula(linha, posicao) or "").strip()
+        if normalizar_titulo(encontrado) not in aceitos:
+            divergencias.append(
+                'Coluna %s: esperado "%s", encontrado "%s"'
+                % (posicao + 1, rotulo, encontrado or "(vazio)")
+            )
+    if divergencias:
+        raise ValidacaoPlanilhaErro(
+            "estrutura_invalida",
+            "Estrutura divergente. " + "; ".join(divergencias),
+            "; ".join(divergencias),
+        )
+    return indice
+
+
 def processar_linhas(linhas, nome_arquivo: str):
     if not linhas:
         raise ValueError("Planilha vazia.")
 
-    # Detecta cabeçalho por nomes; senão assume layout Uniplus posicional.
-    inicio = 0
+    carimbo = validar_data_geracao(linhas)
+    inicio = validar_titulos(linhas)
     idx_codigo, idx_nome, idx_preco, idx_estoque, idx_tipo = 0, 1, 3, 4, 5
-    cab = [str(c or "").strip().lower() for c in linhas[0]]
-    if any("codigo" in c or "código" in c for c in cab):
-        inicio = 1
-
-        def achar(*nomes):
-            for i, c in enumerate(cab):
-                for n in nomes:
-                    if n in c:
-                        return i
-            return -1
-
-        idx_codigo = achar("codigo", "código")
-        idx_nome = achar("nome", "descricao", "descrição", "produto")
-        idx_preco = achar("preço unit", "preco unit", "prvenda", "pr venda", "preço", "preco")
-        idx_estoque = achar("estoque")
-        idx_tipo = achar("tipo de produto", "tipo produto", "tipo")
-        if idx_codigo < 0 or idx_nome < 0:
-            raise ValueError("Cabeçalho sem Código/Nome.")
-        # Layout 4 colunas (Código;Nome;Estoque;PrVenda) sem tipo.
-        if idx_tipo < 0 and idx_estoque >= 0 and idx_preco >= 0:
-            idx_tipo = -1
-        elif idx_tipo < 0:
-            # Posicional Uniplus: 1=código 2=nome 4=preço 5=estoque 6=tipo
-            idx_codigo, idx_nome, idx_preco, idx_estoque, idx_tipo = 0, 1, 3, 4, 5
 
     itens = []
     descartados_tipo = 0
     descartados_estoque_zero = 0
-    for bruto in linhas[inicio:]:
+    for bruto in linhas[inicio + 1:]:
         linha = list(bruto or [])
         codigo = limpar_codigo(celula(linha, idx_codigo))
         if not codigo:
@@ -225,10 +326,10 @@ def processar_linhas(linhas, nome_arquivo: str):
         if not nome:
             continue
         # Ignora totais/rodapé óbvios.
-        if nome.lower().startswith(("total", "soma", "subtotal")):
+        if nome.lower().startswith(("total", "soma", "subtotal", "gerado em")):
             continue
-        tipo = str(celula(linha, idx_tipo) or "").strip() if idx_tipo >= 0 else "00 - Mercadoria para revenda"
-        if idx_tipo >= 0 and not TIPO_REVEND.search(tipo):
+        tipo = str(celula(linha, idx_tipo) or "").strip()
+        if not TIPO_REVEND.search(tipo):
             descartados_tipo += 1
             continue
         try:
@@ -253,7 +354,37 @@ def processar_linhas(linhas, nome_arquivo: str):
         "descartados_tipo": descartados_tipo,
         "descartados_estoque_zero": descartados_estoque_zero,
         "arquivo_origem": nome_arquivo,
+        "carimbo_geracao": carimbo,
     }
+
+
+def url_alerta(api_sync: str) -> str:
+    env = (os.environ.get("CATALOGO_ALERTA_URL") or "").strip()
+    if env:
+        return env
+    base = api_sync
+    if "/api/" in base:
+        base = base.split("/api/", 1)[0]
+    return base.rstrip("/") + "/api/catalogo/alerta-sync"
+
+
+def enviar_alerta(api_sync: str, token: str, tipo: str, detalhe: str) -> None:
+    destino = url_alerta(api_sync)
+    log("ALERTA %s → %s (detalhe=%s)" % (tipo, destino, detalhe))
+    try:
+        resp = requests.post(
+            destino,
+            json={"tipo": tipo, "detalhe": detalhe},
+            headers={
+                "Authorization": "Bearer " + token,
+                "Content-Type": "application/json",
+                "User-Agent": "GigaEletroSyncBot/1.0",
+            },
+            timeout=60,
+        )
+        log("Resposta alerta HTTP %s: %s" % (resp.status_code, resp.text[:500]))
+    except requests.RequestException as erro:
+        log("ERRO ao enviar alerta: %s" % erro)
 
 
 def ler_origem(caminho: Path):
@@ -371,6 +502,10 @@ def main() -> int:
     log("Arquivo de origem: %s" % origem_path)
     try:
         itens, meta = ler_origem(origem_path)
+    except ValidacaoPlanilhaErro as erro:
+        log("ABORTADO validação (%s): %s" % (erro.tipo, erro.mensagem))
+        enviar_alerta(args.api, token, erro.tipo, erro.detalhe)
+        return 6
     except Exception as erro:
         log("ERRO ao ler origem: %s" % erro)
         return 2

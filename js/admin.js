@@ -269,7 +269,7 @@
     });
   });
 
-  var TEXTO_PROCESSAR = "Processar e Atualizar Estoque no Site";
+  var TEXTO_PROCESSAR = "Processar e Atualizar Tabela no Site";
   var TEXTO_SYNC_ATUALIZAR = "Atualizar Status";
   /* A Vercel recusa corpo acima de 4,5 MB antes de chegar ao servidor, com uma página que não é JSON. */
   var LIMITE_PLANILHA = 4 * 1024 * 1024;
@@ -572,7 +572,7 @@
         if (corpo.ultima_sync) renderStatusSync(corpo.ultima_sync);
         else carregarStatusSync();
         avisoEstoque(
-          "Estoque atualizado e auditado: " + (corpo.itens_ativos || corpo.inseridos || 0) +
+          "Tabela atualizada e auditada: " + (corpo.itens_ativos || corpo.inseridos || 0) +
           " itens ativos · diferença 0.00.",
           "ok"
         );
@@ -605,7 +605,7 @@
   }
 
   var ACOES_ABA = {
-    estoque: "Abriu Atualizar Estoque",
+    estoque: "Abriu Atualizar Tabela",
     orcamentos: "Abriu Orçamentos Recebidos",
     dashboard: "Abriu Painel Comercial",
     trafego: "Abriu Rastreamento de Tráfego",

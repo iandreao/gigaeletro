@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=120">
-  <link rel="stylesheet" href="css/admin.css?v=62">
+  <link rel="stylesheet" href="css/admin.css?v=63">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -32,7 +32,7 @@
         <p class="gestor-operador" data-gestor-operador hidden></p>
       </div>
       <nav class="gestor-abas" id="menu-gestor" aria-label="Área restrita">
-        <button type="button" data-aba="estoque" aria-selected="false">Atualizar Estoque</button>
+        <button type="button" data-aba="estoque" aria-selected="false">Atualizar Tabela</button>
         <button type="button" data-aba="orcamentos" aria-selected="true">Orçamentos Recebidos</button>
         <button type="button" data-aba="dashboard" aria-selected="false">Painel Comercial</button>
         <button type="button" data-aba="trafego" aria-selected="false">Rastreamento de Tráfego</button>
@@ -116,7 +116,7 @@
       </div>
     </div>
     <div class="wrap admin-page" data-visao="estoque" hidden>
-      <h1>Atualização de estoque</h1>
+      <h1>Atualização de Tabela</h1>
 
       <section class="sync-status panel" data-sync-status aria-live="polite">
         <div class="sync-status-topo">
@@ -169,7 +169,7 @@
         </label>
         <p class="file-name file-name-estoque" data-admin-arquivo-nome hidden></p>
         <p class="aviso" data-admin-status hidden></p>
-        <button class="btn btn-amarelo btn-processar-estoque" type="button" data-processar disabled>Processar e Atualizar Estoque no Site</button>
+        <button class="btn btn-amarelo btn-processar-estoque" type="button" data-processar disabled>Processar e Atualizar Tabela no Site</button>
         <div id="relatorio-auditoria-manual" class="auditoria-batimento" data-auditoria hidden>
           <h3>Relatório de Auditoria Comparativa</h3>
           <div class="auditoria-tabela-wrap">
@@ -371,6 +371,6 @@
   <div class="equipe-acoes-tooltip" data-equipe-acoes-tooltip hidden></div>
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="js/pedido-pdf.js?v=15"></script>
-  <script src="js/admin.js?v=85"></script>
+  <script src="js/admin.js?v=86"></script>
 </body>
 </html>

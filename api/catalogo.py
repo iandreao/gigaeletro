@@ -1,4 +1,4 @@
-"""GET/POST /api/catalogo (+ status-sync, upload-manual, sincronizar-catalogo) na Vercel.
+"""GET/POST /api/catalogo (+ status-sync, upload-manual, sincronizar, alerta-sync) na Vercel.
 
 Consolida tudo em uma única Serverless Function (Hobby: máx. 12).
 Rewrites em vercel.json apontam para este handler com ?acao= / ?sync=1.
@@ -39,11 +39,11 @@ def _eh_status_sync(saida) -> bool:
     return _acao(saida) == "status-sync"
 
 
-def _eh_upload_manual(saida) -> bool:
+def _eh_alerta_sync(saida) -> bool:
     caminho = _caminho(saida)
-    if caminho.endswith("upload-manual"):
+    if caminho.endswith("alerta-sync"):
         return True
-    return _acao(saida) == "upload-manual"
+    return _acao(saida) == "alerta-sync"
 
 
 class handler(BaseHTTPRequestHandler):
@@ -54,6 +54,9 @@ class handler(BaseHTTPRequestHandler):
         servidor.responder_catalogo(self)
 
     def do_POST(self):
+        if _eh_alerta_sync(self):
+            servidor.responder_alerta_sync(self)
+            return
         if _eh_sincronizar(self):
             servidor.responder_sincronizar_catalogo(self)
             return

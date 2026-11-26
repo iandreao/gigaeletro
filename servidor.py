@@ -34,7 +34,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -46,6 +46,18 @@ FONTE_ULTIMA_SYNC = ROOT / "data" / "ultima_sync.json"
 CENTAVO = Decimal("0.01")
 CATALOGO_ULTIMA_SYNC_BLOB = "catalogo/ultima_sync.json"
 TIPO_REVEND_CATALOGO = re.compile(r"^00(\s*-|\b)", re.I)
+RE_GERADO_UNIPLUS = re.compile(
+    r"Gerado\s+em\s+(\d{2}/\d{2}/(?:\d{2}|\d{4}))(?:\s+(\d{2}:\d{2}:\d{2}))?",
+    re.I,
+)
+ALERTA_SYNC_DESTINO = "iandreao1308@gmail.com"
+TITULOS_UNIPLUS_ESPERADOS = {
+    0: ("Código", ("codigo",)),
+    1: ("Nome", ("nome",)),
+    3: ("Preço Unit", ("preco unit",)),
+    4: ("Estoque", ("estoque",)),
+    5: ("Tipo de produto", ("tipo de produto",)),
+}
 # Valores de teste usados só fora da Vercel; em produção valem ADMIN_PASSWORD e SEGREDO_SESSAO.
 SENHA_TESTE_LOCAL = "GigaAdmin2026"
 SEGREDO_TESTE_LOCAL = "gigaeletro-sessao-local"
@@ -127,6 +139,16 @@ IMPORTACAO = threading.Lock()
 
 class PlanilhaInvalida(Exception):
     pass
+
+
+class ValidacaoUniplusErro(Exception):
+    """Trava operacional de data/estrutura da planilha Uniplus (não altera o catálogo)."""
+
+    def __init__(self, tipo, mensagem, detalhe=""):
+        super().__init__(mensagem)
+        self.tipo = str(tipo or "").strip() or "estrutura_invalida"
+        self.detalhe = str(detalhe or "").strip()
+        self.mensagem = str(mensagem or "").strip()
 
 
 def em_vercel():
@@ -786,35 +808,203 @@ def planilha_para_matriz_uniplus(nome, conteudo):
     )
 
 
-def processar_matriz_uniplus(matriz):
-    """Aplica filtros Uniplus (tipo 00 + estoque > 0) e devolve produtos + totais Decimal da ponta 1."""
+def normalizar_titulo_uniplus(valor):
+    texto = unicodedata.normalize("NFD", str(valor or ""))
+    texto = "".join(caractere for caractere in texto if unicodedata.category(caractere) != "Mn")
+    texto = re.sub(r"\s+", " ", texto).strip().lower()
+    if texto.endswith("."):
+        texto = texto[:-1].rstrip()
+    return texto
+
+
+def parse_data_carimbo_uniplus(texto_data):
+    partes = str(texto_data or "").strip().split("/")
+    if len(partes) != 3:
+        raise ValueError("data")
+    dia, mes, ano = int(partes[0]), int(partes[1]), int(partes[2])
+    if ano < 100:
+        ano += 2000
+    return date(ano, mes, dia)
+
+
+def extrair_carimbo_geracao_uniplus(matriz):
+    """Procura de baixo para cima o carimbo 'Gerado em DD/MM/AA HH:MM:SS' na coluna 1."""
+    for linha in reversed(list(matriz or [])):
+        if not linha:
+            continue
+        textos = []
+        textos.append(str(celula_matriz(linha, 0) or "").strip())
+        textos.append(" ".join(str(c or "").strip() for c in linha if str(c or "").strip()))
+        for texto in textos:
+            if not texto:
+                continue
+            match = RE_GERADO_UNIPLUS.search(texto)
+            if not match:
+                continue
+            carimbo = match.group(0).strip()
+            carimbo = re.sub(r"\s+", " ", carimbo)
+            if not carimbo.lower().startswith("gerado"):
+                carimbo = "Gerado em " + match.group(1) + (
+                    (" " + match.group(2)) if match.group(2) else ""
+                )
+            return carimbo, match.group(1)
+    return None, None
+
+
+def validar_data_geracao_uniplus(matriz):
+    hoje = agora_painel().date()
+    hoje_txt = hoje.strftime("%d/%m/%Y")
+    carimbo, data_txt = extrair_carimbo_geracao_uniplus(matriz)
+    if not carimbo or not data_txt:
+        raise ValidacaoUniplusErro(
+            "data_invalida",
+            "Carimbo de geração não encontrado na última linha (esperado: Gerado em DD/MM/AA HH:MM:SS). "
+            "Hoje no painel: %s. O catálogo anterior foi mantido." % hoje_txt,
+            detalhe="(carimbo não encontrado)",
+        )
+    try:
+        data_arquivo = parse_data_carimbo_uniplus(data_txt)
+    except ValueError as erro:
+        raise ValidacaoUniplusErro(
+            "data_invalida",
+            "Data do carimbo inválida (%s). Hoje: %s. O catálogo anterior foi mantido." % (carimbo, hoje_txt),
+            detalhe=carimbo,
+        ) from erro
+    if data_arquivo != hoje:
+        raise ValidacaoUniplusErro(
+            "data_invalida",
+            "A planilha não é de hoje. Carimbo: %s. Data de hoje (America/Sao_Paulo): %s. "
+            "Gere novamente o arquivo no Uniplus com a data de hoje. O catálogo anterior foi mantido."
+            % (carimbo, hoje_txt),
+            detalhe=carimbo,
+        )
+    return carimbo
+
+
+def achar_linha_cabecalho_uniplus(matriz):
+    for indice, linha in enumerate(list(matriz or [])[:40]):
+        if normalizar_titulo_uniplus(celula_matriz(linha, 0)) == "codigo":
+            return indice
+    return -1
+
+
+def validar_titulos_colunas_uniplus(matriz):
+    indice = achar_linha_cabecalho_uniplus(matriz)
+    if indice < 0:
+        raise ValidacaoUniplusErro(
+            "estrutura_invalida",
+            'Cabeçalho não encontrado. Esperado Coluna 1 "Código". O catálogo anterior foi mantido.',
+            detalhe='Coluna 1: esperado "Código"',
+        )
+    linha = list(matriz[indice] or [])
+    divergencias = []
+    for posicao, (rotulo, aceitos) in TITULOS_UNIPLUS_ESPERADOS.items():
+        encontrado = str(celula_matriz(linha, posicao) or "").strip()
+        normalizado = normalizar_titulo_uniplus(encontrado)
+        if normalizado not in aceitos:
+            divergencias.append(
+                'Coluna %s: esperado "%s", encontrado "%s"'
+                % (posicao + 1, rotulo, encontrado or "(vazio)")
+            )
+    if divergencias:
+        raise ValidacaoUniplusErro(
+            "estrutura_invalida",
+            "Estrutura da planilha divergente. " + "; ".join(divergencias) +
+            ". O catálogo anterior foi mantido.",
+            detalhe="; ".join(divergencias),
+        )
+    return indice
+
+
+def validar_prechecks_uniplus(matriz):
+    """Validação 1 (data de hoje) + Validação 2 (títulos). Não altera catálogo."""
     if not matriz:
         raise PlanilhaInvalida("Planilha vazia. O catálogo anterior foi mantido.")
+    carimbo = validar_data_geracao_uniplus(matriz)
+    inicio = validar_titulos_colunas_uniplus(matriz)
+    return carimbo, inicio
 
-    inicio = 0
+
+def montar_email_alerta_sync(tipo, detalhe=""):
+    tipo = str(tipo or "").strip().lower()
+    detalhe = str(detalhe or "").strip()
+    if tipo == "data_invalida":
+        carimbo = detalhe or "(carimbo não encontrado)"
+        return (
+            "Atualização Tabela de Preço no SiteGigaeletro",
+            "Olá, o último arquivo encontrado foi gerado em %s, favor gerar o arquivo com a data de hoje." % carimbo,
+        )
+    return (
+        "Estrutura do arquivo - Suspeita de alteração",
+        'Olá, Favor verificar a estrutura do arquivo, devendo conter: Coluna 1 "Código"; '
+        'Coluna 2 "Nome"; Coluna 4 "Preço Unit"; Coluna 5 "Estoque" e Coluna 6 "Tipo de produto".',
+    )
+
+
+def enviar_email_alerta_sync(tipo, detalhe=""):
+    chave = variavel_sem_aspas("RESEND_API_KEY")
+    if not chave:
+        return False, "RESEND_API_KEY ausente"
+    assunto, texto = montar_email_alerta_sync(tipo, detalhe)
+    html = "<p>" + html.escape(texto) + "</p>"
+    payload = {
+        "from": remetente_email(),
+        "to": [ALERTA_SYNC_DESTINO],
+        "subject": assunto,
+        "html": html,
+        "text": texto,
+    }
+    try:
+        disparar_resend(chave, payload)
+        return True, ""
+    except Exception as erro:
+        print("alerta-sync: falha Resend (%s)" % erro, file=sys.stderr, flush=True)
+        return False, str(erro)
+
+
+def responder_alerta_sync(saida):
+    if saida.command != "POST":
+        escrever_json(saida, {"ok": False, "erro": "Método não permitido."}, 405)
+        return
+    if not token_sync_catalogo():
+        escrever_json(saida, {"ok": False, "erro": "CATALOGO_SYNC_TOKEN não configurado no servidor."}, 503)
+        return
+    if not autorizacao_sync_catalogo(saida):
+        escrever_json(saida, {"ok": False, "erro": "Não autorizado."}, 401)
+        return
+    corpo = ler_corpo(saida)
+    if corpo is None:
+        escrever_json(saida, {"ok": False, "erro": "Corpo inválido ou grande demais."}, 413)
+        return
+    try:
+        payload = json.loads(corpo.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        escrever_json(saida, {"ok": False, "erro": "JSON inválido."}, 400)
+        return
+    if not isinstance(payload, dict):
+        escrever_json(saida, {"ok": False, "erro": "Payload inválido."}, 400)
+        return
+    tipo = str(payload.get("tipo") or "").strip().lower()
+    detalhe = str(payload.get("detalhe") or "").strip()
+    if tipo not in ("data_invalida", "estrutura_invalida"):
+        escrever_json(saida, {"ok": False, "erro": "tipo deve ser data_invalida ou estrutura_invalida."}, 400)
+        return
+    ok_envio, erro_envio = enviar_email_alerta_sync(tipo, detalhe)
+    if not ok_envio:
+        escrever_json(saida, {
+            "ok": False,
+            "erro": "Não foi possível enviar o e-mail de alerta.",
+            "detalhe": erro_envio,
+            "tipo": tipo,
+        }, 502)
+        return
+    escrever_json(saida, {"ok": True, "tipo": tipo, "enviado_para": ALERTA_SYNC_DESTINO})
+
+
+def processar_matriz_uniplus(matriz):
+    """Aplica filtros Uniplus (tipo 00 + estoque > 0) e devolve produtos + totais Decimal da ponta 1."""
+    carimbo, inicio = validar_prechecks_uniplus(matriz)
     idx_codigo, idx_nome, idx_preco, idx_estoque, idx_tipo = 0, 1, 3, 4, 5
-    cab = [str(c or "").strip().lower() for c in (matriz[0] or [])]
-    if any("codigo" in c or "código" in c for c in cab):
-        inicio = 1
-
-        def achar(*nomes):
-            for i, c in enumerate(cab):
-                for n in nomes:
-                    if n in c:
-                        return i
-            return -1
-
-        idx_codigo = achar("codigo", "código")
-        idx_nome = achar("nome", "descricao", "descrição", "produto")
-        idx_preco = achar("preço unit", "preco unit", "prvenda", "pr venda", "preço", "preco")
-        idx_estoque = achar("estoque")
-        idx_tipo = achar("tipo de produto", "tipo produto", "tipo")
-        if idx_codigo < 0 or idx_nome < 0:
-            raise PlanilhaInvalida("Cabeçalho sem Código/Nome. O catálogo anterior foi mantido.")
-        if idx_tipo < 0 and idx_estoque >= 0 and idx_preco >= 0:
-            idx_tipo = -1
-        elif idx_tipo < 0:
-            idx_codigo, idx_nome, idx_preco, idx_estoque, idx_tipo = 0, 1, 3, 4, 5
 
     produtos = []
     descartados_tipo = 0
@@ -822,7 +1012,7 @@ def processar_matriz_uniplus(matriz):
     soma_preco = Decimal("0.00")
     soma_estoque = Decimal("0.00")
 
-    for bruto in matriz[inicio:]:
+    for bruto in matriz[inicio + 1:]:
         linha = list(bruto or [])
         codigo = limpar_codigo_uniplus(celula_matriz(linha, idx_codigo))
         if not codigo:
@@ -830,10 +1020,10 @@ def processar_matriz_uniplus(matriz):
         nome = str(celula_matriz(linha, idx_nome) or "").strip()
         if not nome:
             continue
-        if nome.lower().startswith(("total", "soma", "subtotal")):
+        if nome.lower().startswith(("total", "soma", "subtotal", "gerado em")):
             continue
-        tipo = str(celula_matriz(linha, idx_tipo) or "").strip() if idx_tipo >= 0 else "00 - Mercadoria para revenda"
-        if idx_tipo >= 0 and not TIPO_REVEND_CATALOGO.search(tipo):
+        tipo = str(celula_matriz(linha, idx_tipo) or "").strip()
+        if not TIPO_REVEND_CATALOGO.search(tipo):
             descartados_tipo += 1
             continue
         try:
@@ -871,6 +1061,7 @@ def processar_matriz_uniplus(matriz):
         "descartados_tipo": descartados_tipo,
         "descartados_estoque_zero": descartados_estoque,
         "itens_descartados": descartados_tipo + descartados_estoque,
+        "carimbo_geracao": carimbo,
     }
     return produtos, ponta1, meta
 
@@ -1037,6 +1228,14 @@ def responder_upload_manual_uniplus(saida):
     try:
         matriz = planilha_para_matriz_uniplus(nome, arquivo)
         produtos, ponta1, meta = processar_matriz_uniplus(matriz)
+    except ValidacaoUniplusErro as erro:
+        escrever_json(saida, {
+            "ok": False,
+            "erro": erro.mensagem,
+            "tipo_validacao": erro.tipo,
+            "detalhe": erro.detalhe,
+        }, 400)
+        return
     except PlanilhaInvalida as erro:
         escrever_json(saida, {"ok": False, "erro": str(erro)}, 400)
         return
@@ -1062,7 +1261,7 @@ def responder_upload_manual_uniplus(saida):
     try:
         gravar_log_equipe(
             usuario,
-            "Atualizou Estoque (Upload Manual Uniplus: %s itens)" % ponta3["qtd_itens"],
+            "Atualizou Tabela (Upload Manual Uniplus: %s itens)" % ponta3["qtd_itens"],
             dispositivo,
         )
     except Exception:
@@ -5074,6 +5273,9 @@ class Handler(SimpleHTTPRequestHandler):
             responder_equipe_post(self)
             return
         acao_catalogo = parametro_consulta(self.path, "acao")
+        if caminho in ("/api/catalogo/alerta-sync",) or acao_catalogo == "alerta-sync":
+            responder_alerta_sync(self)
+            return
         if caminho == "/api/sincronizar-catalogo" or (
             caminho == "/api/catalogo" and (
                 parametro_consulta(self.path, "sync") == "1" or acao_catalogo == "sincronizar"
