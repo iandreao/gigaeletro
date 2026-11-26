@@ -543,33 +543,27 @@ body.gestor .dash-topo h1 { margin: 0; }
   margin-left: auto;
   max-width: 100%;
 }
-.sync-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.22rem 0.55rem;
-  border: 1px solid #d6d3d1;
-  border-radius: 0.35rem;
-  background: #fafaf9;
-  color: #1c1917;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.01em;
+.sync-origem-texto,
+.sync-audit-texto {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  color: #57534e;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.3;
   white-space: nowrap;
+  cursor: default;
+  pointer-events: none;
+  user-select: text;
 }
-.sync-badge-ok {
-  border-color: #86efac;
-  background: #f0fdf4;
+.sync-audit-texto {
   color: #15803d;
-}
-.sync-badge-robo {
-  border-color: #fde68a;
-  background: #fffbeb;
-  color: #a16207;
-}
-.sync-badge-manual {
-  border-color: #cbd5e1;
-  background: #f8fafc;
-  color: #334155;
+  font-weight: 800;
 }
 .sync-status-btn,
 .sync-status .sync-status-btn.btn {
@@ -580,6 +574,73 @@ body.gestor .dash-topo h1 { margin: 0; }
   padding: 0.28rem 0.65rem;
   font-size: 0.78rem;
   white-space: nowrap;
+  cursor: pointer;
+}
+body.gestor .admin-page .drop-cliente {
+  position: relative;
+  overflow: hidden;
+}
+body.gestor .admin-page .drop-cliente .upload-badge,
+body.gestor .admin-page .drop-cliente .drop-texto,
+body.gestor .admin-page .drop-cliente .drop-arquivo {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+body.gestor .admin-page .drop-cliente input[type="file"] {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  clip: auto;
+  overflow: hidden;
+  font-size: 0;
+}
+body.gestor .admin-page .drop-cliente.has-file {
+  border-style: solid;
+  border-color: #FFD400;
+  background: #fffbeb;
+}
+body.gestor .admin-page .drop-cliente.has-file .drop-texto {
+  color: #78716c;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+body.gestor .admin-page .drop-arquivo {
+  display: block;
+  max-width: 100%;
+  margin-top: 0.15rem;
+  color: #1c1917;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.35;
+  word-break: break-word;
+}
+body.gestor .admin-page .drop-arquivo[hidden] {
+  display: none !important;
+}
+body.gestor .admin-page .file-name-estoque {
+  margin: 0.35rem 0 0;
+  color: #1c1917;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+body.gestor .admin-page .btn-processar-estoque:not(:disabled),
+body.gestor .admin-page .btn-processar-estoque.is-pronto:not(:disabled) {
+  background: #FFD400 !important;
+  border-color: #FFD400 !important;
+  color: #1a1a1a !important;
+  font-weight: 800;
+  opacity: 1;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
+body.gestor .admin-page .btn-processar-estoque:disabled {
+  opacity: 0.45;
 }
 .sync-status-feedback {
   margin: 0;

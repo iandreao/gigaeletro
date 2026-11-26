@@ -394,12 +394,10 @@
     }
     if (syncOrigem) {
       syncOrigem.hidden = false;
-      syncOrigem.textContent = statusSync.origem || "—";
-      syncOrigem.classList.toggle("sync-badge-robo", /rob[oô]/i.test(String(statusSync.origem || "")));
-      syncOrigem.classList.toggle("sync-badge-manual", /manual/i.test(String(statusSync.origem || "")));
+      syncOrigem.textContent = "Origem: " + (statusSync.origem || "—");
     }
     if (syncAudit) {
-      syncAudit.hidden = !statusSync.auditoriaOk;
+      syncAudit.hidden = false;
       syncAudit.textContent = statusSync.auditoriaOk ? "Auditado 0.00" : "Auditoria pendente";
     }
     if (syncGrid) syncGrid.hidden = false;
@@ -476,14 +474,47 @@
     });
   }
 
-  prepararDrop(document.querySelector("[data-drop-admin]"), input, function (file) {
-    if (processandoPlanilha) return;
-    planilhaEscolhida = file;
+  var dropZona = document.querySelector("[data-drop-admin]");
+  var dropTexto = document.querySelector("[data-drop-texto]");
+  var dropArquivo = document.querySelector("[data-drop-arquivo]");
+  var TEXTO_DROP_PADRAO = dropTexto
+    ? dropTexto.textContent
+    : "Arraste a planilha Uniplus aqui ou clique para selecionar (.xls, .xlsx ou .csv).";
+
+  function formatarTamanhoArquivo(bytes) {
+    var n = Number(bytes);
+    if (!isFinite(n) || n < 0) return "";
+    if (n < 1024) return n + " B";
+    if (n < 1048576) return (n / 1024).toFixed(1).replace(".", ",") + " KB";
+    return (n / 1048576).toFixed(1).replace(".", ",") + " MB";
+  }
+
+  function atualizarUiArquivoEstoque(file) {
+    planilhaEscolhida = file || null;
+    if (dropZona) dropZona.classList.toggle("has-file", !!file);
+    var rotulo = file
+      ? ("📄 " + file.name + " (" + formatarTamanhoArquivo(file.size) + ")")
+      : "";
+    if (dropTexto) {
+      dropTexto.textContent = file ? "Arquivo selecionado — clique para trocar" : TEXTO_DROP_PADRAO;
+    }
+    if (dropArquivo) {
+      dropArquivo.hidden = !file;
+      dropArquivo.textContent = rotulo;
+    }
     if (nomeArquivo) {
       nomeArquivo.hidden = !file;
-      nomeArquivo.textContent = file ? "Arquivo selecionado: " + file.name : "";
+      nomeArquivo.textContent = rotulo;
     }
-    if (processar) processar.disabled = !file;
+    if (processar) {
+      processar.disabled = !file || processandoPlanilha;
+      processar.classList.toggle("is-pronto", !!file && !processandoPlanilha);
+    }
+  }
+
+  prepararDrop(dropZona, input, function (file) {
+    if (processandoPlanilha) return;
+    atualizarUiArquivoEstoque(file);
     avisoEstoque("");
   });
 
@@ -500,6 +531,7 @@
       }
       processandoPlanilha = true;
       processar.disabled = true;
+      processar.classList.remove("is-pronto");
       processar.textContent = "Processando e auditando planilha...";
       limparAuditoria();
       avisoEstoque("Enviando e auditando " + planilhaEscolhida.name + " (3 pontas)…");
@@ -553,18 +585,14 @@
         processandoPlanilha = false;
         processar.textContent = TEXTO_PROCESSAR;
         processar.disabled = !planilhaEscolhida;
+        processar.classList.toggle("is-pronto", !!planilhaEscolhida);
       });
     });
   }
 
   function limparPlanilhaEscolhida() {
-    planilhaEscolhida = null;
-    if (nomeArquivo) {
-      nomeArquivo.hidden = true;
-      nomeArquivo.textContent = "";
-    }
     if (input) input.value = "";
-    if (processar) processar.disabled = true;
+    atualizarUiArquivoEstoque(null);
   }
 
   /* Navegador que entra no painel passa a contar como acesso interno no rastreamento do site.
@@ -2254,25 +2282,36 @@
 
   function prepararDrop(zona, campo, aoEscolher) {
     if (!zona || !campo) return;
-    ["dragenter", "dragover"].forEach(function (tipo) {
-      zona.addEventListener(tipo, function (event) {
-        event.preventDefault();
-        zona.classList.add("is-over");
+    function marcarSobre(ativo) {
+      zona.classList.toggle("is-over", !!ativo);
+    }
+    [zona, campo].forEach(function (alvo) {
+      ["dragenter", "dragover"].forEach(function (tipo) {
+        alvo.addEventListener(tipo, function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          marcarSobre(true);
+        });
       });
-    });
-    ["dragleave", "drop"].forEach(function (tipo) {
-      zona.addEventListener(tipo, function (event) {
-        event.preventDefault();
-        zona.classList.remove("is-over");
+      ["dragleave"].forEach(function (tipo) {
+        alvo.addEventListener(tipo, function (event) {
+          event.preventDefault();
+          marcarSobre(false);
+        });
       });
-    });
-    zona.addEventListener("drop", function (event) {
-      var file = event.dataTransfer.files && event.dataTransfer.files[0];
-      if (!file) return;
-      var transferencia = new DataTransfer();
-      transferencia.items.add(file);
-      campo.files = transferencia.files;
-      aoEscolher(file);
+      alvo.addEventListener("drop", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        marcarSobre(false);
+        var file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+        if (!file) return;
+        try {
+          var transferencia = new DataTransfer();
+          transferencia.items.add(file);
+          campo.files = transferencia.files;
+        } catch (semDataTransfer) {}
+        aoEscolher(file);
+      });
     });
     campo.addEventListener("change", function () {
       aoEscolher((campo.files && campo.files[0]) || null);

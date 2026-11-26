@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=120">
-  <link rel="stylesheet" href="css/admin.css?v=60">
+  <link rel="stylesheet" href="css/admin.css?v=61">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -126,8 +126,8 @@
             <p class="sync-status-meta" data-sync-meta hidden></p>
           </div>
           <div class="sync-status-acoes">
-            <span class="sync-badge" data-sync-origem hidden></span>
-            <span class="sync-badge sync-badge-ok" data-sync-audit hidden>Auditado 0.00</span>
+            <span class="sync-origem-texto" data-sync-origem hidden></span>
+            <span class="sync-audit-texto" data-sync-audit hidden>Auditado 0.00</span>
             <button class="btn btn-line sync-status-btn" type="button" data-sync-atualizar>Atualizar Status</button>
           </div>
         </div>
@@ -163,12 +163,13 @@
               <path d="M24 32V10"/><path d="M15 18l9-9 9 9"/><path d="M10 30v8h28v-8"/>
             </svg>
           </span>
-          <span class="drop-texto">Arraste a planilha Uniplus aqui ou clique para selecionar (.xls, .xlsx ou .csv).</span>
+          <span class="drop-texto" data-drop-texto>Arraste a planilha Uniplus aqui ou clique para selecionar (.xls, .xlsx ou .csv).</span>
+          <span class="drop-arquivo" data-drop-arquivo hidden></span>
           <input id="planilha" name="planilha" type="file" accept=".xls,.xlsx,.csv,.txt,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv">
         </label>
-        <p class="file-name" data-admin-arquivo-nome hidden></p>
+        <p class="file-name file-name-estoque" data-admin-arquivo-nome hidden></p>
         <p class="aviso" data-admin-status hidden></p>
-        <button class="btn btn-amarelo" type="button" data-processar disabled>Processar e Atualizar Estoque no Site</button>
+        <button class="btn btn-amarelo btn-processar-estoque" type="button" data-processar disabled>Processar e Atualizar Estoque no Site</button>
         <div id="relatorio-auditoria-manual" class="auditoria-batimento" data-auditoria hidden>
           <h3>Relatório de Auditoria Comparativa</h3>
           <div class="auditoria-tabela-wrap">
@@ -370,6 +371,6 @@
   <div class="equipe-acoes-tooltip" data-equipe-acoes-tooltip hidden></div>
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="js/pedido-pdf.js?v=15"></script>
-  <script src="js/admin.js?v=83"></script>
+  <script src="js/admin.js?v=84"></script>
 </body>
 </html>
