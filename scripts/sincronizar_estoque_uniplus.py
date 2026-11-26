@@ -7,6 +7,7 @@ import csv
 import os
 import re
 import sys
+import threading
 import unicodedata
 from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
@@ -54,8 +55,8 @@ TITULOS_ESPERADOS = {
     5: ("Tipo de produto", ("tipo de produto",)),
 }
 MSG_CRIAR_PASTA = (
-    "Crie a pasta C:\\EstoqueProdutos e salve nela a planilha exportada do Uniplus "
-    "(Estoque *.xls / *.xlsx)."
+    "Salve a planilha Uniplus (Estoque *.xls / *.xlsx) em "
+    "\\\\192.168.1.254\\EstoqueProdutos ou C:\\EstoqueProdutos."
 )
 
 
@@ -129,26 +130,62 @@ def limpar_codigo(valor) -> str:
     return re.sub(r"[^\d]", "", texto)
 
 
+PASTA_REDE_LOJA = Path(r"\\192.168.1.254\EstoqueProdutos")
 PASTA_ORIGEM_PRINCIPAL = Path(r"C:\EstoqueProdutos")
 PASTA_ORIGEM_FALLBACK = Path.home() / "Documents" / "EstoqueProdutos"
+TIMEOUT_PASTA_REDE_S = 2.0
+
+
+def pasta_acessivel(caminho: Path, timeout_s: float = TIMEOUT_PASTA_REDE_S) -> bool:
+    """Checa is_dir com timeout curto (UNC de rede pode travar fora da loja)."""
+    resultado = {"ok": False}
+
+    def _checar() -> None:
+        try:
+            resultado["ok"] = bool(caminho.is_dir())
+        except (OSError, TimeoutError, PermissionError, ValueError):
+            resultado["ok"] = False
+
+    trabalhador = threading.Thread(target=_checar, daemon=True)
+    trabalhador.start()
+    trabalhador.join(timeout_s)
+    if trabalhador.is_alive():
+        return False
+    return bool(resultado["ok"])
 
 
 def resolver_pasta_origem(pasta_arg: str | None) -> Path:
-    """Prioriza C:\\EstoqueProdutos; fallback Documents\\EstoqueProdutos."""
+    """Ordem: PASTA_ESTOQUE_UNIPLUS | --pasta | rede loja | C:\\EstoqueProdutos | Documents."""
     if pasta_arg:
         informada = Path(pasta_arg)
-        if informada.is_dir():
+        if pasta_acessivel(informada, timeout_s=5.0):
             return informada
         raise FileNotFoundError(
             "Pasta de origem inexistente: %s\n%s" % (informada, MSG_CRIAR_PASTA)
         )
-    if PASTA_ORIGEM_PRINCIPAL.is_dir():
-        return PASTA_ORIGEM_PRINCIPAL
-    if PASTA_ORIGEM_FALLBACK.is_dir():
-        return PASTA_ORIGEM_FALLBACK
+
+    env_pasta = (os.environ.get("PASTA_ESTOQUE_UNIPLUS") or "").strip()
+    if env_pasta:
+        informada = Path(env_pasta)
+        if pasta_acessivel(informada, timeout_s=5.0):
+            log("Pasta via PASTA_ESTOQUE_UNIPLUS: %s" % informada)
+            return informada
+        log("AVISO: PASTA_ESTOQUE_UNIPLUS inacessível (%s); tentando fallbacks." % informada)
+
+    candidatos = [
+        ("rede loja", PASTA_REDE_LOJA, TIMEOUT_PASTA_REDE_S),
+        ("local C:", PASTA_ORIGEM_PRINCIPAL, 1.0),
+        ("Documents", PASTA_ORIGEM_FALLBACK, 1.0),
+    ]
+    for rotulo, caminho, prazo in candidatos:
+        if pasta_acessivel(caminho, timeout_s=prazo):
+            log("Pasta de origem (%s): %s" % (rotulo, caminho))
+            return caminho
+
     raise FileNotFoundError(
-        "Pasta de origem inexistente.\n%s\n(Fallback também aceito: %s)"
-        % (MSG_CRIAR_PASTA, PASTA_ORIGEM_FALLBACK)
+        "Pasta de origem inexistente.\n%s\n"
+        "Tentadas: %s | %s | %s"
+        % (MSG_CRIAR_PASTA, PASTA_REDE_LOJA, PASTA_ORIGEM_PRINCIPAL, PASTA_ORIGEM_FALLBACK)
     )
 
 
@@ -370,11 +407,12 @@ def url_alerta(api_sync: str) -> str:
 
 def enviar_alerta(api_sync: str, token: str, tipo: str, detalhe: str) -> None:
     destino = url_alerta(api_sync)
+    carimbo = detalhe if tipo == "data_invalida" else ""
     log("ALERTA %s → %s (detalhe=%s)" % (tipo, destino, detalhe))
     try:
         resp = requests.post(
             destino,
-            json={"tipo": tipo, "detalhe": detalhe},
+            json={"tipo": tipo, "carimbo": carimbo, "detalhe": detalhe},
             headers={
                 "Authorization": "Bearer " + token,
                 "Content-Type": "application/json",

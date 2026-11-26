@@ -925,11 +925,11 @@ def validar_prechecks_uniplus(matriz):
     return carimbo, inicio
 
 
-def montar_email_alerta_sync(tipo, detalhe=""):
+def montar_email_alerta_sync(tipo, detalhe="", carimbo=""):
     tipo = str(tipo or "").strip().lower()
     detalhe = str(detalhe or "").strip()
+    carimbo = str(carimbo or "").strip() or detalhe or "(carimbo não encontrado)"
     if tipo == "data_invalida":
-        carimbo = detalhe or "(carimbo não encontrado)"
         return (
             "Atualização Tabela de Preço no SiteGigaeletro",
             "Olá, o último arquivo encontrado foi gerado em %s, favor gerar o arquivo com a data de hoje." % carimbo,
@@ -941,11 +941,11 @@ def montar_email_alerta_sync(tipo, detalhe=""):
     )
 
 
-def enviar_email_alerta_sync(tipo, detalhe=""):
+def enviar_email_alerta_sync(tipo, detalhe="", carimbo=""):
     chave = variavel_sem_aspas("RESEND_API_KEY")
     if not chave:
         return False, "RESEND_API_KEY ausente"
-    assunto, texto = montar_email_alerta_sync(tipo, detalhe)
+    assunto, texto = montar_email_alerta_sync(tipo, detalhe=detalhe, carimbo=carimbo)
     html = "<p>" + html.escape(texto) + "</p>"
     payload = {
         "from": remetente_email(),
@@ -986,10 +986,11 @@ def responder_alerta_sync(saida):
         return
     tipo = str(payload.get("tipo") or "").strip().lower()
     detalhe = str(payload.get("detalhe") or "").strip()
+    carimbo = str(payload.get("carimbo") or "").strip()
     if tipo not in ("data_invalida", "estrutura_invalida"):
         escrever_json(saida, {"ok": False, "erro": "tipo deve ser data_invalida ou estrutura_invalida."}, 400)
         return
-    ok_envio, erro_envio = enviar_email_alerta_sync(tipo, detalhe)
+    ok_envio, erro_envio = enviar_email_alerta_sync(tipo, detalhe=detalhe, carimbo=carimbo)
     if not ok_envio:
         escrever_json(saida, {
             "ok": False,
