@@ -274,6 +274,15 @@
   var LIMITE_PLANILHA = 4 * 1024 * 1024;
   var PRAZO_PLANILHA = 90000;
   var processandoPlanilha = false;
+  var syncVazio = document.querySelector("[data-sync-vazio]");
+  var syncMeta = document.querySelector("[data-sync-meta]");
+  var syncOrigem = document.querySelector("[data-sync-origem]");
+  var syncAudit = document.querySelector("[data-sync-audit]");
+  var syncGrid = document.querySelector("[data-sync-grid]");
+  var syncItens = document.querySelector("[data-sync-itens]");
+  var syncPreco = document.querySelector("[data-sync-preco]");
+  var syncEstoque = document.querySelector("[data-sync-estoque]");
+  var syncAtualizar = document.querySelector("[data-sync-atualizar]");
 
   function avisoEstoque(texto, tipo) {
     if (!status) return;
@@ -284,9 +293,91 @@
   }
 
   function falhaHttpEstoque(codigo) {
-    if (codigo === 413) return "A planilha é grande demais para o envio. Salve em CSV só com as colunas Código, Nome, Estoque e PrVenda e tente de novo.";
+    if (codigo === 413) return "A planilha é grande demais para o envio (limite ~4 MB). Exporte do Uniplus em .xls/.xlsx/.csv e tente de novo.";
     if (codigo === 504) return "O servidor demorou demais para processar a planilha. O catálogo anterior foi mantido; tente novamente.";
     return "O servidor não conseguiu processar a planilha (erro " + codigo + "). O catálogo anterior foi mantido.";
+  }
+
+  function formatarNumeroBR(valor, casas) {
+    var n = Number(valor);
+    if (!isFinite(n)) return "—";
+    return n.toLocaleString("pt-BR", {
+      minimumFractionDigits: casas,
+      maximumFractionDigits: casas
+    });
+  }
+
+  function formatarMoedaBR(valor) {
+    var n = Number(valor);
+    if (!isFinite(n)) return "—";
+    return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  }
+
+  function renderStatusSync(statusSync) {
+    if (!statusSync) {
+      if (syncVazio) {
+        syncVazio.hidden = false;
+        syncVazio.textContent = "Nenhuma sincronização registrada ainda.";
+      }
+      if (syncMeta) syncMeta.hidden = true;
+      if (syncOrigem) syncOrigem.hidden = true;
+      if (syncAudit) syncAudit.hidden = true;
+      if (syncGrid) syncGrid.hidden = true;
+      return;
+    }
+    if (syncVazio) syncVazio.hidden = true;
+    if (syncMeta) {
+      syncMeta.hidden = false;
+      syncMeta.textContent = (statusSync.dataHora || "—") +
+        (statusSync.arquivo ? " · Arquivo: " + statusSync.arquivo : "") +
+        (statusSync.usuario ? " · Por: " + statusSync.usuario : "");
+    }
+    if (syncOrigem) {
+      syncOrigem.hidden = false;
+      syncOrigem.textContent = statusSync.origem || "—";
+      syncOrigem.classList.toggle("sync-badge-robo", /rob[oô]/i.test(String(statusSync.origem || "")));
+      syncOrigem.classList.toggle("sync-badge-manual", /manual/i.test(String(statusSync.origem || "")));
+    }
+    if (syncAudit) {
+      syncAudit.hidden = !statusSync.auditoriaOk;
+      syncAudit.textContent = statusSync.auditoriaOk ? "Auditado 0.00" : "Auditoria pendente";
+    }
+    if (syncGrid) syncGrid.hidden = false;
+    if (syncItens) syncItens.textContent = formatarNumeroBR(statusSync.itensAtivos, 0);
+    if (syncPreco) syncPreco.textContent = formatarMoedaBR(statusSync.somaPreco);
+    if (syncEstoque) syncEstoque.textContent = formatarNumeroBR(statusSync.somaEstoque, 2);
+  }
+
+  function carregarStatusSync() {
+    if (syncVazio) {
+      syncVazio.hidden = false;
+      syncVazio.textContent = "Carregando status…";
+    }
+    return fetch("/api/catalogo/status-sync", {
+      credentials: "same-origin",
+      cache: "no-store"
+    }).then(function (resposta) {
+      return resposta.json().then(function (corpo) {
+        if (resposta.status === 401) {
+          mostrarLogin();
+          throw new Error("Sessão expirada.");
+        }
+        if (!corpo || !corpo.ok) throw new Error((corpo && corpo.erro) || "Falha ao ler status.");
+        renderStatusSync(corpo.encontrado ? corpo.status : null);
+        return corpo;
+      });
+    }).catch(function () {
+      if (syncVazio) {
+        syncVazio.hidden = false;
+        syncVazio.textContent = "Não foi possível carregar o status da sincronização.";
+      }
+    });
+  }
+
+  if (syncAtualizar) {
+    syncAtualizar.addEventListener("click", function () {
+      carregarStatusSync();
+    });
   }
 
   prepararDrop(document.querySelector("[data-drop-admin]"), input, function (file) {
@@ -304,23 +395,25 @@
     processar.addEventListener("click", function () {
       if (processandoPlanilha) return;
       if (!planilhaEscolhida) {
-        avisoEstoque("Selecione a planilha CSV antes de processar.", "erro");
+        avisoEstoque("Selecione a planilha Uniplus (.xls, .xlsx ou .csv) antes de processar.", "erro");
         return;
       }
       if (planilhaEscolhida.size > LIMITE_PLANILHA) {
-        avisoEstoque("A planilha tem " + (planilhaEscolhida.size / 1048576).toFixed(1).replace(".", ",") + " MB e o limite de envio é 4 MB. Salve em CSV só com as colunas Código, Nome, Estoque e PrVenda.", "erro");
+        avisoEstoque("A planilha tem " + (planilhaEscolhida.size / 1048576).toFixed(1).replace(".", ",") + " MB e o limite de envio é 4 MB.", "erro");
         return;
       }
       processandoPlanilha = true;
       processar.disabled = true;
-      processar.textContent = "Processando...";
+      processar.textContent = "Processando e auditando…";
       limparAuditoria();
-      avisoEstoque("Enviando e processando " + planilhaEscolhida.name + "…");
+      avisoEstoque("Enviando e auditando " + planilhaEscolhida.name + " (3 pontas)…");
       var dados = new FormData();
       dados.append("arquivo", planilhaEscolhida, planilhaEscolhida.name);
+      dados.append("usuario", lerOperador() || "Administrador");
+      dados.append("dispositivo", dispositivoPainel());
       var controle = window.AbortController ? new AbortController() : null;
       var prazo = controle ? window.setTimeout(function () { controle.abort(); }, PRAZO_PLANILHA) : 0;
-      fetch("/api/catalogo", {
+      fetch("/api/catalogo/upload-manual", {
         method: "POST",
         credentials: "same-origin",
         body: dados,
@@ -335,7 +428,11 @@
             throw new Error("Sessão do painel expirada. Entre novamente na Área Restrita.");
           }
           if (!corpo || typeof corpo !== "object") throw new Error(falhaHttpEstoque(resposta.status));
-          if (!resposta.ok || !corpo.ok) throw new Error(corpo.erro || falhaHttpEstoque(resposta.status));
+          if (!resposta.ok || !corpo.ok) {
+            var detalhe = corpo.erro || falhaHttpEstoque(resposta.status);
+            if (corpo.origem || corpo.processado || corpo.blob) mostrarAuditoria(corpo);
+            throw new Error(detalhe);
+          }
           return corpo;
         });
       }, function (falha) {
@@ -344,8 +441,13 @@
           : "Sem conexão com o servidor. Confira a internet e tente novamente. O catálogo anterior foi mantido.");
       }).then(function (corpo) {
         mostrarAuditoria(corpo);
-        avisoEstoque("Estoque atualizado no site: " + (corpo.inseridos || 0) + " produtos publicados.", "ok");
-        registrarAcaoEquipe("Atualizou Estoque");
+        if (corpo.ultima_sync) renderStatusSync(corpo.ultima_sync);
+        else carregarStatusSync();
+        avisoEstoque(
+          "Estoque atualizado e auditado: " + (corpo.itens_ativos || corpo.inseridos || 0) +
+          " itens ativos · diferença 0.00.",
+          "ok"
+        );
         limparPlanilhaEscolhida();
       }).catch(function (falha) {
         /* A planilha continua escolhida para tentar de novo. */
@@ -423,6 +525,7 @@
       var aba = botao.getAttribute("data-aba");
       mostrarAba(aba);
       fecharMenuGestor();
+      if (aba === "estoque") carregarStatusSync();
       if (aba === "dashboard") carregarDashboard();
       if (aba === "trafego") carregarTrafego();
       if (aba === "equipe") carregarAcessosEquipe();
@@ -452,30 +555,57 @@
 
   function limparAuditoria() {
     if (!auditoria) return;
-    auditoria.querySelectorAll("strong").forEach(function (campo) {
-      campo.textContent = "";
+    [
+      "data-audit-origem-qtd", "data-audit-proc-qtd", "data-audit-blob-qtd",
+      "data-audit-origem-preco", "data-audit-proc-preco", "data-audit-blob-preco",
+      "data-audit-origem-estoque", "data-audit-proc-estoque", "data-audit-blob-estoque",
+      "data-audit-descartados", "data-audit-arquivo", "data-audit-quando"
+    ].forEach(function (attr) {
+      var el = auditoria.querySelector("[" + attr + "]");
+      if (el) el.textContent = "—";
     });
-    var lista = auditoria.querySelector("[data-audit-pulados]");
-    if (lista) lista.innerHTML = "";
+    var dif = auditoria.querySelector("[data-audit-diferenca]");
+    if (dif) {
+      dif.textContent = "—";
+      var linha = dif.closest("tr");
+      if (linha) linha.classList.remove("is-erro");
+    }
     auditoria.hidden = true;
+  }
+
+  function preencherPonta(prefixo, ponta) {
+    if (!ponta) return;
+    var qtd = auditoria.querySelector("[data-audit-" + prefixo + "-qtd]");
+    var preco = auditoria.querySelector("[data-audit-" + prefixo + "-preco]");
+    var estoque = auditoria.querySelector("[data-audit-" + prefixo + "-estoque]");
+    if (qtd) qtd.textContent = formatarNumeroBR(ponta.qtd_itens, 0);
+    if (preco) preco.textContent = formatarMoedaBR(ponta.soma_preco);
+    if (estoque) estoque.textContent = formatarNumeroBR(ponta.soma_estoque, 2);
   }
 
   function mostrarAuditoria(corpo) {
     if (!auditoria || !corpo) return;
-    var linhas = auditoria.querySelector("[data-audit-linhas]");
-    var inseridos = auditoria.querySelector("[data-audit-inseridos]");
+    preencherPonta("origem", corpo.origem);
+    preencherPonta("proc", corpo.processado);
+    preencherPonta("blob", corpo.blob);
+    var descartados = auditoria.querySelector("[data-audit-descartados]");
+    var arquivo = auditoria.querySelector("[data-audit-arquivo]");
     var quando = auditoria.querySelector("[data-audit-quando]");
-    var lista = auditoria.querySelector("[data-audit-pulados]");
-    var catalogo = auditoria.querySelector("[data-audit-catalogo]");
-    if (catalogo) catalogo.textContent = String(corpo.catalogo != null ? corpo.catalogo : corpo.inseridos || 0);
-    if (linhas) linhas.textContent = corpo.linhas_lidas != null ? String(corpo.linhas_lidas) : "—";
-    if (inseridos) inseridos.textContent = corpo.inseridos != null ? String(corpo.inseridos) : "—";
-    if (quando) quando.textContent = corpo.atualizado_em || "";
-    if (lista) {
-      var pulados = Array.isArray(corpo.pulados) ? corpo.pulados : [];
-      lista.innerHTML = pulados.length
-        ? pulados.map(function (item) { return "<li>" + escapar(item) + "</li>"; }).join("")
-        : "<li>Nenhum.</li>";
+    if (descartados) descartados.textContent = String(corpo.itens_descartados != null ? corpo.itens_descartados : 0);
+    if (arquivo) arquivo.textContent = corpo.arquivo || (corpo.ultima_sync && corpo.ultima_sync.arquivo) || "—";
+    if (quando) quando.textContent = corpo.atualizado_em || (corpo.ultima_sync && corpo.ultima_sync.dataHora) || "—";
+    var dif = auditoria.querySelector("[data-audit-diferenca]");
+    var ok = !!corpo.ok && corpo.auditoria_ok !== false && !(corpo.diferenca && (
+      Number(corpo.diferenca.qtd_itens) !== 0 ||
+      Number(corpo.diferenca.soma_preco) !== 0 ||
+      Number(corpo.diferenca.soma_estoque) !== 0
+    ));
+    if (dif) {
+      dif.textContent = ok
+        ? "0.00 (Auditado com Sucesso)"
+        : (corpo.erro || "Divergência detectada na auditoria");
+      var linha = dif.closest("tr");
+      if (linha) linha.classList.toggle("is-erro", !ok);
     }
     auditoria.hidden = false;
   }

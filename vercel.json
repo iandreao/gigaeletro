@@ -119,6 +119,8 @@
     { "src": "/api/equipe/log", "dest": "/api/auditoria.py?equipe=log" },
     { "src": "/api/equipe/resumo", "dest": "/api/auditoria.py?equipe=resumo" },
     { "src": "/api/orcamentos", "dest": "/api/orcamentos.py" },
+    { "src": "/api/catalogo/status-sync", "dest": "/api/catalogo.py?acao=status-sync" },
+    { "src": "/api/catalogo/upload-manual", "dest": "/api/catalogo.py?acao=upload-manual" },
     { "src": "/api/sincronizar-catalogo", "dest": "/api/catalogo.py?sync=1" },
     { "src": "/api/(.*)", "dest": "/api/$1.py" },
     {

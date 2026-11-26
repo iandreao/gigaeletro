@@ -1,1 +1,5 @@
-# Sem dependências externas: servidor.py e api/*.py usam só a stdlib do Python.
+# Mantido enxuto para o bundle Hobby da Vercel.
+# .xlsx/.csv: stdlib (zipfile + ElementTree / csv).
+# .xls legado do Uniplus: xlrd (puro Python, leve).
+xlrd>=2.0.1
+

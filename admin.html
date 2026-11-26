@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=120">
-  <link rel="stylesheet" href="css/admin.css?v=58">
+  <link rel="stylesheet" href="css/admin.css?v=59">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -117,13 +117,44 @@
     </div>
     <div class="wrap admin-page" data-visao="estoque" hidden>
       <h1>Atualização de estoque</h1>
+
+      <section class="sync-status panel" data-sync-status aria-live="polite">
+        <div class="sync-status-topo">
+          <div class="sync-status-titulos">
+            <h2>Última sincronização</h2>
+            <p class="muted" data-sync-vazio>Carregando status…</p>
+            <p class="sync-status-meta" data-sync-meta hidden></p>
+          </div>
+          <div class="sync-status-acoes">
+            <span class="sync-badge" data-sync-origem hidden></span>
+            <span class="sync-badge sync-badge-ok" data-sync-audit hidden>Auditado 0.00</span>
+            <button class="btn btn-line sync-status-btn" type="button" data-sync-atualizar>Atualizar Status</button>
+          </div>
+        </div>
+        <div class="sync-status-grid" data-sync-grid hidden>
+          <div class="sync-kpi">
+            <span class="sync-kpi-label">Itens Ativos</span>
+            <strong data-sync-itens>—</strong>
+          </div>
+          <div class="sync-kpi">
+            <span class="sync-kpi-label">Soma de Preços (R$)</span>
+            <strong data-sync-preco>—</strong>
+          </div>
+          <div class="sync-kpi">
+            <span class="sync-kpi-label">Soma de Estoque</span>
+            <strong data-sync-estoque>—</strong>
+          </div>
+        </div>
+      </section>
+
       <form class="admin-body panel" data-admin-arquivo>
-        <p class="muted">As colunas lidas são Código, Nome, Estoque e PrVenda. Esta ação substitui o catálogo inteiro.</p>
+        <p class="muted">Aceita diretamente a planilha bruta exportada do ERP Uniplus (<strong>Estoque *.xls / *.xlsx / *.csv</strong>). O sistema aplica automaticamente os filtros <strong>00 - Mercadoria para revenda</strong> e <strong>Estoque &gt; 0</strong>, com auditoria Decimal em 3 pontas (diferença obrigatória 0.00).</p>
         <ol class="mapa">
           <li><span>1</span> Código</li>
           <li><span>2</span> Nome</li>
-          <li><span>3</span> Estoque</li>
-          <li><span>4</span> PrVenda</li>
+          <li><span>4</span> Preço Unit.</li>
+          <li><span>5</span> Estoque</li>
+          <li><span>6</span> Tipo de Produto</li>
         </ol>
         <label class="drop drop-cliente" data-drop-admin for="planilha">
           <span class="upload-badge" aria-hidden="true">
@@ -131,18 +162,50 @@
               <path d="M24 32V10"/><path d="M15 18l9-9 9 9"/><path d="M10 30v8h28v-8"/>
             </svg>
           </span>
-          <span class="drop-texto">Arraste sua lista de produtos aqui ou clique para selecionar o arquivo Excel formato CSV.</span>
-          <input id="planilha" name="planilha" type="file" accept=".csv,.txt,.xlsx,.xls,.pdf,.png,.jpg,.jpeg,.webp,text/csv">
+          <span class="drop-texto">Arraste a planilha Uniplus aqui ou clique para selecionar (.xls, .xlsx ou .csv).</span>
+          <input id="planilha" name="planilha" type="file" accept=".xls,.xlsx,.csv,.txt,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv">
         </label>
         <p class="file-name" data-admin-arquivo-nome hidden></p>
         <p class="aviso" data-admin-status hidden></p>
-        <div class="auditoria" data-auditoria hidden>
-          <p>Produtos no catálogo: <strong data-audit-catalogo></strong></p>
-          <p>Total de linhas lidas no Excel: <strong data-audit-linhas></strong></p>
-          <p>Total de produtos inseridos com sucesso no banco de dados: <strong data-audit-inseridos></strong></p>
-          <p>Erros ou pulados:</p>
-          <ul data-audit-pulados></ul>
-          <p>Data e hora da última atualização: <strong data-audit-quando></strong></p>
+        <div class="auditoria-batimento" data-auditoria hidden>
+          <h3>Relatório de Auditoria Comparativa</h3>
+          <div class="auditoria-tabela-wrap">
+            <table class="auditoria-tabela">
+              <thead>
+                <tr>
+                  <th>Métrica</th>
+                  <th>1. Planilha de Origem (Filtrada)</th>
+                  <th>2. Catálogo Processado</th>
+                  <th>3. Nuvem / Vercel Blob (Releitura)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Quantidade de Itens Ativos</td>
+                  <td data-audit-origem-qtd>—</td>
+                  <td data-audit-proc-qtd>—</td>
+                  <td data-audit-blob-qtd>—</td>
+                </tr>
+                <tr>
+                  <td>Soma Total de Preços (R$)</td>
+                  <td data-audit-origem-preco>—</td>
+                  <td data-audit-proc-preco>—</td>
+                  <td data-audit-blob-preco>—</td>
+                </tr>
+                <tr>
+                  <td>Soma Total de Estoque</td>
+                  <td data-audit-origem-estoque>—</td>
+                  <td data-audit-proc-estoque>—</td>
+                  <td data-audit-blob-estoque>—</td>
+                </tr>
+                <tr class="auditoria-dif">
+                  <td>Diferença</td>
+                  <td colspan="3" data-audit-diferenca>0.00 (Auditado com Sucesso)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="auditoria-extra">Descartados: <strong data-audit-descartados>0</strong> · Arquivo: <strong data-audit-arquivo>—</strong> · Quando: <strong data-audit-quando>—</strong></p>
         </div>
         <button class="btn btn-amarelo" type="button" data-processar disabled>Processar e Atualizar Estoque no Site</button>
       </form>
@@ -306,6 +369,6 @@
   <div class="equipe-acoes-tooltip" data-equipe-acoes-tooltip hidden></div>
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="js/pedido-pdf.js?v=15"></script>
-  <script src="js/admin.js?v=81"></script>
+  <script src="js/admin.js?v=82"></script>
 </body>
 </html>

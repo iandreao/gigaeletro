@@ -34,7 +34,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -42,8 +42,10 @@ from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent
 FONTE_CATALOGO = ROOT / "data" / "catalogo.json"
+FONTE_ULTIMA_SYNC = ROOT / "data" / "ultima_sync.json"
 CENTAVO = Decimal("0.01")
 CATALOGO_ULTIMA_SYNC_BLOB = "catalogo/ultima_sync.json"
+TIPO_REVEND_CATALOGO = re.compile(r"^00(\s*-|\b)", re.I)
 # Valores de teste usados só fora da Vercel; em produção valem ADMIN_PASSWORD e SEGREDO_SESSAO.
 SENHA_TESTE_LOCAL = "GigaAdmin2026"
 SEGREDO_TESTE_LOCAL = "gigaeletro-sessao-local"
@@ -614,6 +616,316 @@ def ler_catalogo_apos_gravacao():
     return []
 
 
+def agora_sp():
+    return agora_painel()
+
+
+def limpar_codigo_uniplus(valor):
+    if valor is None:
+        return ""
+    if isinstance(valor, float):
+        if valor.is_integer():
+            return str(int(valor))
+        texto = format(valor, "f").rstrip("0").rstrip(".")
+    else:
+        texto = str(valor).strip()
+    return re.sub(r"[^\d]", "", texto)
+
+
+def totais_publicos(auditoria):
+    return {
+        "qtd_itens": auditoria["qtd_itens"],
+        "soma_preco": auditoria["soma_preco"],
+        "soma_estoque": auditoria["soma_estoque"],
+    }
+
+
+def diferencas_auditoria(a, b):
+    return {
+        "qtd_itens": int(a["qtd_itens"]) - int(b["qtd_itens"]),
+        "soma_preco": formatar_decimal(a["_soma_preco"] - b["_soma_preco"]),
+        "soma_estoque": formatar_decimal(a["_soma_estoque"] - b["_soma_estoque"]),
+    }
+
+
+def batimento_zero(a, b):
+    return (
+        a["qtd_itens"] == b["qtd_itens"]
+        and a["_soma_preco"] == b["_soma_preco"]
+        and a["_soma_estoque"] == b["_soma_estoque"]
+    )
+
+
+def montar_ultima_sync(origem, arquivo, usuario, ponta, descartados, auditoria_ok=True):
+    agora = agora_sp()
+    itens_desc = int(descartados or 0)
+    return {
+        "dataHora": agora.strftime("%d/%m/%Y %H:%M:%S"),
+        "dataHoraIso": agora.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "origem": origem,
+        "arquivo": str(arquivo or ""),
+        "usuario": str(usuario or ""),
+        "itensAtivos": int(ponta["qtd_itens"]),
+        "itensDescartados": itens_desc,
+        "somaPreco": ponta["soma_preco"],
+        "somaEstoque": ponta["soma_estoque"],
+        "auditoriaOk": bool(auditoria_ok),
+    }
+
+
+def persistir_ultima_sync(status):
+    corpo = json.dumps(status, ensure_ascii=False, indent=2).encode("utf-8")
+    if token_blob():
+        try:
+            enviar_json_blob(CATALOGO_ULTIMA_SYNC_BLOB, corpo)
+        except Exception:
+            pass
+    if not em_vercel():
+        try:
+            FONTE_ULTIMA_SYNC.parent.mkdir(parents=True, exist_ok=True)
+            FONTE_ULTIMA_SYNC.write_bytes(corpo)
+        except OSError:
+            pass
+    return status
+
+
+def normalizar_status_sync_lido(dados):
+    if not isinstance(dados, dict):
+        return None
+    if "itensAtivos" in dados and "origem" in dados:
+        return {
+            "dataHora": str(dados.get("dataHora") or ""),
+            "dataHoraIso": str(dados.get("dataHoraIso") or ""),
+            "origem": str(dados.get("origem") or ""),
+            "arquivo": str(dados.get("arquivo") or dados.get("arquivo_origem") or ""),
+            "usuario": str(dados.get("usuario") or ""),
+            "itensAtivos": int(dados.get("itensAtivos") or 0),
+            "itensDescartados": int(dados.get("itensDescartados") or 0),
+            "somaPreco": str(dados.get("somaPreco") or "0.00"),
+            "somaEstoque": str(dados.get("somaEstoque") or "0.00"),
+            "auditoriaOk": bool(dados.get("auditoriaOk", True)),
+        }
+    # Formato legado do robô.
+    ponta = dados.get("vercel_auditoria") or dados.get("origem") or {}
+    descartados = int(dados.get("descartados_tipo") or 0) + int(dados.get("descartados_estoque_zero") or 0)
+    try:
+        qtd = int(ponta.get("qtd_itens") or 0)
+        soma_preco = formatar_decimal(ponta.get("soma_preco") or "0")
+        soma_estoque = formatar_decimal(ponta.get("soma_estoque") or "0")
+    except (TypeError, ValueError, InvalidOperation):
+        qtd, soma_preco, soma_estoque = 0, "0.00", "0.00"
+    return {
+        "dataHora": str(dados.get("dataHora") or dados.get("data_sync") or ""),
+        "dataHoraIso": str(dados.get("dataHoraIso") or dados.get("data_sync") or ""),
+        "origem": str(dados.get("origem_label") or "Robô Automático"),
+        "arquivo": str(dados.get("arquivo") or dados.get("arquivo_origem") or ""),
+        "usuario": str(dados.get("usuario") or "Robô Uniplus"),
+        "itensAtivos": qtd,
+        "itensDescartados": descartados,
+        "somaPreco": soma_preco,
+        "somaEstoque": soma_estoque,
+        "auditoriaOk": bool(dados.get("ok", True)),
+    }
+
+
+def ler_ultima_sync():
+    bruto = None
+    if token_blob():
+        bruto = baixar_blob(CATALOGO_ULTIMA_SYNC_BLOB, consistente=True)
+    if bruto is None and FONTE_ULTIMA_SYNC.is_file():
+        try:
+            bruto = FONTE_ULTIMA_SYNC.read_bytes()
+        except OSError:
+            bruto = None
+    if not bruto:
+        return None
+    try:
+        dados = json.loads(bruto.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        return None
+    return normalizar_status_sync_lido(dados)
+
+
+def celula_matriz(linha, indice, padrao=""):
+    if indice < 0 or indice >= len(linha or []):
+        return padrao
+    return linha[indice]
+
+
+def xls_para_matriz(conteudo):
+    try:
+        import xlrd
+    except ImportError as erro:
+        raise PlanilhaInvalida(
+            "Para ler .xls do Uniplus no servidor, o pacote xlrd precisa estar instalado. "
+            "Salve como .xlsx ou CSV, ou atualize o deploy. O catálogo anterior foi mantido."
+        ) from erro
+    try:
+        livro = xlrd.open_workbook(file_contents=conteudo, formatting_info=False)
+        folha = livro.sheet_by_index(0)
+    except Exception as erro:
+        raise PlanilhaInvalida(
+            "Não foi possível abrir o .xls do Uniplus. O catálogo anterior foi mantido."
+        ) from erro
+    return [
+        tuple(folha.cell_value(r, c) for c in range(folha.ncols))
+        for r in range(folha.nrows)
+    ]
+
+
+def planilha_para_matriz_uniplus(nome, conteudo):
+    lower = str(nome or "").lower()
+    if lower.endswith((".csv", ".txt")):
+        return csv_para_matriz(decodificar(conteudo))
+    if lower.endswith(".xlsx") or (conteudo[:2] == b"PK"):
+        return xlsx_para_matriz(conteudo)
+    if lower.endswith(".xls") or conteudo[:4] == b"\xd0\xcf\x11\xe0":
+        return xls_para_matriz(conteudo)
+    raise PlanilhaInvalida(
+        "Envie a planilha bruta do Uniplus em .xls, .xlsx ou .csv. O catálogo anterior foi mantido."
+    )
+
+
+def processar_matriz_uniplus(matriz):
+    """Aplica filtros Uniplus (tipo 00 + estoque > 0) e devolve produtos + totais Decimal da ponta 1."""
+    if not matriz:
+        raise PlanilhaInvalida("Planilha vazia. O catálogo anterior foi mantido.")
+
+    inicio = 0
+    idx_codigo, idx_nome, idx_preco, idx_estoque, idx_tipo = 0, 1, 3, 4, 5
+    cab = [str(c or "").strip().lower() for c in (matriz[0] or [])]
+    if any("codigo" in c or "código" in c for c in cab):
+        inicio = 1
+
+        def achar(*nomes):
+            for i, c in enumerate(cab):
+                for n in nomes:
+                    if n in c:
+                        return i
+            return -1
+
+        idx_codigo = achar("codigo", "código")
+        idx_nome = achar("nome", "descricao", "descrição", "produto")
+        idx_preco = achar("preço unit", "preco unit", "prvenda", "pr venda", "preço", "preco")
+        idx_estoque = achar("estoque")
+        idx_tipo = achar("tipo de produto", "tipo produto", "tipo")
+        if idx_codigo < 0 or idx_nome < 0:
+            raise PlanilhaInvalida("Cabeçalho sem Código/Nome. O catálogo anterior foi mantido.")
+        if idx_tipo < 0 and idx_estoque >= 0 and idx_preco >= 0:
+            idx_tipo = -1
+        elif idx_tipo < 0:
+            idx_codigo, idx_nome, idx_preco, idx_estoque, idx_tipo = 0, 1, 3, 4, 5
+
+    produtos = []
+    descartados_tipo = 0
+    descartados_estoque = 0
+    soma_preco = Decimal("0.00")
+    soma_estoque = Decimal("0.00")
+
+    for bruto in matriz[inicio:]:
+        linha = list(bruto or [])
+        codigo = limpar_codigo_uniplus(celula_matriz(linha, idx_codigo))
+        if not codigo:
+            continue
+        nome = str(celula_matriz(linha, idx_nome) or "").strip()
+        if not nome:
+            continue
+        if nome.lower().startswith(("total", "soma", "subtotal")):
+            continue
+        tipo = str(celula_matriz(linha, idx_tipo) or "").strip() if idx_tipo >= 0 else "00 - Mercadoria para revenda"
+        if idx_tipo >= 0 and not TIPO_REVEND_CATALOGO.search(tipo):
+            descartados_tipo += 1
+            continue
+        try:
+            preco = decimal_centavos(celula_matriz(linha, idx_preco))
+            estoque = decimal_centavos(celula_matriz(linha, idx_estoque))
+        except (InvalidOperation, ValueError, TypeError):
+            continue
+        if estoque <= 0:
+            descartados_estoque += 1
+            continue
+        soma_preco += preco
+        soma_estoque += estoque
+        produtos.append({
+            "codigo": codigo,
+            "produto": nome,
+            "estoque": formatar_decimal(estoque),
+            "preco": float(formatar_decimal(preco)),
+        })
+
+    if not produtos:
+        raise PlanilhaInvalida(
+            "Nenhum item elegível após filtros (tipo 00 e estoque > 0). O catálogo anterior foi mantido."
+        )
+
+    soma_preco = soma_preco.quantize(CENTAVO, rounding=ROUND_HALF_UP)
+    soma_estoque = soma_estoque.quantize(CENTAVO, rounding=ROUND_HALF_UP)
+    ponta1 = {
+        "qtd_itens": len(produtos),
+        "soma_preco": formatar_decimal(soma_preco),
+        "soma_estoque": formatar_decimal(soma_estoque),
+        "_soma_preco": soma_preco,
+        "_soma_estoque": soma_estoque,
+    }
+    meta = {
+        "descartados_tipo": descartados_tipo,
+        "descartados_estoque_zero": descartados_estoque,
+        "itens_descartados": descartados_tipo + descartados_estoque,
+    }
+    return produtos, ponta1, meta
+
+
+def publicar_com_auditoria_3_pontas(produtos, ponta1):
+    ponta2 = auditoria_itens_catalogo(produtos)
+    if ponta2["qtd_itens"] == 0 or not batimento_zero(ponta1, ponta2):
+        return None, ponta2, None, {
+            "ok": False,
+            "erro": "Batimento falhou entre origem filtrada e catálogo processado (diferença diferente de zero).",
+            "origem": totais_publicos(ponta1),
+            "processado": totais_publicos(ponta2),
+            "diferenca_origem_processado": diferencas_auditoria(ponta1, ponta2),
+        }
+    try:
+        gravar_catalogo_sync(produtos)
+        gravados = ler_catalogo_apos_gravacao()
+    except Exception as erro:
+        return None, ponta2, None, {
+            "ok": False,
+            "erro": "Falha ao gravar/releitura do catálogo: %s" % type(erro).__name__,
+        }
+    ponta3 = auditoria_itens_catalogo(gravados)
+    if not batimento_zero(ponta1, ponta3) or not batimento_zero(ponta2, ponta3):
+        return None, ponta2, ponta3, {
+            "ok": False,
+            "erro": "Batimento pós-gravação falhou (diferença diferente de zero entre as 3 pontas).",
+            "origem": totais_publicos(ponta1),
+            "processado": totais_publicos(ponta2),
+            "blob": totais_publicos(ponta3),
+            "diferenca_origem_blob": diferencas_auditoria(ponta1, ponta3),
+            "diferenca_processado_blob": diferencas_auditoria(ponta2, ponta3),
+        }
+    return gravados, ponta2, ponta3, None
+
+
+def responder_status_sync(saida):
+    if saida.command != "GET":
+        escrever_json(saida, {"ok": False, "erro": "Método não permitido."}, 405)
+        return
+    if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+        escrever_json(saida, {"ok": False, "erro": "Sessão do painel expirada. Entre novamente na Área Restrita."}, 401)
+        return
+    status = ler_ultima_sync()
+    if not status:
+        escrever_json(saida, {
+            "ok": True,
+            "encontrado": False,
+            "status": None,
+            "mensagem": "Nenhuma sincronização registrada ainda.",
+        })
+        return
+    escrever_json(saida, {"ok": True, "encontrado": True, "status": status})
+
+
 def responder_sincronizar_catalogo(saida):
     if saida.command != "POST":
         escrever_json(saida, {"ok": False, "erro": "Método não permitido."}, 405)
@@ -643,109 +955,141 @@ def responder_sincronizar_catalogo(saida):
         return
 
     produtos = normalizar_itens_sync(itens_brutos)
-    recebida = auditoria_itens_catalogo(produtos)
     try:
         qtd_ref = int(auditoria.get("qtd_itens"))
         soma_preco_ref = decimal_centavos(auditoria.get("soma_preco"))
         soma_estoque_ref = decimal_centavos(auditoria.get("soma_estoque"))
     except (TypeError, ValueError, InvalidOperation):
-        escrever_json(saida, {
-            "ok": False,
-            "erro": "Auditoria de origem inválida.",
-            "recebida": {
-                "qtd_itens": recebida["qtd_itens"],
-                "soma_preco": recebida["soma_preco"],
-                "soma_estoque": recebida["soma_estoque"],
-            },
-        }, 422)
+        escrever_json(saida, {"ok": False, "erro": "Auditoria de origem inválida."}, 422)
         return
 
-    if recebida["qtd_itens"] == 0 or (
-        recebida["qtd_itens"] != qtd_ref
-        or recebida["_soma_preco"] != soma_preco_ref
-        or recebida["_soma_estoque"] != soma_estoque_ref
-    ):
-        escrever_json(saida, {
-            "ok": False,
-            "erro": "Batimento de recebimento falhou (diferença diferente de zero).",
-            "recebida": {
-                "qtd_itens": recebida["qtd_itens"],
-                "soma_preco": recebida["soma_preco"],
-                "soma_estoque": recebida["soma_estoque"],
-            },
-            "origem": {
-                "qtd_itens": qtd_ref,
-                "soma_preco": formatar_decimal(soma_preco_ref),
-                "soma_estoque": formatar_decimal(soma_estoque_ref),
-            },
-        }, 422)
-        return
-
-    try:
-        gravar_catalogo_sync(produtos)
-        gravados = ler_catalogo_apos_gravacao()
-    except Exception as erro:
-        escrever_json(saida, {
-            "ok": False,
-            "erro": "Falha ao gravar/releitura do catálogo: %s" % type(erro).__name__,
-        }, 502)
-        return
-
-    confirmacao = auditoria_itens_catalogo(gravados)
-    if (
-        confirmacao["qtd_itens"] != recebida["qtd_itens"]
-        or confirmacao["_soma_preco"] != recebida["_soma_preco"]
-        or confirmacao["_soma_estoque"] != recebida["_soma_estoque"]
-    ):
-        escrever_json(saida, {
-            "ok": False,
-            "erro": "Batimento pós-gravação falhou (diferença diferente de zero).",
-            "recebida": {
-                "qtd_itens": recebida["qtd_itens"],
-                "soma_preco": recebida["soma_preco"],
-                "soma_estoque": recebida["soma_estoque"],
-            },
-            "gravada": {
-                "qtd_itens": confirmacao["qtd_itens"],
-                "soma_preco": confirmacao["soma_preco"],
-                "soma_estoque": confirmacao["soma_estoque"],
-            },
-        }, 422)
-        return
-
-    resumo = {
-        "ok": True,
-        "arquivo_origem": str(auditoria.get("arquivo_origem") or ""),
-        "data_geracao": str(auditoria.get("data_geracao") or datetime.utcnow().isoformat() + "Z"),
-        "data_sync": datetime.utcnow().isoformat() + "Z",
-        "descartados_tipo": auditoria.get("descartados_tipo"),
-        "descartados_estoque_zero": auditoria.get("descartados_estoque_zero"),
-        "origem": {
-            "qtd_itens": qtd_ref,
-            "soma_preco": formatar_decimal(soma_preco_ref),
-            "soma_estoque": formatar_decimal(soma_estoque_ref),
-        },
-        "vercel_auditoria": {
-            "qtd_itens": confirmacao["qtd_itens"],
-            "soma_preco": confirmacao["soma_preco"],
-            "soma_estoque": confirmacao["soma_estoque"],
-        },
+    ponta1 = {
+        "qtd_itens": qtd_ref,
+        "soma_preco": formatar_decimal(soma_preco_ref),
+        "soma_estoque": formatar_decimal(soma_estoque_ref),
+        "_soma_preco": soma_preco_ref,
+        "_soma_estoque": soma_estoque_ref,
     }
-    try:
-        enviar_json_blob(CATALOGO_SYNC_BLOB, json.dumps(resumo, ensure_ascii=False).encode("utf-8"))
-    except Exception:
-        pass
-    if not em_vercel():
-        try:
-            destino = ROOT / "data" / "ultima_sync.json"
-            destino.write_text(json.dumps(resumo, ensure_ascii=False, indent=2), encoding="utf-8")
-        except OSError:
-            pass
+    _gravados, ponta2, ponta3, falha = publicar_com_auditoria_3_pontas(produtos, ponta1)
+    if falha:
+        escrever_json(saida, falha, 422 if "Batimento" in falha.get("erro", "") else 502)
+        return
+
+    descartados = int(auditoria.get("descartados_tipo") or 0) + int(auditoria.get("descartados_estoque_zero") or 0)
+    arquivo = str(auditoria.get("arquivo_origem") or "")
+    status = montar_ultima_sync(
+        "Robô Automático",
+        arquivo,
+        "Robô Uniplus",
+        ponta3,
+        descartados,
+        auditoria_ok=True,
+    )
+    persistir_ultima_sync(status)
     escrever_json(saida, {
         "ok": True,
-        "vercel_auditoria": resumo["vercel_auditoria"],
-        "arquivo_origem": resumo["arquivo_origem"],
-        "data_sync": resumo["data_sync"],
+        "vercel_auditoria": totais_publicos(ponta3),
+        "arquivo_origem": arquivo,
+        "data_sync": status["dataHoraIso"],
+        "ultima_sync": status,
+        "origem": totais_publicos(ponta1),
+        "processado": totais_publicos(ponta2),
+        "blob": totais_publicos(ponta3),
+        "diferenca": {
+            "qtd_itens": 0,
+            "soma_preco": "0.00",
+            "soma_estoque": "0.00",
+        },
+    })
+
+
+def responder_upload_manual_uniplus(saida):
+    if saida.command != "POST":
+        escrever_json(saida, {"ok": False, "erro": "Método não permitido."}, 405)
+        return
+    if not token_valido(cookie_de(saida.headers.get("Cookie"))):
+        escrever_json(saida, {"ok": False, "erro": "Sessão do painel expirada. Entre novamente na Área Restrita."}, 401)
+        return
+    corpo = ler_corpo(saida)
+    if corpo is None:
+        escrever_json(saida, {"ok": False, "erro": "A planilha passou do tamanho aceito. O catálogo anterior foi mantido."}, 413)
+        return
+    if em_vercel() and not token_blob():
+        escrever_json(
+            saida,
+            {"ok": False, "erro": "Armazenamento do catálogo (BLOB_READ_WRITE_TOKEN) não configurado no servidor. O catálogo anterior foi mantido."},
+            503,
+        )
+        return
+    try:
+        campos, nome, arquivo = ler_formulario_campos(saida.headers.get("Content-Type", ""), corpo or b"")
+    except PlanilhaInvalida as erro:
+        escrever_json(saida, {"ok": False, "erro": str(erro)}, 400)
+        return
+    if not arquivo:
+        escrever_json(saida, {"ok": False, "erro": "Selecione a planilha bruta do Uniplus antes de processar."}, 400)
+        return
+    usuario = (
+        str(campos.get("usuario") or campos.get("funcionario") or campos.get("operador") or "").strip()
+        or EQUIPE_ADMIN
+    )
+    dispositivo = str(campos.get("dispositivo") or "Desktop").strip() or "Desktop"
+    try:
+        matriz = planilha_para_matriz_uniplus(nome, arquivo)
+        produtos, ponta1, meta = processar_matriz_uniplus(matriz)
+    except PlanilhaInvalida as erro:
+        escrever_json(saida, {"ok": False, "erro": str(erro)}, 400)
+        return
+    except Exception as erro:
+        print("catalogo: falha leitura uniplus (%s: %s)" % (type(erro).__name__, erro), file=sys.stderr, flush=True)
+        escrever_json(saida, {"ok": False, "erro": "Erro ao ler a planilha Uniplus. O catálogo anterior foi mantido."}, 500)
+        return
+
+    _gravados, ponta2, ponta3, falha = publicar_com_auditoria_3_pontas(produtos, ponta1)
+    if falha:
+        escrever_json(saida, falha, 422 if "Batimento" in falha.get("erro", "") else 502)
+        return
+
+    status = montar_ultima_sync(
+        "Upload Manual",
+        nome,
+        usuario,
+        ponta3,
+        meta["itens_descartados"],
+        auditoria_ok=True,
+    )
+    persistir_ultima_sync(status)
+    try:
+        gravar_log_equipe(
+            usuario,
+            "Atualizou Estoque (Upload Manual Uniplus: %s itens)" % ponta3["qtd_itens"],
+            dispositivo,
+        )
+    except Exception:
+        pass
+
+    escrever_json(saida, {
+        "ok": True,
+        "inseridos": ponta3["qtd_itens"],
+        "itens_ativos": ponta3["qtd_itens"],
+        "itens_descartados": meta["itens_descartados"],
+        "descartados_tipo": meta["descartados_tipo"],
+        "descartados_estoque_zero": meta["descartados_estoque_zero"],
+        "arquivo": nome,
+        "origem_label": "Upload Manual",
+        "usuario": usuario,
+        "atualizado_em": status["dataHora"],
+        "ultima_sync": status,
+        "auditoria_ok": True,
+        "origem": totais_publicos(ponta1),
+        "processado": totais_publicos(ponta2),
+        "blob": totais_publicos(ponta3),
+        "diferenca": {
+            "qtd_itens": 0,
+            "soma_preco": "0.00",
+            "soma_estoque": "0.00",
+        },
+        "mensagem": "0.00 (Auditado com Sucesso)",
     })
 
 
@@ -801,9 +1145,7 @@ def aspas_abertas(texto):
 
 def xlsx_para_matriz(conteudo):
     if conteudo[:4] == b"\xd0\xcf\x11\xe0":
-        raise PlanilhaInvalida(
-            "Este .xls antigo não foi lido. Salve como .xlsx ou CSV. O catálogo anterior foi mantido."
-        )
+        return xls_para_matriz(conteudo)
     try:
         pacote = zipfile.ZipFile(io.BytesIO(conteudo))
     except zipfile.BadZipFile as erro:
@@ -970,12 +1312,12 @@ def compactar(valor):
     return re.sub(r"[^a-z0-9]", "", normalizar(valor))
 
 
-def ler_formulario(content_type, corpo):
+def ler_formulario_campos(content_type, corpo):
     match = re.search(r"boundary=([^;]+)", content_type or "", re.I)
     if not match:
         raise PlanilhaInvalida("Envie a planilha pelo botão da área restrita.")
     limite = match.group(1).strip().strip('"').encode("utf-8", "ignore")
-    senha = ""
+    campos = {}
     nome = ""
     arquivo = b""
     for pedaco in corpo.split(b"--" + limite):
@@ -993,13 +1335,22 @@ def ler_formulario(content_type, corpo):
         if not separador:
             continue
         texto = cabecalho.decode("utf-8", "replace")
-        if 'name="senha"' in texto:
-            senha = dados.decode("utf-8", "replace").strip()
-        elif "filename=" in texto:
+        nome_campo = re.search(r'name="([^"]*)"', texto)
+        chave = (nome_campo.group(1) if nome_campo else "").strip()
+        if "filename=" in texto:
             encontrado = re.search(r'filename="([^"]*)"', texto)
             nome = encontrado.group(1) if encontrado else "planilha.csv"
             arquivo = dados
-    return senha, nome, arquivo
+            if chave:
+                campos[chave] = nome
+        elif chave:
+            campos[chave] = dados.decode("utf-8", "replace").strip()
+    return campos, nome, arquivo
+
+
+def ler_formulario(content_type, corpo):
+    campos, nome, arquivo = ler_formulario_campos(content_type, corpo)
+    return campos.get("senha", ""), nome, arquivo
 
 
 def escrever_json(saida, dados, status=200, extra=None):
@@ -4635,38 +4986,8 @@ def responder_ver_pdf(saida):
 
 
 def responder_upload(saida):
-    corpo = ler_corpo(saida)
-    if not token_valido(cookie_de(saida.headers.get("Cookie"))):
-        escrever_json(saida, {"ok": False, "erro": "Sessão do painel expirada. Entre novamente na Área Restrita."}, 401)
-        return
-    if corpo is None:
-        escrever_json(saida, {"ok": False, "erro": "A planilha passou do tamanho aceito. O catálogo anterior foi mantido."}, 413)
-        return
-    if em_vercel() and not token_blob():
-        escrever_json(saida, {"ok": False, "erro": "Armazenamento do catálogo (BLOB_READ_WRITE_TOKEN) não configurado no servidor. O catálogo anterior foi mantido."}, 503)
-        return
-    try:
-        _senha, nome, arquivo = ler_formulario(saida.headers.get("Content-Type", ""), corpo or b"")
-    except PlanilhaInvalida as erro:
-        escrever_json(saida, {"ok": False, "erro": str(erro)}, 400)
-        return
-    if not arquivo:
-        escrever_json(saida, {"ok": False, "erro": "Selecione a planilha antes de processar."}, 400)
-        return
-    try:
-        _produtos, resumo = substituir_catalogo(nome, arquivo)
-    except PlanilhaInvalida as erro:
-        escrever_json(saida, {"ok": False, "erro": str(erro)}, 400)
-        return
-    except OSError as erro:
-        print("catalogo: planilha lida, publicação falhou (%s)" % erro, file=sys.stderr, flush=True)
-        escrever_json(saida, {"ok": False, "erro": "A planilha foi lida, mas não foi possível publicar o catálogo no site. Tente novamente; o catálogo anterior continua no ar."}, 502)
-        return
-    except Exception as erro:
-        print("catalogo: falha inesperada (%s: %s)" % (type(erro).__name__, erro), file=sys.stderr, flush=True)
-        escrever_json(saida, {"ok": False, "erro": "Erro inesperado ao processar a planilha. O catálogo anterior foi mantido."}, 500)
-        return
-    escrever_json(saida, resumo)
+    """Upload manual da planilha bruta Uniplus com auditoria 3 pontas (área restrita)."""
+    responder_upload_manual_uniplus(saida)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -4681,6 +5002,12 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         caminho = self.path.split("?", 1)[0].rstrip("/") or "/"
+        acao_catalogo = parametro_consulta(self.path, "acao")
+        if caminho in ("/api/catalogo/status-sync",) or (
+            caminho == "/api/catalogo" and acao_catalogo == "status-sync"
+        ):
+            responder_status_sync(self)
+            return
         if caminho == "/api/catalogo":
             responder_catalogo(self)
             return
@@ -4746,13 +5073,18 @@ class Handler(SimpleHTTPRequestHandler):
         if caminho == "/api/auditoria":
             responder_equipe_post(self)
             return
-        if caminho == "/api/sincronizar-catalogo":
+        acao_catalogo = parametro_consulta(self.path, "acao")
+        if caminho == "/api/sincronizar-catalogo" or (
+            caminho == "/api/catalogo" and (
+                parametro_consulta(self.path, "sync") == "1" or acao_catalogo == "sincronizar"
+            )
+        ):
             responder_sincronizar_catalogo(self)
             return
-        if caminho != "/api/catalogo":
-            self.send_error(404)
+        if caminho in ("/api/catalogo", "/api/catalogo/upload-manual") or acao_catalogo == "upload-manual":
+            responder_upload(self)
             return
-        responder_upload(self)
+        self.send_error(404)
 
     def do_DELETE(self):
         caminho = self.path.split("?", 1)[0]

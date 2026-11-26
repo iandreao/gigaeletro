@@ -1,7 +1,7 @@
-"""GET /api/catalogo e POST /api/catalogo | /api/sincronizar-catalogo na Vercel.
+"""GET/POST /api/catalogo (+ status-sync, upload-manual, sincronizar-catalogo) na Vercel.
 
-POST /api/sincronizar-catalogo é reescrito para este handler (Hobby: máx. 12 funções)
-via vercel.json (?sync=1), reutilizando servidor.responder_sincronizar_catalogo.
+Consolida tudo em uma única Serverless Function (Hobby: máx. 12).
+Rewrites em vercel.json apontam para este handler com ?acao= / ?sync=1.
 """
 import sys
 from pathlib import Path
@@ -13,25 +13,51 @@ from http.server import BaseHTTPRequestHandler
 import servidor
 
 
+def _caminho(saida) -> str:
+    return (saida.path or "").split("?", 1)[0].rstrip("/") or "/"
+
+
+def _acao(saida) -> str:
+    return (servidor.parametro_consulta(saida.path, "acao") or "").strip().lower()
+
+
 def _eh_sincronizar(saida) -> bool:
-    caminho = (saida.path or "").split("?", 1)[0].rstrip("/")
+    caminho = _caminho(saida)
     if caminho.endswith("sincronizar-catalogo"):
         return True
     if servidor.parametro_consulta(saida.path, "sync") == "1":
         return True
-    if servidor.parametro_consulta(saida.path, "acao") == "sincronizar":
+    if _acao(saida) == "sincronizar":
         return True
     return False
 
 
+def _eh_status_sync(saida) -> bool:
+    caminho = _caminho(saida)
+    if caminho.endswith("status-sync"):
+        return True
+    return _acao(saida) == "status-sync"
+
+
+def _eh_upload_manual(saida) -> bool:
+    caminho = _caminho(saida)
+    if caminho.endswith("upload-manual"):
+        return True
+    return _acao(saida) == "upload-manual"
+
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if _eh_status_sync(self):
+            servidor.responder_status_sync(self)
+            return
         servidor.responder_catalogo(self)
 
     def do_POST(self):
         if _eh_sincronizar(self):
             servidor.responder_sincronizar_catalogo(self)
             return
+        # Upload manual Uniplus (área restrita) — padrão de POST /api/catalogo.
         servidor.responder_upload(self)
 
     def do_OPTIONS(self):
