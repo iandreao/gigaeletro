@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=120">
-  <link rel="stylesheet" href="css/admin.css?v=64">
+  <link rel="stylesheet" href="css/admin.css?v=65">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -116,8 +116,6 @@
       </div>
     </div>
     <div class="wrap admin-page" data-visao="estoque" hidden>
-      <h1>Atualização de Tabela</h1>
-
       <section class="sync-status panel" data-sync-status aria-live="polite">
         <div class="sync-status-topo">
           <div class="sync-status-titulos">
@@ -149,14 +147,6 @@
       </section>
 
       <form class="admin-body panel" data-admin-arquivo>
-        <p class="muted">Aceita diretamente a planilha bruta exportada do ERP Uniplus (<strong>Estoque *.xls / *.xlsx / *.csv</strong>). O sistema aplica automaticamente os filtros <strong>00 - Mercadoria para revenda</strong> e <strong>Estoque &gt; 0</strong>, com auditoria Decimal em 3 pontas (diferença obrigatória 0.00).</p>
-        <ol class="mapa">
-          <li><span>1</span> Código</li>
-          <li><span>2</span> Nome</li>
-          <li><span>4</span> Preço Unit.</li>
-          <li><span>5</span> Estoque</li>
-          <li><span>6</span> Tipo de Produto</li>
-        </ol>
         <label class="drop drop-cliente" data-drop-admin for="planilha">
           <span class="upload-badge" aria-hidden="true">
             <svg viewBox="0 0 48 48" fill="none" stroke="#1a1a1a" stroke-width="2.4">
@@ -208,7 +198,6 @@
               </tbody>
             </table>
           </div>
-          <p class="auditoria-extra">Descartados: <strong data-audit-descartados>0</strong> · Arquivo: <strong data-audit-arquivo>—</strong> · Quando: <strong data-audit-quando>—</strong></p>
         </div>
       </form>
     </div>
@@ -371,6 +360,6 @@
   <div class="equipe-acoes-tooltip" data-equipe-acoes-tooltip hidden></div>
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="js/pedido-pdf.js?v=15"></script>
-  <script src="js/admin.js?v=87"></script>
+  <script src="js/admin.js?v=88"></script>
 </body>
 </html>

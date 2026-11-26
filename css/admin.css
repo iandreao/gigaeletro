@@ -720,10 +720,11 @@ body.gestor .admin-page .btn-processar-estoque:disabled {
   background: #fef2f2;
   color: #b91c1c;
 }
-.auditoria-extra {
-  margin: 0;
-  font-size: 0.78rem;
-  color: #57534e;
+body.gestor .admin-page[data-visao="estoque"] {
+  padding-top: 0.35rem;
+}
+body.gestor .admin-page[data-visao="estoque"] .admin-body {
+  margin-top: 0.55rem;
 }
 @media (max-width: 720px) {
   .sync-status-grid {

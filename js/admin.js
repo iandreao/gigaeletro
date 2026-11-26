@@ -571,11 +571,7 @@
         mostrarAuditoria(corpo);
         if (corpo.ultima_sync) renderStatusSync(corpo.ultima_sync);
         else carregarStatusSync();
-        avisoEstoque(
-          "Tabela atualizada e auditada: " + (corpo.itens_ativos || corpo.inseridos || 0) +
-          " itens ativos · diferença 0.00.",
-          "ok"
-        );
+        avisoEstoque("");
         limparPlanilhaEscolhida();
       }).catch(function (falha) {
         /* A planilha continua escolhida para tentar de novo. */
@@ -593,6 +589,18 @@
   function limparPlanilhaEscolhida() {
     if (input) input.value = "";
     atualizarUiArquivoEstoque(null);
+  }
+
+  function resetarFormularioTabela() {
+    if (processandoPlanilha) return;
+    limparPlanilhaEscolhida();
+    limparAuditoria();
+    avisoEstoque("");
+    if (processar) {
+      processar.textContent = TEXTO_PROCESSAR;
+      processar.disabled = true;
+      processar.classList.remove("is-pronto");
+    }
   }
 
   /* Navegador que entra no painel passa a contar como acesso interno no rastreamento do site.
@@ -631,6 +639,7 @@
     document.querySelectorAll("[data-aba]").forEach(function (botao) {
       botao.setAttribute("aria-selected", botao.getAttribute("data-aba") === nome ? "true" : "false");
     });
+    resetarFormularioTabela();
     if (!silencioso && ACOES_ABA[nome] && ultimaAbaLog !== nome) {
       ultimaAbaLog = nome;
       registrarAcaoEquipe(ACOES_ABA[nome]);
@@ -682,8 +691,7 @@
     [
       "data-audit-origem-qtd", "data-audit-proc-qtd", "data-audit-blob-qtd",
       "data-audit-origem-preco", "data-audit-proc-preco", "data-audit-blob-preco",
-      "data-audit-origem-estoque", "data-audit-proc-estoque", "data-audit-blob-estoque",
-      "data-audit-descartados", "data-audit-arquivo", "data-audit-quando"
+      "data-audit-origem-estoque", "data-audit-proc-estoque", "data-audit-blob-estoque"
     ].forEach(function (attr) {
       var el = auditoria.querySelector("[" + attr + "]");
       if (el) el.textContent = "—";
@@ -713,16 +721,6 @@
     preencherPonta("origem", corpo.origem);
     preencherPonta("proc", corpo.processado);
     preencherPonta("blob", corpo.blob);
-    var descartados = auditoria.querySelector("[data-audit-descartados]");
-    var arquivo = auditoria.querySelector("[data-audit-arquivo]");
-    var quando = auditoria.querySelector("[data-audit-quando]");
-    if (descartados) descartados.textContent = String(corpo.itens_descartados != null ? corpo.itens_descartados : 0);
-    if (arquivo) arquivo.textContent = corpo.arquivo || (corpo.ultima_sync && corpo.ultima_sync.arquivo) || "—";
-    if (quando) {
-      var quandoBruto = corpo.atualizado_em || (corpo.ultima_sync && corpo.ultima_sync.dataHora) || "";
-      var quandoIso = corpo.ultima_sync && corpo.ultima_sync.dataHoraIso;
-      quando.textContent = formatarDataHoraSync(quandoBruto, quandoIso);
-    }
     var dif = auditoria.querySelector("[data-audit-diferenca]");
     var ok = !!corpo.ok && corpo.auditoria_ok !== false && !(corpo.diferenca && (
       Number(corpo.diferenca.qtd_itens) !== 0 ||
