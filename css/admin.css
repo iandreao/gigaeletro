@@ -534,10 +534,14 @@ body.gestor .dash-topo h1 { margin: 0; }
   color: var(--muted, #64748b);
 }
 .sync-status-acoes {
-  display: flex;
+  display: inline-flex;
+  flex: 0 0 auto;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.35rem;
+  margin-left: auto;
+  max-width: 100%;
 }
 .sync-badge {
   display: inline-flex;
@@ -550,6 +554,7 @@ body.gestor .dash-topo h1 { margin: 0; }
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 .sync-badge-ok {
   border-color: #86efac;
@@ -566,9 +571,24 @@ body.gestor .dash-topo h1 { margin: 0; }
   background: #f8fafc;
   color: #334155;
 }
-.sync-status-btn {
+.sync-status-btn,
+.sync-status .sync-status-btn.btn {
+  width: auto !important;
+  min-width: 0;
+  flex: 0 0 auto;
+  margin: 0 !important;
   padding: 0.28rem 0.65rem;
   font-size: 0.78rem;
+  white-space: nowrap;
+}
+.sync-status-feedback {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #15803d;
+}
+.auditoria-batimento[hidden] {
+  display: none !important;
 }
 .sync-status-grid {
   display: grid;

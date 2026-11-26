@@ -270,10 +270,12 @@
   });
 
   var TEXTO_PROCESSAR = "Processar e Atualizar Estoque no Site";
+  var TEXTO_SYNC_ATUALIZAR = "Atualizar Status";
   /* A Vercel recusa corpo acima de 4,5 MB antes de chegar ao servidor, com uma página que não é JSON. */
   var LIMITE_PLANILHA = 4 * 1024 * 1024;
   var PRAZO_PLANILHA = 90000;
   var processandoPlanilha = false;
+  var syncFeedbackTimer = 0;
   var syncVazio = document.querySelector("[data-sync-vazio]");
   var syncMeta = document.querySelector("[data-sync-meta]");
   var syncOrigem = document.querySelector("[data-sync-origem]");
@@ -283,6 +285,7 @@
   var syncPreco = document.querySelector("[data-sync-preco]");
   var syncEstoque = document.querySelector("[data-sync-estoque]");
   var syncAtualizar = document.querySelector("[data-sync-atualizar]");
+  var syncFeedback = document.querySelector("[data-sync-feedback]");
 
   function avisoEstoque(texto, tipo) {
     if (!status) return;
@@ -313,6 +316,63 @@
     return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   }
 
+  function parteData(partes, tipo) {
+    for (var i = 0; i < partes.length; i++) {
+      if (partes[i].type === tipo) return partes[i].value;
+    }
+    return "";
+  }
+
+  function formatarDataHoraSync(valor, isoFallback) {
+    var texto = String(valor || "").trim();
+    var iso = String(isoFallback || "").trim();
+    if (/^\d{2}\/\d{2}\/\d{4}\s+às\s+\d{2}:\d{2}/.test(texto)) return texto;
+    if (/^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}/.test(texto)) {
+      return texto.replace(/^(\d{2}\/\d{2}\/\d{4})\s+/, "$1 às ");
+    }
+    var bruto = iso || texto;
+    if (!bruto) return "—";
+    var data = new Date(bruto);
+    if (isNaN(data.getTime()) && texto) {
+      data = new Date(texto);
+    }
+    if (isNaN(data.getTime())) return texto || "—";
+    try {
+      var partes = new Intl.DateTimeFormat("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+      }).formatToParts(data);
+      return parteData(partes, "day") + "/" + parteData(partes, "month") + "/" + parteData(partes, "year") +
+        " às " + parteData(partes, "hour") + ":" + parteData(partes, "minute") + ":" + parteData(partes, "second");
+    } catch (erroFmt) {
+      return texto || bruto;
+    }
+  }
+
+  function horaAgoraSp() {
+    try {
+      var partes = new Intl.DateTimeFormat("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+      }).formatToParts(new Date());
+      return parteData(partes, "hour") + ":" + parteData(partes, "minute") + ":" + parteData(partes, "second");
+    } catch (erroHora) {
+      var agora = new Date();
+      return String(agora.getHours()).padStart(2, "0") + ":" +
+        String(agora.getMinutes()).padStart(2, "0") + ":" +
+        String(agora.getSeconds()).padStart(2, "0");
+    }
+  }
+
   function renderStatusSync(statusSync) {
     if (!statusSync) {
       if (syncVazio) {
@@ -328,7 +388,7 @@
     if (syncVazio) syncVazio.hidden = true;
     if (syncMeta) {
       syncMeta.hidden = false;
-      syncMeta.textContent = (statusSync.dataHora || "—") +
+      syncMeta.textContent = formatarDataHoraSync(statusSync.dataHora, statusSync.dataHoraIso) +
         (statusSync.arquivo ? " · Arquivo: " + statusSync.arquivo : "") +
         (statusSync.usuario ? " · Por: " + statusSync.usuario : "");
     }
@@ -348,8 +408,38 @@
     if (syncEstoque) syncEstoque.textContent = formatarNumeroBR(statusSync.somaEstoque, 2);
   }
 
-  function carregarStatusSync() {
-    if (syncVazio) {
+  function feedbackSyncAtualizado(ok) {
+    window.clearTimeout(syncFeedbackTimer);
+    var msg = ok
+      ? ("✓ Status atualizado às " + horaAgoraSp())
+      : "Não foi possível atualizar o status";
+    if (syncFeedback) {
+      syncFeedback.hidden = false;
+      syncFeedback.textContent = msg;
+      syncFeedback.style.color = ok ? "#15803d" : "#b91c1c";
+    }
+    if (syncAtualizar) {
+      syncAtualizar.disabled = false;
+      syncAtualizar.textContent = TEXTO_SYNC_ATUALIZAR;
+    }
+    syncFeedbackTimer = window.setTimeout(function () {
+      if (syncFeedback) {
+        syncFeedback.hidden = true;
+        syncFeedback.textContent = "";
+      }
+    }, 3000);
+  }
+
+  function carregarStatusSync(opcoes) {
+    var manual = !!(opcoes && opcoes.manual);
+    if (manual && syncAtualizar) {
+      syncAtualizar.disabled = true;
+      syncAtualizar.textContent = "Atualizando...";
+      if (syncFeedback) {
+        syncFeedback.hidden = true;
+        syncFeedback.textContent = "";
+      }
+    } else if (syncVazio && (!syncMeta || syncMeta.hidden)) {
       syncVazio.hidden = false;
       syncVazio.textContent = "Carregando status…";
     }
@@ -364,9 +454,14 @@
         }
         if (!corpo || !corpo.ok) throw new Error((corpo && corpo.erro) || "Falha ao ler status.");
         renderStatusSync(corpo.encontrado ? corpo.status : null);
+        if (manual) feedbackSyncAtualizado(true);
         return corpo;
       });
     }).catch(function () {
+      if (manual) {
+        feedbackSyncAtualizado(false);
+        return;
+      }
       if (syncVazio) {
         syncVazio.hidden = false;
         syncVazio.textContent = "Não foi possível carregar o status da sincronização.";
@@ -376,7 +471,8 @@
 
   if (syncAtualizar) {
     syncAtualizar.addEventListener("click", function () {
-      carregarStatusSync();
+      if (syncAtualizar.disabled) return;
+      carregarStatusSync({ manual: true });
     });
   }
 
@@ -404,7 +500,7 @@
       }
       processandoPlanilha = true;
       processar.disabled = true;
-      processar.textContent = "Processando e auditando…";
+      processar.textContent = "Processando e auditando planilha...";
       limparAuditoria();
       avisoEstoque("Enviando e auditando " + planilhaEscolhida.name + " (3 pontas)…");
       var dados = new FormData();
@@ -571,6 +667,7 @@
       if (linha) linha.classList.remove("is-erro");
     }
     auditoria.hidden = true;
+    auditoria.setAttribute("hidden", "");
   }
 
   function preencherPonta(prefixo, ponta) {
@@ -593,7 +690,11 @@
     var quando = auditoria.querySelector("[data-audit-quando]");
     if (descartados) descartados.textContent = String(corpo.itens_descartados != null ? corpo.itens_descartados : 0);
     if (arquivo) arquivo.textContent = corpo.arquivo || (corpo.ultima_sync && corpo.ultima_sync.arquivo) || "—";
-    if (quando) quando.textContent = corpo.atualizado_em || (corpo.ultima_sync && corpo.ultima_sync.dataHora) || "—";
+    if (quando) {
+      var quandoBruto = corpo.atualizado_em || (corpo.ultima_sync && corpo.ultima_sync.dataHora) || "";
+      var quandoIso = corpo.ultima_sync && corpo.ultima_sync.dataHoraIso;
+      quando.textContent = formatarDataHoraSync(quandoBruto, quandoIso);
+    }
     var dif = auditoria.querySelector("[data-audit-diferenca]");
     var ok = !!corpo.ok && corpo.auditoria_ok !== false && !(corpo.diferenca && (
       Number(corpo.diferenca.qtd_itens) !== 0 ||
@@ -608,6 +709,7 @@
       if (linha) linha.classList.toggle("is-erro", !ok);
     }
     auditoria.hidden = false;
+    auditoria.removeAttribute("hidden");
   }
 
   function escapar(valor) {

@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=120">
-  <link rel="stylesheet" href="css/admin.css?v=59">
+  <link rel="stylesheet" href="css/admin.css?v=60">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -131,6 +131,7 @@
             <button class="btn btn-line sync-status-btn" type="button" data-sync-atualizar>Atualizar Status</button>
           </div>
         </div>
+        <p class="sync-status-feedback" data-sync-feedback hidden aria-live="polite"></p>
         <div class="sync-status-grid" data-sync-grid hidden>
           <div class="sync-kpi">
             <span class="sync-kpi-label">Itens Ativos</span>
@@ -167,7 +168,8 @@
         </label>
         <p class="file-name" data-admin-arquivo-nome hidden></p>
         <p class="aviso" data-admin-status hidden></p>
-        <div class="auditoria-batimento" data-auditoria hidden>
+        <button class="btn btn-amarelo" type="button" data-processar disabled>Processar e Atualizar Estoque no Site</button>
+        <div id="relatorio-auditoria-manual" class="auditoria-batimento" data-auditoria hidden>
           <h3>Relatório de Auditoria Comparativa</h3>
           <div class="auditoria-tabela-wrap">
             <table class="auditoria-tabela">
@@ -207,7 +209,6 @@
           </div>
           <p class="auditoria-extra">Descartados: <strong data-audit-descartados>0</strong> · Arquivo: <strong data-audit-arquivo>—</strong> · Quando: <strong data-audit-quando>—</strong></p>
         </div>
-        <button class="btn btn-amarelo" type="button" data-processar disabled>Processar e Atualizar Estoque no Site</button>
       </form>
     </div>
     <div class="wrap gestor-pagina dash" data-visao="dashboard" hidden>
@@ -369,6 +370,6 @@
   <div class="equipe-acoes-tooltip" data-equipe-acoes-tooltip hidden></div>
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="js/pedido-pdf.js?v=15"></script>
-  <script src="js/admin.js?v=82"></script>
+  <script src="js/admin.js?v=83"></script>
 </body>
 </html>
