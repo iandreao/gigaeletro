@@ -1145,55 +1145,42 @@ body.home .catalogo-modal .catalogo-sem-resultado {
   }
 }
 
-@media (min-width: 1441px) {
-  /* Altera a raiz para preencher a tela inteira sem gerar rolagens externas */
-  html, body {
-    margin: 0 !important;
-    padding: 0 !important;
-    height: 100vh !important;
-    max-height: 100vh !important;
-    overflow: hidden !important; /* Remove qualquer rolagem da janela do navegador */
-    background: #e5e7eb !important;
+/* Desktop largo: usa a largura toda (sem caixa 1440px / faixas laterais). */
+@media (min-width: 1280px) {
+  html, body.home {
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
   }
-
-  /* Transforma a aplicação home em um container fixo centralizado e travado de 1440px */
   body.home {
-    width: 1440px !important;
-    max-width: 1440px !important;
-    height: 100vh !important;
-    max-height: 100vh !important;
-    margin: 0 auto !important;
-    position: relative !important;
-    display: flex !important;
-    flex-direction: column !important; /* Organiza topo, conteúdo e rodapé verticalmente */
-    justify-content: space-between !important;
-    box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.06), 0 0 40px rgba(17, 24, 39, 0.12) !important;
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    box-shadow: none !important;
     background: #ffffff !important;
-    overflow: hidden !important;
   }
-
-  /* Garante que o container interno de conteúdo ocupe o espaço restante perfeitamente */
-  body.home .main-content,
-  body.home .container-principal {
-    flex: 1 !important;
-    height: calc(100vh - 120px) !important; /* Desconta a altura do menu e do rodapé */
-    max-height: calc(100vh - 120px) !important;
-    display: flex !important;
-    overflow: hidden !important;
+  body.home .site-header {
+    padding-left: 0;
+    padding-right: 0;
   }
-
-  /* Trava o tamanho das colunas internas para encaixarem lado a lado na proporção perfeita da foto enviada */
-  body.home .coluna-banner,
-  body.home .coluna-formulario,
-  body.home .coluna-orcamento {
-    height: 100% !important;
-    max-height: 100% !important;
-    overflow: hidden !important; /* Impede que estourem a altura vertical da tela */
+  body.home .site-header .wrap.bar,
+  body.home .bar {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    margin-inline: 0;
+    padding-left: 20px;
+    padding-right: 20px;
   }
-
-  /* Mantém o título no tamanho exato e ideal calculado para a largura travada */
-  body.home .hero h1 {
-    font-size: 20.88px !important;
+  body.home .hero-grid {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    padding-left: 20px;
+    padding-right: 20px;
   }
 }
 

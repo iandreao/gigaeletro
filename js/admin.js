@@ -512,6 +512,26 @@
     }
   }
 
+  function desabilitarProcessarAposErro() {
+    planilhaEscolhida = null;
+    if (input) input.value = "";
+    if (dropZona) dropZona.classList.remove("has-file");
+    if (dropTexto) dropTexto.textContent = TEXTO_DROP_PADRAO;
+    if (dropArquivo) {
+      dropArquivo.hidden = true;
+      dropArquivo.textContent = "";
+    }
+    if (nomeArquivo) {
+      nomeArquivo.hidden = true;
+      nomeArquivo.textContent = "";
+    }
+    if (processar) {
+      processar.disabled = true;
+      processar.classList.remove("is-pronto");
+      processar.textContent = TEXTO_PROCESSAR;
+    }
+  }
+
   prepararDrop(dropZona, input, function (file) {
     if (processandoPlanilha) return;
     atualizarUiArquivoEstoque(file);
@@ -527,6 +547,7 @@
       }
       if (planilhaEscolhida.size > LIMITE_PLANILHA) {
         avisoEstoque("A planilha tem " + (planilhaEscolhida.size / 1048576).toFixed(1).replace(".", ",") + " MB e o limite de envio é 4 MB.", "erro");
+        desabilitarProcessarAposErro();
         return;
       }
       processandoPlanilha = true;
@@ -541,6 +562,7 @@
       dados.append("dispositivo", dispositivoPainel());
       var controle = window.AbortController ? new AbortController() : null;
       var prazo = controle ? window.setTimeout(function () { controle.abort(); }, PRAZO_PLANILHA) : 0;
+      var uploadFalhou = false;
       fetch("/api/catalogo/upload-manual", {
         method: "POST",
         credentials: "same-origin",
@@ -574,14 +596,20 @@
         avisoEstoque("");
         limparPlanilhaEscolhida();
       }).catch(function (falha) {
-        /* A planilha continua escolhida para tentar de novo. */
+        uploadFalhou = true;
         avisoEstoque(falha && falha.message ? falha.message : "A leitura falhou e o catálogo anterior foi mantido.", "erro");
+        desabilitarProcessarAposErro();
       }).then(function () {
         window.clearTimeout(prazo);
         processandoPlanilha = false;
         processar.textContent = TEXTO_PROCESSAR;
-        processar.disabled = !planilhaEscolhida;
-        processar.classList.toggle("is-pronto", !!planilhaEscolhida);
+        if (uploadFalhou || !planilhaEscolhida) {
+          processar.disabled = true;
+          processar.classList.remove("is-pronto");
+        } else {
+          processar.disabled = false;
+          processar.classList.add("is-pronto");
+        }
       });
     });
   }
