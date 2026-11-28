@@ -1,0 +1,20 @@
+name: Alerta Diário Tabela de Preços GigaEletro
+
+on:
+  schedule:
+    # 14:00 UTC = 11:00 Brasília, segunda a sábado
+    - cron: "0 14 * * 1-6"
+  workflow_dispatch:
+
+jobs:
+  verificar-tabela:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar atualização diária da tabela
+        run: |
+          curl --fail-with-body -sS \
+            -X POST "https://gigaeletro.com.br/api/catalogo" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            --data '{"acao":"verificar_atualizacao_diaria"}'
+          echo

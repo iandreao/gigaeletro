@@ -1,12 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["gru1"],
-  "crons": [
-    {
-      "path": "/api/catalogo?acao=verificar-atualizacao-diaria",
-      "schedule": "40 18 * * 1-6"
-    }
-  ],
   "builds": [
     { "src": "*.html", "use": "@vercel/static" },
     { "src": "versao.json", "use": "@vercel/static" },
