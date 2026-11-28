@@ -132,7 +132,8 @@
     { "src": "/api/catalogo/status-sync", "dest": "/api/catalogo.py?acao=status-sync" },
     { "src": "/api/catalogo/upload-manual", "dest": "/api/catalogo.py?acao=upload-manual" },
     { "src": "/api/catalogo/alerta-sync", "dest": "/api/catalogo.py?acao=alerta-sync" },
-    { "src": "/api/catalogo/verificar-atualizacao-diaria", "dest": "/api/catalogo.py?acao=verificar-atualizacao-diaria" },
+    { "src": "/api/catalogo/verificar-atualizacao-diaria", "dest": "/api/catalogo?acao=verificar-atualizacao-diaria" },
+    { "src": "/api/catalogo/limpar-tabela", "dest": "/api/catalogo?acao=limpar-tabela" },
     { "src": "/api/sincronizar-catalogo", "dest": "/api/catalogo.py?sync=1" },
     { "src": "/api/(.*)", "dest": "/api/$1.py" },
     {

@@ -860,10 +860,32 @@ def marcar_alerta_diario_enviado(dia_iso):
     _gravar_trava_alerta_diario_blob(dia_iso)
 
 
-def enviar_email_alerta_nao_atualizado(hoje_txt, status, simulado=False):
+def enviar_resend_alerta(assunto, texto, corpo_html=None):
+    """Mesmo pipeline Resend do alerta-sync: RESEND_API_KEY + remetente_email() + disparar_resend."""
     chave = variavel_sem_aspas("RESEND_API_KEY")
     if not chave:
-        return False, "RESEND_API_KEY ausente"
+        return False, "RESEND_API_KEY ausente", None
+    if not corpo_html:
+        corpo_html = "<p>" + html.escape(texto) + "</p>"
+    payload = {
+        "from": remetente_email(),
+        "to": [ALERTA_SYNC_DESTINO],
+        "subject": assunto,
+        "html": corpo_html,
+        "text": texto,
+    }
+    try:
+        retorno = disparar_resend(chave, payload)
+        resend_id = None
+        if isinstance(retorno, dict):
+            resend_id = retorno.get("id") or None
+        return True, "", resend_id
+    except Exception as erro:
+        print("alerta-resend: falha Resend (%s)" % erro, file=sys.stderr, flush=True)
+        return False, str(erro), None
+
+
+def enviar_email_alerta_nao_atualizado(hoje_txt, status, simulado=False):
     ultima = "—"
     operador = "—"
     origem = "—"
@@ -872,19 +894,11 @@ def enviar_email_alerta_nao_atualizado(hoje_txt, status, simulado=False):
         operador = str(status.get("usuario") or "—")
         origem = str(status.get("origem") or "—")
     if simulado:
-        intro = (
-            "Este é um <strong>teste simulado</strong> (`simularAtraso=1`). "
-            "O sistema verificou a atualização da tabela como se ela ainda não tivesse ocorrido hoje."
-        )
         intro_txt = (
             "Este é um teste simulado (simularAtraso=1). "
             "O sistema verificou a atualização da tabela como se ela ainda não tivesse ocorrido hoje."
         )
     else:
-        intro = (
-            "Até o momento, a <strong>tabela de preços/estoque do site</strong> "
-            "<strong>não foi atualizada hoje</strong> (%s)." % html.escape(hoje_txt)
-        )
         intro_txt = (
             "Até o momento, a tabela de preços/estoque do site não foi atualizada hoje (%s)."
             % hoje_txt
@@ -898,29 +912,44 @@ def enviar_email_alerta_nao_atualizado(hoje_txt, status, simulado=False):
         "Acesse a Área Restrita para atualizar: %s\n"
         % (intro_txt, ultima, operador, origem, link)
     )
+    # Mesmo estilo do alerta-sync (texto escapado em <p>), mais detalhes úteis.
     corpo_html = (
-        "<div style=\"font-family:Arial,sans-serif;font-size:15px;line-height:1.45;color:#111\">"
-        "<p>%s</p>"
-        "<p><strong>Última atualização registrada:</strong> %s<br>"
-        "<strong>Operador:</strong> %s<br>"
-        "<strong>Origem:</strong> %s</p>"
-        "<p><a href=\"%s\">Abrir Área Restrita (admin.html)</a></p>"
-        "</div>"
-        % (intro, html.escape(ultima), html.escape(operador), html.escape(origem), link)
+        "<p>" + html.escape(intro_txt) + "</p>"
+        "<p><strong>Última atualização registrada:</strong> " + html.escape(ultima) + "<br>"
+        "<strong>Operador:</strong> " + html.escape(operador) + "<br>"
+        "<strong>Origem:</strong> " + html.escape(origem) + "</p>"
+        '<p><a href="' + link + '">Abrir Área Restrita (admin.html)</a></p>'
     )
+    return enviar_resend_alerta(assunto, texto, corpo_html=corpo_html)
+
+
+def limpar_trava_alerta_diario(dia_iso=None):
+    """Remove a trava diária no Redis e no Blob (homologação / limpar-tabela)."""
+    if not dia_iso:
+        dia_iso = agora_painel().strftime("%Y-%m-%d")
+    chave = ALERTA_DIARIO_REDIS + str(dia_iso)
+    if endereco_redis():
+        try:
+            redis_pipeline([["DEL", chave]])
+        except Exception:
+            pass
     payload = {
-        "from": remetente_email(),
-        "to": [ALERTA_SYNC_DESTINO],
-        "subject": assunto,
-        "html": corpo_html,
-        "text": texto,
+        "ultimaDataAlerta": None,
+        "atualizadoEm": agora_painel().isoformat(),
     }
-    try:
-        disparar_resend(chave, payload)
-        return True, ""
-    except Exception as erro:
-        print("alerta-diario: falha Resend (%s)" % erro, file=sys.stderr, flush=True)
-        return False, str(erro)
+    corpo = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    if token_blob():
+        try:
+            enviar_json_blob(CATALOGO_ALERTA_DIARIO_BLOB, corpo)
+        except Exception:
+            pass
+    if not em_vercel():
+        try:
+            destino = ROOT / "data" / "alerta_nao_atualizado.json"
+            if destino.is_file():
+                destino.unlink()
+        except OSError:
+            pass
 
 
 def responder_verificar_atualizacao_diaria(saida):
@@ -947,6 +976,7 @@ def responder_verificar_atualizacao_diaria(saida):
             "atualizadoHoje": True,
             "ultimaSync": (status or {}).get("dataHora") or (status or {}).get("dataHoraIso") or "",
             "data": hoje_txt,
+            "emailEnviado": False,
         })
         return
 
@@ -958,16 +988,20 @@ def responder_verificar_atualizacao_diaria(saida):
             "alertaJaEnviado": True,
             "ultimaSync": (status or {}).get("dataHora") or "",
             "data": hoje_txt,
+            "emailEnviado": False,
         })
         return
 
-    ok_envio, erro_envio = enviar_email_alerta_nao_atualizado(hoje_txt, status, simulado=simular)
+    ok_envio, erro_envio, resend_id = enviar_email_alerta_nao_atualizado(
+        hoje_txt, status, simulado=simular
+    )
     if not ok_envio:
         escrever_json(saida, {
             "ok": False,
             "atualizadoHoje": False,
             "erro": "Falha ao enviar alerta por e-mail.",
-            "detalhe": erro_envio,
+            "emailEnviado": False,
+            "erroResend": erro_envio,
             "ultimaSync": (status or {}).get("dataHora") or "",
             "data": hoje_txt,
             "simulado": simular,
@@ -978,15 +1012,64 @@ def responder_verificar_atualizacao_diaria(saida):
     if not simular:
         marcar_alerta_diario_enviado(dia_iso)
 
-    escrever_json(saida, {
+    resposta = {
         "ok": True,
         "atualizadoHoje": False,
         "alertaEnviado": True,
+        "emailEnviado": True,
         "enviado_para": ALERTA_SYNC_DESTINO,
         "ultimaSync": (status or {}).get("dataHora") or "",
         "data": hoje_txt,
         "simulado": simular,
         "forcado": forcar,
+    }
+    if resend_id:
+        resposta["resendId"] = resend_id
+    escrever_json(saida, resposta)
+
+
+def responder_limpar_tabela(saida):
+    """Homologação: zera catálogo + ultima_sync + trava diária. Exige confirmar=1 e auth."""
+    if parametro_consulta(saida.path, "confirmar") != "1":
+        escrever_json(saida, {
+            "ok": False,
+            "erro": "Confirme a limpeza com ?confirmar=1.",
+        }, 400)
+        return
+    admin_ok = token_valido(cookie_de(saida.headers.get("Cookie")))
+    sync_ok = bool(token_sync_catalogo()) and autorizacao_sync_catalogo(saida)
+    if not admin_ok and not sync_ok:
+        escrever_json(saida, {
+            "ok": False,
+            "erro": "Não autorizado. Entre na Área Restrita ou use Bearer CATALOGO_SYNC_TOKEN.",
+        }, 401)
+        return
+    try:
+        gravar_catalogo_sync([])
+        status_vazio = {
+            "dataHora": None,
+            "dataHoraIso": None,
+            "origem": "",
+            "arquivo": "",
+            "usuario": "",
+            "itensAtivos": 0,
+            "itensDescartados": 0,
+            "somaPreco": "0.00",
+            "somaEstoque": "0.00",
+            "status": "Sem sincronização",
+        }
+        persistir_ultima_sync(status_vazio)
+        limpar_trava_alerta_diario()
+    except Exception as erro:
+        escrever_json(saida, {
+            "ok": False,
+            "erro": "Falha ao limpar tabela/status.",
+            "detalhe": str(erro),
+        }, 500)
+        return
+    escrever_json(saida, {
+        "ok": True,
+        "mensagem": "Tabela e status de sincronização limpos com sucesso.",
     })
 
 
@@ -1164,24 +1247,9 @@ def montar_email_alerta_sync(tipo, detalhe="", carimbo=""):
 
 
 def enviar_email_alerta_sync(tipo, detalhe="", carimbo=""):
-    chave = variavel_sem_aspas("RESEND_API_KEY")
-    if not chave:
-        return False, "RESEND_API_KEY ausente"
     assunto, texto = montar_email_alerta_sync(tipo, detalhe=detalhe, carimbo=carimbo)
-    html = "<p>" + html.escape(texto) + "</p>"
-    payload = {
-        "from": remetente_email(),
-        "to": [ALERTA_SYNC_DESTINO],
-        "subject": assunto,
-        "html": html,
-        "text": texto,
-    }
-    try:
-        disparar_resend(chave, payload)
-        return True, ""
-    except Exception as erro:
-        print("alerta-sync: falha Resend (%s)" % erro, file=sys.stderr, flush=True)
-        return False, str(erro)
+    ok_envio, erro_envio, _resend_id = enviar_resend_alerta(assunto, texto)
+    return ok_envio, erro_envio
 
 
 def responder_alerta_sync(saida):
@@ -5434,15 +5502,27 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         caminho = self.path.split("?", 1)[0].rstrip("/") or "/"
         acao_catalogo = parametro_consulta(self.path, "acao")
-        if caminho in ("/api/catalogo/verificar-atualizacao-diaria",) or (
-            caminho == "/api/catalogo" and acao_catalogo == "verificar-atualizacao-diaria"
+        if (
+            caminho.endswith("/verificar-atualizacao-diaria")
+            or caminho.endswith("verificar-atualizacao-diaria")
+            or acao_catalogo == "verificar-atualizacao-diaria"
         ):
             responder_verificar_atualizacao_diaria(self)
             return
+        if (
+            caminho.endswith("/limpar-tabela")
+            or caminho.endswith("limpar-tabela")
+            or acao_catalogo == "limpar-tabela"
+        ):
+            responder_limpar_tabela(self)
+            return
         if caminho in ("/api/catalogo/status-sync",) or (
-            caminho == "/api/catalogo" and acao_catalogo == "status-sync"
+            caminho in ("/api/catalogo", "/api/catalogo.py") and acao_catalogo == "status-sync"
         ):
             responder_status_sync(self)
+            return
+        if caminho in ("/api/catalogo", "/api/catalogo.py") and not acao_catalogo:
+            responder_catalogo(self)
             return
         if caminho == "/api/catalogo":
             responder_catalogo(self)
@@ -5510,20 +5590,31 @@ class Handler(SimpleHTTPRequestHandler):
             responder_equipe_post(self)
             return
         acao_catalogo = parametro_consulta(self.path, "acao")
-        if caminho in ("/api/catalogo/verificar-atualizacao-diaria",) or acao_catalogo == "verificar-atualizacao-diaria":
+        if (
+            caminho.endswith("/verificar-atualizacao-diaria")
+            or caminho.endswith("verificar-atualizacao-diaria")
+            or acao_catalogo == "verificar-atualizacao-diaria"
+        ):
             responder_verificar_atualizacao_diaria(self)
+            return
+        if (
+            caminho.endswith("/limpar-tabela")
+            or caminho.endswith("limpar-tabela")
+            or acao_catalogo == "limpar-tabela"
+        ):
+            responder_limpar_tabela(self)
             return
         if caminho in ("/api/catalogo/alerta-sync",) or acao_catalogo == "alerta-sync":
             responder_alerta_sync(self)
             return
         if caminho == "/api/sincronizar-catalogo" or (
-            caminho == "/api/catalogo" and (
+            caminho in ("/api/catalogo", "/api/catalogo.py") and (
                 parametro_consulta(self.path, "sync") == "1" or acao_catalogo == "sincronizar"
             )
         ):
             responder_sincronizar_catalogo(self)
             return
-        if caminho in ("/api/catalogo", "/api/catalogo/upload-manual") or acao_catalogo == "upload-manual":
+        if caminho in ("/api/catalogo", "/api/catalogo.py", "/api/catalogo/upload-manual") or acao_catalogo == "upload-manual":
             responder_upload(self)
             return
         self.send_error(404)

@@ -1,5 +1,5 @@
 """GET/POST /api/catalogo (+ status-sync, upload-manual, sincronizar, alerta-sync,
-verificar-atualizacao-diaria) na Vercel.
+verificar-atualizacao-diaria, limpar-tabela) na Vercel.
 
 Consolida tudo em uma única Serverless Function (Hobby: máx. 12).
 Rewrites em vercel.json apontam para este handler com ?acao= / ?sync=1.
@@ -54,10 +54,20 @@ def _eh_verificar_atualizacao_diaria(saida) -> bool:
     return _acao(saida) == "verificar-atualizacao-diaria"
 
 
+def _eh_limpar_tabela(saida) -> bool:
+    caminho = _caminho(saida)
+    if caminho.endswith("limpar-tabela"):
+        return True
+    return _acao(saida) == "limpar-tabela"
+
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if _eh_verificar_atualizacao_diaria(self):
             servidor.responder_verificar_atualizacao_diaria(self)
+            return
+        if _eh_limpar_tabela(self):
+            servidor.responder_limpar_tabela(self)
             return
         if _eh_status_sync(self):
             servidor.responder_status_sync(self)
@@ -67,6 +77,9 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if _eh_verificar_atualizacao_diaria(self):
             servidor.responder_verificar_atualizacao_diaria(self)
+            return
+        if _eh_limpar_tabela(self):
+            servidor.responder_limpar_tabela(self)
             return
         if _eh_alerta_sync(self):
             servidor.responder_alerta_sync(self)
