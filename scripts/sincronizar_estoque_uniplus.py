@@ -42,7 +42,8 @@ CSV_EXPORT = LOGS / "ultimo_catalogo_exportado.csv"
 LOG_FILE = LOGS / "sync_catalogo.log"
 CENTAVO = Decimal("0.01")
 TIPO_REVEND = re.compile(r"^00(\s*-|\b)", re.I)
-PADRAO_ESTOQUE = re.compile(r"^estoque\s+.+\.xlsx?$", re.I)
+# Aceita Estoque*.xls / Estoque *.xls / Estoque*.xlsx / Estoque *.xlsx (case-insensitive).
+PADRAO_ESTOQUE = re.compile(r"^estoque[\s._-]*.*\.xlsx?$", re.I)
 RE_GERADO = re.compile(
     r"Gerado\s+em\s+(\d{2}/\d{2}/(?:\d{2}|\d{4}))(?:\s+(\d{2}:\d{2}:\d{2}))?",
     re.I,
@@ -157,21 +158,33 @@ def pasta_acessivel(caminho: Path, timeout_s: float = TIMEOUT_PASTA_REDE_S) -> b
 
 
 def _eh_planilha_estoque(nome: str) -> bool:
-    lower = nome.lower()
-    if not (lower.endswith(".xls") or lower.endswith(".xlsx")):
+    """True para Estoque*.xls / Estoque*.xlsx; ignora temporários do Excel (~$*)."""
+    texto = str(nome or "").strip()
+    if not texto:
         return False
-    return lower.startswith("estoque")
+    # Arquivos de lock/temporários do Excel (ex.: ~$Estoque 2811.xls).
+    if texto.startswith("~$") or texto.startswith(".~") or texto.startswith("~~"):
+        return False
+    lower = texto.lower()
+    if lower.startswith("~$"):
+        return False
+    if lower.endswith((".tmp", ".bak", ".crdownload", ".partial")):
+        return False
+    # .xlsx antes de .xls para não confundir sufixo.
+    if lower.endswith(".xlsx"):
+        return lower.startswith("estoque") or bool(PADRAO_ESTOQUE.match(texto))
+    if lower.endswith(".xls"):
+        return lower.startswith("estoque") or bool(PADRAO_ESTOQUE.match(texto))
+    return False
 
 
 def listar_planilhas_estoque(pasta: Path) -> list[Path]:
+    """Lista Estoque *.xls e *.xlsx na pasta, do mais recente (st_mtime) ao mais antigo."""
     try:
         itens = list(pasta.iterdir())
     except (OSError, PermissionError):
         return []
-    candidatos = [
-        item for item in itens
-        if item.is_file() and (PADRAO_ESTOQUE.match(item.name) or _eh_planilha_estoque(item.name))
-    ]
+    candidatos = [item for item in itens if item.is_file() and _eh_planilha_estoque(item.name)]
     candidatos.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     return candidatos
 
@@ -196,6 +209,10 @@ def resolver_origem(pasta_arg: str | None, arquivo: str | None) -> tuple[Path, P
         caminho = Path(arquivo)
         if not caminho.is_file():
             raise FileNotFoundError("Arquivo não encontrado: %s" % caminho)
+        if not _eh_planilha_estoque(caminho.name) and caminho.suffix.lower() not in (".xls", ".xlsx"):
+            raise FileNotFoundError(
+                "Arquivo inválido: %s (use Estoque *.xls ou *.xlsx)" % caminho.name
+            )
         return caminho.parent, caminho
 
     verificadas: list[str] = []
@@ -468,16 +485,18 @@ def enviar_alerta(api_sync: str, token: str, tipo: str, detalhe: str) -> None:
 
 
 def ler_origem(caminho: Path):
-    ext = caminho.suffix.lower()
-    if ext == ".xls":
-        log("Lendo com xlrd (.xls): %s" % caminho.name)
-        linhas = _ler_linhas_xls(caminho)
-    elif ext == ".xlsx":
-        log("Lendo com openpyxl (.xlsx): %s" % caminho.name)
+    """Lê planilha Uniplus: xlrd para .xls (legado) e openpyxl para .xlsx."""
+    nome = caminho.name
+    lower = nome.lower()
+    if lower.endswith(".xlsx"):
+        log("Lendo com openpyxl (.xlsx): %s" % nome)
         linhas = _ler_linhas_xlsx(caminho)
+    elif lower.endswith(".xls"):
+        log("Lendo com xlrd (.xls): %s" % nome)
+        linhas = _ler_linhas_xls(caminho)
     else:
-        raise ValueError("Extensão não suportada: %s (use .xls ou .xlsx)" % ext)
-    return processar_linhas(linhas, caminho.name)
+        raise ValueError("Extensão não suportada: %s (use .xls ou .xlsx)" % caminho.suffix)
+    return processar_linhas(linhas, nome)
 
 
 def totais(itens):
