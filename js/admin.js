@@ -285,6 +285,8 @@
   var syncPreco = document.querySelector("[data-sync-preco]");
   var syncEstoque = document.querySelector("[data-sync-estoque]");
   var syncAtualizar = document.querySelector("[data-sync-atualizar]");
+  var syncLimparTeste = document.querySelector("[data-sync-limpar-teste]");
+  var syncAlertaTeste = document.querySelector("[data-sync-alerta-teste]");
   var syncFeedback = document.querySelector("[data-sync-feedback]");
 
   function avisoEstoque(texto, tipo) {
@@ -374,15 +376,25 @@
   }
 
   function renderStatusSync(statusSync) {
-    if (!statusSync) {
+    var semSync = !statusSync || statusSync.dataHora == null || statusSync.dataHora === "";
+    if (semSync) {
       if (syncVazio) {
         syncVazio.hidden = false;
-        syncVazio.textContent = "Nenhuma sincronização registrada ainda.";
+        syncVazio.textContent = (statusSync && statusSync.status) || "Nenhuma sincronização registrada ainda.";
       }
       if (syncMeta) syncMeta.hidden = true;
       if (syncOrigem) syncOrigem.hidden = true;
       if (syncAudit) syncAudit.hidden = true;
-      if (syncGrid) syncGrid.hidden = true;
+      if (syncGrid) {
+        if (statusSync && Number(statusSync.itensAtivos) === 0) {
+          syncGrid.hidden = false;
+          if (syncItens) syncItens.textContent = formatarNumeroBR(0, 0);
+          if (syncPreco) syncPreco.textContent = formatarMoedaBR(statusSync.somaPreco != null ? statusSync.somaPreco : statusSync.somaPrecos || 0);
+          if (syncEstoque) syncEstoque.textContent = formatarNumeroBR(statusSync.somaEstoque || 0, 2);
+        } else {
+          syncGrid.hidden = true;
+        }
+      }
       return;
     }
     if (syncVazio) syncVazio.hidden = true;
@@ -402,7 +414,7 @@
     }
     if (syncGrid) syncGrid.hidden = false;
     if (syncItens) syncItens.textContent = formatarNumeroBR(statusSync.itensAtivos, 0);
-    if (syncPreco) syncPreco.textContent = formatarMoedaBR(statusSync.somaPreco);
+    if (syncPreco) syncPreco.textContent = formatarMoedaBR(statusSync.somaPreco != null ? statusSync.somaPreco : statusSync.somaPrecos);
     if (syncEstoque) syncEstoque.textContent = formatarNumeroBR(statusSync.somaEstoque, 2);
   }
 
@@ -471,6 +483,102 @@
     syncAtualizar.addEventListener("click", function () {
       if (syncAtualizar.disabled) return;
       carregarStatusSync({ manual: true });
+    });
+  }
+
+  function postCatalogoAcao(payload) {
+    return fetch("/api/catalogo", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify(payload || {}),
+      cache: "no-store"
+    }).then(function (resposta) {
+      return resposta.json().then(function (corpo) {
+        if (resposta.status === 401) {
+          mostrarLogin();
+          throw new Error("Sessão expirada.");
+        }
+        return { http: resposta.status, corpo: corpo || {} };
+      }, function () {
+        throw new Error("Resposta inválida do servidor (" + resposta.status + ").");
+      });
+    });
+  }
+
+  if (syncLimparTeste) {
+    syncLimparTeste.addEventListener("click", function () {
+      if (syncLimparTeste.disabled) return;
+      if (!window.confirm("Limpar a tabela de preços/estoque e o status de sincronização?\n\nIsso zera o catálogo publicado (homologação).")) {
+        return;
+      }
+      syncLimparTeste.disabled = true;
+      if (syncFeedback) {
+        syncFeedback.hidden = false;
+        syncFeedback.style.color = "#57534e";
+        syncFeedback.textContent = "Limpando tabela…";
+      }
+      postCatalogoAcao({ acao: "limpar_tabela" }).then(function (ret) {
+        var corpo = ret.corpo;
+        if (!corpo.ok) throw new Error(corpo.erro || corpo.detalhe || "Falha ao limpar.");
+        renderStatusSync({
+          dataHora: null,
+          itensAtivos: 0,
+          somaPreco: 0,
+          somaPrecos: 0,
+          somaEstoque: 0,
+          status: "Sem sincronização"
+        });
+        if (syncFeedback) {
+          syncFeedback.hidden = false;
+          syncFeedback.style.color = "#15803d";
+          syncFeedback.textContent = corpo.mensagem || "Tabela limpa com sucesso.";
+        }
+        return carregarStatusSync();
+      }).catch(function (falha) {
+        if (syncFeedback) {
+          syncFeedback.hidden = false;
+          syncFeedback.style.color = "#b91c1c";
+          syncFeedback.textContent = falha && falha.message ? falha.message : "Falha ao limpar tabela.";
+        }
+      }).then(function () {
+        syncLimparTeste.disabled = false;
+      });
+    });
+  }
+
+  if (syncAlertaTeste) {
+    syncAlertaTeste.addEventListener("click", function () {
+      if (syncAlertaTeste.disabled) return;
+      syncAlertaTeste.disabled = true;
+      if (syncFeedback) {
+        syncFeedback.hidden = false;
+        syncFeedback.style.color = "#57534e";
+        syncFeedback.textContent = "Testando alerta de e-mail…";
+      }
+      postCatalogoAcao({ acao: "verificar_atualizacao_diaria", forcar: true }).then(function (ret) {
+        var corpo = ret.corpo;
+        var texto = JSON.stringify(corpo, null, 2);
+        var okEnvio = !!(corpo && corpo.emailEnviado);
+        if (syncFeedback) {
+          syncFeedback.hidden = false;
+          syncFeedback.style.color = okEnvio ? "#15803d" : (corpo && corpo.ok ? "#a16207" : "#b91c1c");
+          syncFeedback.textContent = (corpo && corpo.detalhe)
+            ? corpo.detalhe
+            : (okEnvio ? "E-mail enviado." : "E-mail não enviado.");
+        }
+        window.alert("Retorno do servidor (verificar_atualizacao_diaria):\n\n" + texto);
+      }).catch(function (falha) {
+        var msg = falha && falha.message ? falha.message : "Falha no teste de alerta.";
+        if (syncFeedback) {
+          syncFeedback.hidden = false;
+          syncFeedback.style.color = "#b91c1c";
+          syncFeedback.textContent = msg;
+        }
+        window.alert("Erro no teste de alerta:\n\n" + msg);
+      }).then(function () {
+        syncAlertaTeste.disabled = false;
+      });
     });
   }
 

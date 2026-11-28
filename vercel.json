@@ -3,11 +3,11 @@
   "regions": ["gru1"],
   "crons": [
     {
-      "path": "/api/catalogo/verificar-atualizacao-diaria",
+      "path": "/api/catalogo?acao=verificar-atualizacao-diaria",
       "schedule": "0 14 * * 1-6"
     },
     {
-      "path": "/api/catalogo/verificar-atualizacao-diaria",
+      "path": "/api/catalogo?acao=verificar-atualizacao-diaria",
       "schedule": "0 19 * * 1-6"
     }
   ],

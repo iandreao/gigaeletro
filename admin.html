@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css?v=120">
-  <link rel="stylesheet" href="css/admin.css?v=66">
+  <link rel="stylesheet" href="css/admin.css?v=67">
 </head>
 <body class="gestor">
   <div class="gestor-topo">
@@ -127,6 +127,8 @@
             <span class="sync-origem-texto" data-sync-origem hidden></span>
             <span class="sync-audit-texto" data-sync-audit hidden>Auditado 0.00</span>
             <button class="btn btn-line sync-status-btn" type="button" data-sync-atualizar>Atualizar Status</button>
+            <button class="btn btn-line sync-teste-btn" type="button" data-sync-limpar-teste title="Homologação: zera catálogo e status">Limpar Tabela (Teste)</button>
+            <button class="btn btn-line sync-teste-btn" type="button" data-sync-alerta-teste title="Homologação: dispara verificação/e-mail diário">Testar Alerta E-mail</button>
           </div>
         </div>
         <p class="sync-status-feedback" data-sync-feedback hidden aria-live="polite"></p>
@@ -360,6 +362,6 @@
   <div class="equipe-acoes-tooltip" data-equipe-acoes-tooltip hidden></div>
   <script src="js/vendor/jspdf.umd.min.js"></script>
   <script src="js/pedido-pdf.js?v=15"></script>
-  <script src="js/admin.js?v=89"></script>
+  <script src="js/admin.js?v=90"></script>
 </body>
 </html>

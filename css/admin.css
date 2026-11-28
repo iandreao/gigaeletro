@@ -576,6 +576,34 @@ body.gestor .dash-topo h1 { margin: 0; }
   white-space: nowrap;
   cursor: pointer;
 }
+.sync-teste-btn,
+.sync-status .sync-teste-btn.btn {
+  width: auto !important;
+  min-width: 0;
+  flex: 0 0 auto;
+  margin: 0 !important;
+  padding: 0.22rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  color: #78716c;
+  border-color: #d6d3d1;
+  background: #fafaf9;
+  opacity: 0.92;
+}
+.sync-teste-btn:hover,
+.sync-status .sync-teste-btn.btn:hover {
+  color: #44403c;
+  border-color: #a8a29e;
+  background: #f5f5f4;
+  opacity: 1;
+}
+.sync-teste-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
 body.gestor .admin-page .drop-cliente {
   position: relative;
   overflow: hidden;

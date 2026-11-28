@@ -952,31 +952,44 @@ def limpar_trava_alerta_diario(dia_iso=None):
             pass
 
 
-def responder_verificar_atualizacao_diaria(saida):
-    """Cron Vercel (seg–sáb): alerta se a tabela não foi atualizada hoje. Sem auth de sessão."""
+def responder_verificar_atualizacao_diaria(saida, forcar=None, simular=None):
+    """Cron / teste: alerta se a tabela não foi atualizada hoje. Sem auth de sessão."""
     agora = agora_painel()
     hoje = agora.date()
     hoje_txt = hoje.strftime("%d/%m/%Y")
     dia_iso = hoje.strftime("%Y-%m-%d")
-    simular = parametro_consulta(saida.path, "simularAtraso") == "1"
-    forcar = parametro_consulta(saida.path, "forcar") == "1"
+    if simular is None:
+        simular = parametro_consulta(saida.path, "simularAtraso") == "1"
+    else:
+        simular = bool(simular)
+    if forcar is None:
+        forcar = parametro_consulta(saida.path, "forcar") == "1"
+    else:
+        forcar = bool(forcar)
 
-    # Domingo: não alerta (exceto simulação de atraso).
-    if agora.weekday() == 6 and not simular:
-        escrever_json(saida, {"ok": True, "ignorado": "domingo", "data": hoje_txt})
+    # Domingo: não alerta (exceto simulação / forçar).
+    if agora.weekday() == 6 and not simular and not forcar:
+        escrever_json(saida, {
+            "ok": True,
+            "ignorado": "domingo",
+            "data": hoje_txt,
+            "emailEnviado": False,
+            "detalhe": "Domingo: verificação ignorada.",
+        })
         return
 
     status = ler_ultima_sync()
     data_sync = data_ultima_sync_sp(status)
     atualizado_hoje = bool(data_sync and data_sync == hoje)
 
-    if atualizado_hoje and not simular:
+    if atualizado_hoje and not simular and not forcar:
         escrever_json(saida, {
             "ok": True,
             "atualizadoHoje": True,
             "ultimaSync": (status or {}).get("dataHora") or (status or {}).get("dataHoraIso") or "",
             "data": hoje_txt,
             "emailEnviado": False,
+            "detalhe": "Tabela já atualizada hoje; e-mail não enviado.",
         })
         return
 
@@ -989,6 +1002,7 @@ def responder_verificar_atualizacao_diaria(saida):
             "ultimaSync": (status or {}).get("dataHora") or "",
             "data": hoje_txt,
             "emailEnviado": False,
+            "detalhe": "Alerta diário já enviado hoje (trava ativa).",
         })
         return
 
@@ -1002,13 +1016,14 @@ def responder_verificar_atualizacao_diaria(saida):
             "erro": "Falha ao enviar alerta por e-mail.",
             "emailEnviado": False,
             "erroResend": erro_envio,
+            "detalhe": erro_envio or "Falha Resend.",
             "ultimaSync": (status or {}).get("dataHora") or "",
             "data": hoje_txt,
             "simulado": simular,
         }, 502)
         return
 
-    # Simulação não grava trava (permite retestar). forcar=1 ainda grava após o envio.
+    # Simulação não grava trava (permite retestar). forcar ainda grava após o envio.
     if not simular:
         marcar_alerta_diario_enviado(dia_iso)
 
@@ -1022,18 +1037,20 @@ def responder_verificar_atualizacao_diaria(saida):
         "data": hoje_txt,
         "simulado": simular,
         "forcado": forcar,
+        "detalhe": "E-mail de alerta enviado para %s." % ALERTA_SYNC_DESTINO,
     }
     if resend_id:
         resposta["resendId"] = resend_id
+        resposta["detalhe"] = "E-mail enviado (resendId=%s)." % resend_id
     escrever_json(saida, resposta)
 
 
-def responder_limpar_tabela(saida):
-    """Homologação: zera catálogo + ultima_sync + trava diária. Exige confirmar=1 e auth."""
-    if parametro_consulta(saida.path, "confirmar") != "1":
+def responder_limpar_tabela(saida, confirmado=False):
+    """Homologação: zera catálogo + ultima_sync + trava diária. Exige auth + confirmação."""
+    if not confirmado and parametro_consulta(saida.path, "confirmar") != "1":
         escrever_json(saida, {
             "ok": False,
-            "erro": "Confirme a limpeza com ?confirmar=1.",
+            "erro": "Confirme a limpeza com ?confirmar=1 ou JSON acao=limpar_tabela.",
         }, 400)
         return
     admin_ok = token_valido(cookie_de(saida.headers.get("Cookie")))
@@ -1055,7 +1072,8 @@ def responder_limpar_tabela(saida):
             "itensAtivos": 0,
             "itensDescartados": 0,
             "somaPreco": "0.00",
-            "somaEstoque": "0.00",
+            "somaPrecos": 0,
+            "somaEstoque": 0,
             "status": "Sem sincronização",
         }
         persistir_ultima_sync(status_vazio)
@@ -1071,6 +1089,44 @@ def responder_limpar_tabela(saida):
         "ok": True,
         "mensagem": "Tabela e status de sincronização limpos com sucesso.",
     })
+
+
+def responder_catalogo_post(saida):
+    """POST /api/catalogo: JSON com acao (limpar/verificar) ou upload multipart da planilha."""
+    tipo = (saida.headers.get("Content-Type") or "").lower()
+    if "application/json" in tipo:
+        corpo = ler_corpo(saida)
+        if corpo is None:
+            escrever_json(saida, {"ok": False, "erro": "Corpo inválido ou grande demais."}, 413)
+            return
+        try:
+            payload = json.loads(corpo.decode("utf-8") or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            escrever_json(saida, {"ok": False, "erro": "JSON inválido."}, 400)
+            return
+        if not isinstance(payload, dict):
+            escrever_json(saida, {"ok": False, "erro": "Payload inválido."}, 400)
+            return
+        acao = str(payload.get("acao") or "").strip().lower().replace("-", "_")
+        if acao == "limpar_tabela":
+            responder_limpar_tabela(saida, confirmado=True)
+            return
+        if acao == "verificar_atualizacao_diaria":
+            responder_verificar_atualizacao_diaria(
+                saida,
+                forcar=bool(payload.get("forcar")),
+                simular=bool(
+                    payload.get("simularAtraso")
+                    or payload.get("simular_atraso")
+                ),
+            )
+            return
+        escrever_json(saida, {
+            "ok": False,
+            "erro": "acao JSON inválida. Use limpar_tabela ou verificar_atualizacao_diaria.",
+        }, 400)
+        return
+    responder_upload(saida)
 
 
 def celula_matriz(linha, indice, padrao=""):
@@ -5614,8 +5670,11 @@ class Handler(SimpleHTTPRequestHandler):
         ):
             responder_sincronizar_catalogo(self)
             return
-        if caminho in ("/api/catalogo", "/api/catalogo.py", "/api/catalogo/upload-manual") or acao_catalogo == "upload-manual":
+        if caminho in ("/api/catalogo/upload-manual",) or acao_catalogo == "upload-manual":
             responder_upload(self)
+            return
+        if caminho in ("/api/catalogo", "/api/catalogo.py"):
+            responder_catalogo_post(self)
             return
         self.send_error(404)
 

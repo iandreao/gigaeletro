@@ -2,7 +2,8 @@
 verificar-atualizacao-diaria, limpar-tabela) na Vercel.
 
 Consolida tudo em uma única Serverless Function (Hobby: máx. 12).
-Rewrites em vercel.json apontam para este handler com ?acao= / ?sync=1.
+POST JSON em /api/catalogo com acao=limpar_tabela|verificar_atualizacao_diaria
+não depende de rewrite de URL.
 """
 import sys
 from pathlib import Path
@@ -51,18 +52,21 @@ def _eh_verificar_atualizacao_diaria(saida) -> bool:
     caminho = _caminho(saida)
     if caminho.endswith("verificar-atualizacao-diaria"):
         return True
-    return _acao(saida) == "verificar-atualizacao-diaria"
+    acao = _acao(saida).replace("-", "_")
+    return acao == "verificar_atualizacao_diaria"
 
 
 def _eh_limpar_tabela(saida) -> bool:
     caminho = _caminho(saida)
     if caminho.endswith("limpar-tabela"):
         return True
-    return _acao(saida) == "limpar-tabela"
+    acao = _acao(saida).replace("-", "_")
+    return acao == "limpar_tabela"
 
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        # Cron Vercel: GET /api/catalogo?acao=verificar-atualizacao-diaria
         if _eh_verificar_atualizacao_diaria(self):
             servidor.responder_verificar_atualizacao_diaria(self)
             return
@@ -75,20 +79,21 @@ class handler(BaseHTTPRequestHandler):
         servidor.responder_catalogo(self)
 
     def do_POST(self):
-        if _eh_verificar_atualizacao_diaria(self):
-            servidor.responder_verificar_atualizacao_diaria(self)
-            return
-        if _eh_limpar_tabela(self):
-            servidor.responder_limpar_tabela(self)
-            return
         if _eh_alerta_sync(self):
             servidor.responder_alerta_sync(self)
             return
         if _eh_sincronizar(self):
             servidor.responder_sincronizar_catalogo(self)
             return
-        # Upload manual Uniplus (área restrita) — padrão de POST /api/catalogo.
-        servidor.responder_upload(self)
+        # Query/path legado (rewrite) + JSON acao no body da mesma /api/catalogo.
+        if _eh_verificar_atualizacao_diaria(self):
+            servidor.responder_verificar_atualizacao_diaria(self)
+            return
+        if _eh_limpar_tabela(self):
+            servidor.responder_limpar_tabela(self, confirmado=True)
+            return
+        # Upload multipart OU JSON { "acao": "limpar_tabela"|"verificar_atualizacao_diaria" }.
+        servidor.responder_catalogo_post(self)
 
     def do_OPTIONS(self):
         self.send_response(204)
