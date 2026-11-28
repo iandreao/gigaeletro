@@ -952,12 +952,25 @@ def limpar_trava_alerta_diario(dia_iso=None):
             pass
 
 
+def requisicao_vercel_cron(saida):
+    """True quando a chamada veio do Vercel Cron (GET automático)."""
+    try:
+        headers = saida.headers
+    except Exception:
+        return False
+    if str(headers.get("x-vercel-cron") or "").strip() == "1":
+        return True
+    agente = str(headers.get("User-Agent") or headers.get("user-agent") or "").lower()
+    return "vercel-cron" in agente
+
+
 def responder_verificar_atualizacao_diaria(saida, forcar=None, simular=None):
     """Cron / teste: alerta se a tabela não foi atualizada hoje. Sem auth de sessão."""
     agora = agora_painel()
     hoje = agora.date()
     hoje_txt = hoje.strftime("%d/%m/%Y")
     dia_iso = hoje.strftime("%Y-%m-%d")
+    eh_cron = requisicao_vercel_cron(saida)
     if simular is None:
         simular = parametro_consulta(saida.path, "simularAtraso") == "1"
     else:
@@ -967,7 +980,7 @@ def responder_verificar_atualizacao_diaria(saida, forcar=None, simular=None):
     else:
         forcar = bool(forcar)
 
-    # Domingo: não alerta (exceto simulação / forçar).
+    # Domingo: não alerta (exceto simulação / forçar). O cron já é 1–6 no vercel.json.
     if agora.weekday() == 6 and not simular and not forcar:
         escrever_json(saida, {
             "ok": True,
@@ -990,10 +1003,16 @@ def responder_verificar_atualizacao_diaria(saida, forcar=None, simular=None):
             "data": hoje_txt,
             "emailEnviado": False,
             "detalhe": "Tabela já atualizada hoje; e-mail não enviado.",
+            "cron": eh_cron,
         })
         return
 
-    ignorar_trava = simular or forcar
+    # Cron Vercel e "Limpar Tabela (Teste)" precisam poder disparar mesmo após teste manual
+    # que gravou alerta_nao_atualizado:YYYY-MM-DD no Redis/Blob.
+    if eh_cron and not atualizado_hoje:
+        limpar_trava_alerta_diario(dia_iso)
+
+    ignorar_trava = simular or forcar or eh_cron
     if not ignorar_trava and alerta_diario_ja_enviado(dia_iso):
         escrever_json(saida, {
             "ok": True,
@@ -1020,10 +1039,11 @@ def responder_verificar_atualizacao_diaria(saida, forcar=None, simular=None):
             "ultimaSync": (status or {}).get("dataHora") or "",
             "data": hoje_txt,
             "simulado": simular,
+            "cron": eh_cron,
         }, 502)
         return
 
-    # Simulação não grava trava (permite retestar). forcar ainda grava após o envio.
+    # Simulação não grava trava (permite retestar). Cron/forcar gravam após o envio.
     if not simular:
         marcar_alerta_diario_enviado(dia_iso)
 
@@ -1037,6 +1057,7 @@ def responder_verificar_atualizacao_diaria(saida, forcar=None, simular=None):
         "data": hoje_txt,
         "simulado": simular,
         "forcado": forcar,
+        "cron": eh_cron,
         "detalhe": "E-mail de alerta enviado para %s." % ALERTA_SYNC_DESTINO,
     }
     if resend_id:

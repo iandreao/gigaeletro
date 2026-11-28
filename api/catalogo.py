@@ -67,6 +67,7 @@ def _eh_limpar_tabela(saida) -> bool:
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         # Cron Vercel: GET /api/catalogo?acao=verificar-atualizacao-diaria
+        # Sem login de sessão — o Cron chama GET direto (x-vercel-cron / user-agent).
         if _eh_verificar_atualizacao_diaria(self):
             servidor.responder_verificar_atualizacao_diaria(self)
             return

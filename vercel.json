@@ -4,11 +4,7 @@
   "crons": [
     {
       "path": "/api/catalogo?acao=verificar-atualizacao-diaria",
-      "schedule": "0 14 * * 1-6"
-    },
-    {
-      "path": "/api/catalogo?acao=verificar-atualizacao-diaria",
-      "schedule": "0 19 * * 1-6"
+      "schedule": "15 18 * * 1-6"
     }
   ],
   "builds": [
