@@ -2,8 +2,8 @@ name: Alerta Diário Tabela de Preços GigaEletro
 
 on:
   schedule:
-    # 19:00 UTC = 16:00 Brasília, segunda a sábado (teste)
-    - cron: "0 19 * * 1-6"
+    # 11:05 UTC = 08:05 Brasília, segunda a sábado
+    - cron: "5 11 * * 1-6"
   workflow_dispatch:
 
 jobs:
@@ -16,5 +16,5 @@ jobs:
             -X POST "https://gigaeletro.com.br/api/catalogo" \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
-            --data '{"acao":"verificar_atualizacao_diaria","forcar":true}'
+            --data '{"acao":"verificar_atualizacao_diaria"}'
           echo
