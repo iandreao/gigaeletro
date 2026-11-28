@@ -1133,6 +1133,7 @@ def responder_catalogo_post(saida):
             responder_limpar_tabela(saida, confirmado=True)
             return
         if acao == "verificar_atualizacao_diaria":
+            # Mesma função do GET do Cron / ?forcar=1 (pipeline Resend homologado).
             responder_verificar_atualizacao_diaria(
                 saida,
                 forcar=bool(payload.get("forcar")),

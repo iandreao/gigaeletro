@@ -4,6 +4,10 @@ verificar-atualizacao-diaria, limpar-tabela) na Vercel.
 Consolida tudo em uma única Serverless Function (Hobby: máx. 12).
 POST JSON em /api/catalogo com acao=limpar_tabela|verificar_atualizacao_diaria
 não depende de rewrite de URL.
+
+GET e POST de verificar-atualizacao-diaria usam a MESMA função interna
+(servidor.responder_verificar_atualizacao_diaria) — o mesmo pipeline Resend
+do botão "Testar Alerta E-mail".
 """
 import sys
 from pathlib import Path
@@ -23,6 +27,10 @@ def _acao(saida) -> str:
     return (servidor.parametro_consulta(saida.path, "acao") or "").strip().lower()
 
 
+def _acao_normalizada(saida) -> str:
+    return _acao(saida).replace("-", "_")
+
+
 def _eh_sincronizar(saida) -> bool:
     caminho = _caminho(saida)
     if caminho.endswith("sincronizar-catalogo"):
@@ -38,38 +46,53 @@ def _eh_status_sync(saida) -> bool:
     caminho = _caminho(saida)
     if caminho.endswith("status-sync"):
         return True
-    return _acao(saida) == "status-sync"
+    return _acao_normalizada(saida) == "status_sync"
 
 
 def _eh_alerta_sync(saida) -> bool:
     caminho = _caminho(saida)
     if caminho.endswith("alerta-sync"):
         return True
-    return _acao(saida) == "alerta-sync"
+    return _acao_normalizada(saida) == "alerta_sync"
 
 
 def _eh_verificar_atualizacao_diaria(saida) -> bool:
+    """Query acao, path legado, ou chamada nativa do Vercel Cron (header)."""
     caminho = _caminho(saida)
     if caminho.endswith("verificar-atualizacao-diaria"):
         return True
-    acao = _acao(saida).replace("-", "_")
-    return acao == "verificar_atualizacao_diaria"
+    if _acao_normalizada(saida) == "verificar_atualizacao_diaria":
+        return True
+    # Se o Cron omitir a query string, o header ainda identifica a invocação.
+    return servidor.requisicao_vercel_cron(saida)
 
 
 def _eh_limpar_tabela(saida) -> bool:
     caminho = _caminho(saida)
     if caminho.endswith("limpar-tabela"):
         return True
-    acao = _acao(saida).replace("-", "_")
-    return acao == "limpar_tabela"
+    return _acao_normalizada(saida) == "limpar_tabela"
+
+
+def _executar_verificar_atualizacao_diaria(saida, forcar=None, simular=None):
+    """Única entrada GET/POST — mesma lógica do botão Testar Alerta E-mail (Resend).
+
+    Sem auth de sessão. Aceita forcar/simular via args (POST JSON) ou query
+    (?forcar=1 / ?simularAtraso=1) quando args forem None.
+    """
+    servidor.responder_verificar_atualizacao_diaria(
+        saida,
+        forcar=forcar,
+        simular=simular,
+    )
 
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # Cron Vercel: GET /api/catalogo?acao=verificar-atualizacao-diaria
-        # Sem login de sessão — o Cron chama GET direto (x-vercel-cron / user-agent).
+        # Cron: GET /api/catalogo?acao=verificar-atualizacao-diaria (?forcar=1 opcional)
+        # Sem cookie/sessão. Mesma função do POST do botão de teste.
         if _eh_verificar_atualizacao_diaria(self):
-            servidor.responder_verificar_atualizacao_diaria(self)
+            _executar_verificar_atualizacao_diaria(self)
             return
         if _eh_limpar_tabela(self):
             servidor.responder_limpar_tabela(self)
@@ -86,14 +109,18 @@ class handler(BaseHTTPRequestHandler):
         if _eh_sincronizar(self):
             servidor.responder_sincronizar_catalogo(self)
             return
-        # Query/path legado (rewrite) + JSON acao no body da mesma /api/catalogo.
-        if _eh_verificar_atualizacao_diaria(self):
-            servidor.responder_verificar_atualizacao_diaria(self)
+        if _eh_verificar_atualizacao_diaria(self) and "application/json" not in (
+            (self.headers.get("Content-Type") or "").lower()
+        ):
+            _executar_verificar_atualizacao_diaria(self)
             return
-        if _eh_limpar_tabela(self):
+        if _eh_limpar_tabela(self) and "application/json" not in (
+            (self.headers.get("Content-Type") or "").lower()
+        ):
             servidor.responder_limpar_tabela(self, confirmado=True)
             return
         # Upload multipart OU JSON { "acao": "limpar_tabela"|"verificar_atualizacao_diaria" }.
+        # JSON verificar_* também cai em _executar_verificar via responder_catalogo_post.
         servidor.responder_catalogo_post(self)
 
     def do_OPTIONS(self):
