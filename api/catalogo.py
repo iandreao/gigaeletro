@@ -87,11 +87,20 @@ def _executar_verificar_atualizacao_diaria(saida, forcar=None, simular=None):
     )
 
 
+def _limpar_trava_residual_hoje():
+    """Remove trava diária (Redis/Blob) de testes anteriores do dia atual."""
+    try:
+        servidor.limpar_trava_alerta_diario()
+    except Exception:
+        pass
+
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         # Cron: GET /api/catalogo?acao=verificar-atualizacao-diaria (?forcar=1 opcional)
-        # Sem cookie/sessão. Mesma função do POST do botão de teste.
+        # Sem cookie/sessão. Limpa trava residual para o disparo automático de hoje.
         if _eh_verificar_atualizacao_diaria(self):
+            _limpar_trava_residual_hoje()
             _executar_verificar_atualizacao_diaria(self)
             return
         if _eh_limpar_tabela(self):
