@@ -56,7 +56,7 @@ TITULOS_ESPERADOS = {
 }
 MSG_CRIAR_PASTA = (
     "Salve a planilha Uniplus (Estoque *.xls / *.xlsx) em "
-    "\\\\192.168.1.254\\EstoqueProdutos ou C:\\EstoqueProdutos."
+    "\\\\SERVIDOR\\EstoqueProdutos, C:\\SiteGigaeletro\\EstoqueProdutos ou C:\\EstoqueProdutos."
 )
 
 
@@ -130,7 +130,9 @@ def limpar_codigo(valor) -> str:
     return re.sub(r"[^\d]", "", texto)
 
 
-PASTA_REDE_LOJA = Path(r"\\192.168.1.254\EstoqueProdutos")
+PASTA_REDE_SERVIDOR = Path(r"\\SERVIDOR\EstoqueProdutos")
+PASTA_REDE_IP = Path(r"\\192.168.1.254\EstoqueProdutos")
+PASTA_SITE_LOCAL = Path(r"C:\SiteGigaeletro\EstoqueProdutos")
 PASTA_ORIGEM_PRINCIPAL = Path(r"C:\EstoqueProdutos")
 PASTA_ORIGEM_FALLBACK = Path.home() / "Documents" / "EstoqueProdutos"
 TIMEOUT_PASTA_REDE_S = 2.0
@@ -154,46 +156,95 @@ def pasta_acessivel(caminho: Path, timeout_s: float = TIMEOUT_PASTA_REDE_S) -> b
     return bool(resultado["ok"])
 
 
-def resolver_pasta_origem(pasta_arg: str | None) -> Path:
-    """Ordem: PASTA_ESTOQUE_UNIPLUS | --pasta | rede loja | C:\\EstoqueProdutos | Documents."""
-    if pasta_arg:
-        informada = Path(pasta_arg)
-        if pasta_acessivel(informada, timeout_s=5.0):
-            return informada
-        raise FileNotFoundError(
-            "Pasta de origem inexistente: %s\n%s" % (informada, MSG_CRIAR_PASTA)
-        )
-
-    env_pasta = (os.environ.get("PASTA_ESTOQUE_UNIPLUS") or "").strip()
-    if env_pasta:
-        informada = Path(env_pasta)
-        if pasta_acessivel(informada, timeout_s=5.0):
-            log("Pasta via PASTA_ESTOQUE_UNIPLUS: %s" % informada)
-            return informada
-        log("AVISO: PASTA_ESTOQUE_UNIPLUS inacessível (%s); tentando fallbacks." % informada)
-
-    candidatos = [
-        ("rede loja", PASTA_REDE_LOJA, TIMEOUT_PASTA_REDE_S),
-        ("local C:", PASTA_ORIGEM_PRINCIPAL, 1.0),
-        ("Documents", PASTA_ORIGEM_FALLBACK, 1.0),
-    ]
-    for rotulo, caminho, prazo in candidatos:
-        if pasta_acessivel(caminho, timeout_s=prazo):
-            log("Pasta de origem (%s): %s" % (rotulo, caminho))
-            return caminho
-
-    raise FileNotFoundError(
-        "Pasta de origem inexistente.\n%s\n"
-        "Tentadas: %s | %s | %s"
-        % (MSG_CRIAR_PASTA, PASTA_REDE_LOJA, PASTA_ORIGEM_PRINCIPAL, PASTA_ORIGEM_FALLBACK)
-    )
-
-
 def _eh_planilha_estoque(nome: str) -> bool:
     lower = nome.lower()
     if not (lower.endswith(".xls") or lower.endswith(".xlsx")):
         return False
     return lower.startswith("estoque")
+
+
+def listar_planilhas_estoque(pasta: Path) -> list[Path]:
+    try:
+        itens = list(pasta.iterdir())
+    except (OSError, PermissionError):
+        return []
+    candidatos = [
+        item for item in itens
+        if item.is_file() and (PADRAO_ESTOQUE.match(item.name) or _eh_planilha_estoque(item.name))
+    ]
+    candidatos.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return candidatos
+
+
+def _candidatos_pasta_padrao() -> list[tuple[str, Path, float]]:
+    return [
+        ("rede SERVIDOR", PASTA_REDE_SERVIDOR, TIMEOUT_PASTA_REDE_S),
+        ("rede IP 192.168.1.254", PASTA_REDE_IP, TIMEOUT_PASTA_REDE_S),
+        ("C:\\SiteGigaeletro\\EstoqueProdutos", PASTA_SITE_LOCAL, 1.0),
+        ("C:\\EstoqueProdutos", PASTA_ORIGEM_PRINCIPAL, 1.0),
+        ("Documents\\EstoqueProdutos", PASTA_ORIGEM_FALLBACK, 1.0),
+    ]
+
+
+def resolver_origem(pasta_arg: str | None, arquivo: str | None) -> tuple[Path, Path]:
+    """
+    Descobre pasta + planilha Estoque mais recente.
+    Ordem: --pasta | PASTA_ESTOQUE_UNIPLUS | \\\\SERVIDOR | \\\\192.168.1.254 |
+    C:\\SiteGigaeletro\\EstoqueProdutos | C:\\EstoqueProdutos | Documents.
+    """
+    if arquivo:
+        caminho = Path(arquivo)
+        if not caminho.is_file():
+            raise FileNotFoundError("Arquivo não encontrado: %s" % caminho)
+        return caminho.parent, caminho
+
+    verificadas: list[str] = []
+
+    def tentar(rotulo: str, caminho: Path, prazo: float) -> tuple[Path, Path] | None:
+        acessivel = pasta_acessivel(caminho, timeout_s=prazo)
+        if not acessivel:
+            verificadas.append("%s [inacessível]" % caminho)
+            return None
+        planilhas = listar_planilhas_estoque(caminho)
+        if not planilhas:
+            verificadas.append("%s [sem Estoque *.xls/*.xlsx]" % caminho)
+            return None
+        log("Pasta de origem (%s): %s" % (rotulo, caminho))
+        return caminho, planilhas[0]
+
+    if pasta_arg:
+        informada = Path(pasta_arg)
+        achou = tentar("--pasta", informada, 5.0)
+        if achou:
+            return achou
+        raise FileNotFoundError(
+            "Nenhum Estoque *.xls / *.xlsx encontrado.\n%s\nPastas verificadas:\n- %s"
+            % (MSG_CRIAR_PASTA, "\n- ".join(verificadas) if verificadas else str(informada))
+        )
+
+    env_pasta = (os.environ.get("PASTA_ESTOQUE_UNIPLUS") or "").strip()
+    if env_pasta:
+        informada = Path(env_pasta)
+        achou = tentar("PASTA_ESTOQUE_UNIPLUS", informada, 5.0)
+        if achou:
+            return achou
+        log("AVISO: PASTA_ESTOQUE_UNIPLUS sem planilha acessível (%s); tentando fallbacks." % informada)
+
+    for rotulo, caminho, prazo in _candidatos_pasta_padrao():
+        achou = tentar(rotulo, caminho, prazo)
+        if achou:
+            return achou
+
+    raise FileNotFoundError(
+        "Nenhum Estoque *.xls / *.xlsx encontrado.\n%s\nPastas verificadas:\n- %s"
+        % (MSG_CRIAR_PASTA, "\n- ".join(verificadas) if verificadas else "(nenhuma)")
+    )
+
+
+def resolver_pasta_origem(pasta_arg: str | None) -> Path:
+    """Compat: devolve só a pasta (com planilha Estoque presente)."""
+    pasta, _arquivo = resolver_origem(pasta_arg, None)
+    return pasta
 
 
 def achar_planilha(pasta: Path, arquivo: str | None) -> Path:
@@ -202,21 +253,12 @@ def achar_planilha(pasta: Path, arquivo: str | None) -> Path:
         if not caminho.is_file():
             raise FileNotFoundError("Arquivo não encontrado: %s" % caminho)
         return caminho
-    if not pasta.is_dir():
+    planilhas = listar_planilhas_estoque(pasta)
+    if not planilhas:
         raise FileNotFoundError(
-            "Pasta de origem inexistente: %s\n%s" % (pasta, MSG_CRIAR_PASTA)
+            "Nenhum Estoque *.xls / *.xlsx em %s\n%s" % (pasta, MSG_CRIAR_PASTA)
         )
-    candidatos = [
-        item for item in pasta.iterdir()
-        if item.is_file() and (PADRAO_ESTOQUE.match(item.name) or _eh_planilha_estoque(item.name))
-    ]
-    if not candidatos:
-        raise FileNotFoundError(
-            "Nenhum Estoque *.xls / *.xlsx em %s\n"
-            "Salve a planilha exportada do Uniplus em C:\\EstoqueProdutos." % pasta
-        )
-    candidatos.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return candidatos[0]
+    return planilhas[0]
 
 
 def celula(linha, indice, padrao=""):
@@ -514,7 +556,12 @@ def main() -> int:
     parser.add_argument(
         "--pasta",
         default=None,
-        help="Pasta com Estoque *.xls / *.xlsx (padrão: C:\\EstoqueProdutos; fallback: Documents\\EstoqueProdutos)",
+        help=(
+            "Pasta com Estoque *.xls / *.xlsx "
+            "(padrão: PASTA_ESTOQUE_UNIPLUS | \\\\SERVIDOR\\EstoqueProdutos | "
+            "\\\\192.168.1.254\\EstoqueProdutos | C:\\SiteGigaeletro\\EstoqueProdutos | "
+            "C:\\EstoqueProdutos | Documents\\EstoqueProdutos)"
+        ),
     )
     parser.add_argument(
         "--api",
@@ -530,8 +577,7 @@ def main() -> int:
         return 2
 
     try:
-        pasta_origem = resolver_pasta_origem(args.pasta)
-        origem_path = achar_planilha(pasta_origem, args.arquivo)
+        pasta_origem, origem_path = resolver_origem(args.pasta, args.arquivo)
     except FileNotFoundError as erro:
         log("ERRO: %s" % erro)
         return 2
