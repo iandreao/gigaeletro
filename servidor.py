@@ -45,6 +45,8 @@ FONTE_CATALOGO = ROOT / "data" / "catalogo.json"
 FONTE_ULTIMA_SYNC = ROOT / "data" / "ultima_sync.json"
 CENTAVO = Decimal("0.01")
 CATALOGO_ULTIMA_SYNC_BLOB = "catalogo/ultima_sync.json"
+CATALOGO_ALERTA_DIARIO_BLOB = "catalogo/alerta_nao_atualizado.json"
+ALERTA_DIARIO_REDIS = "alerta:{giga}:nao_atualizado:"
 TIPO_REVEND_CATALOGO = re.compile(r"^00(\s*-|\b)", re.I)
 RE_GERADO_UNIPLUS = re.compile(
     r"Gerado\s+em\s+(\d{2}/\d{2}/(?:\d{2}|\d{4}))(?:\s+(\d{2}:\d{2}:\d{2}))?",
@@ -766,6 +768,226 @@ def ler_ultima_sync():
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
         return None
     return normalizar_status_sync_lido(dados)
+
+
+def data_ultima_sync_sp(status):
+    """Converte ultima_sync para date em America/Sao_Paulo."""
+    if not isinstance(status, dict):
+        return None
+    iso = str(status.get("dataHoraIso") or "").strip()
+    if iso:
+        try:
+            bruto = iso.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(bruto)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            try:
+                from zoneinfo import ZoneInfo
+                return dt.astimezone(ZoneInfo("America/Sao_Paulo")).date()
+            except Exception:
+                return dt.astimezone(timezone(timedelta(hours=-3))).date()
+        except (TypeError, ValueError):
+            pass
+    dh = str(status.get("dataHora") or "").strip()
+    match = re.match(r"^(\d{2})/(\d{2})/(\d{4})", dh)
+    if match:
+        try:
+            return date(int(match.group(3)), int(match.group(2)), int(match.group(1)))
+        except ValueError:
+            return None
+    return None
+
+
+def _ler_trava_alerta_diario_blob():
+    bruto = None
+    if token_blob():
+        bruto = baixar_blob(CATALOGO_ALERTA_DIARIO_BLOB, consistente=True)
+    local = ROOT / "data" / "alerta_nao_atualizado.json"
+    if bruto is None and local.is_file():
+        try:
+            bruto = local.read_bytes()
+        except OSError:
+            bruto = None
+    if not bruto:
+        return {}
+    try:
+        dados = json.loads(bruto.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        return {}
+    return dados if isinstance(dados, dict) else {}
+
+
+def _gravar_trava_alerta_diario_blob(dia_iso):
+    payload = {
+        "ultimaDataAlerta": dia_iso,
+        "atualizadoEm": agora_painel().isoformat(),
+    }
+    corpo = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    if token_blob():
+        try:
+            enviar_json_blob(CATALOGO_ALERTA_DIARIO_BLOB, corpo)
+        except Exception:
+            pass
+    if not em_vercel():
+        try:
+            destino = ROOT / "data" / "alerta_nao_atualizado.json"
+            destino.parent.mkdir(parents=True, exist_ok=True)
+            destino.write_bytes(corpo)
+        except OSError:
+            pass
+
+
+def alerta_diario_ja_enviado(dia_iso):
+    chave = ALERTA_DIARIO_REDIS + str(dia_iso)
+    if endereco_redis():
+        try:
+            valor = redis_pipeline([["GET", chave]])[0]
+            if valor:
+                return True
+        except Exception:
+            pass
+    dados = _ler_trava_alerta_diario_blob()
+    return str(dados.get("ultimaDataAlerta") or "") == str(dia_iso)
+
+
+def marcar_alerta_diario_enviado(dia_iso):
+    chave = ALERTA_DIARIO_REDIS + str(dia_iso)
+    if endereco_redis():
+        try:
+            redis_pipeline([["SET", chave, "1", "EX", str(4 * 24 * 3600)]])
+        except Exception:
+            pass
+    _gravar_trava_alerta_diario_blob(dia_iso)
+
+
+def enviar_email_alerta_nao_atualizado(hoje_txt, status, simulado=False):
+    chave = variavel_sem_aspas("RESEND_API_KEY")
+    if not chave:
+        return False, "RESEND_API_KEY ausente"
+    ultima = "—"
+    operador = "—"
+    origem = "—"
+    if isinstance(status, dict):
+        ultima = str(status.get("dataHora") or status.get("dataHoraIso") or "—")
+        operador = str(status.get("usuario") or "—")
+        origem = str(status.get("origem") or "—")
+    if simulado:
+        intro = (
+            "Este é um <strong>teste simulado</strong> (`simularAtraso=1`). "
+            "O sistema verificou a atualização da tabela como se ela ainda não tivesse ocorrido hoje."
+        )
+        intro_txt = (
+            "Este é um teste simulado (simularAtraso=1). "
+            "O sistema verificou a atualização da tabela como se ela ainda não tivesse ocorrido hoje."
+        )
+    else:
+        intro = (
+            "Até o momento, a <strong>tabela de preços/estoque do site</strong> "
+            "<strong>não foi atualizada hoje</strong> (%s)." % html.escape(hoje_txt)
+        )
+        intro_txt = (
+            "Até o momento, a tabela de preços/estoque do site não foi atualizada hoje (%s)."
+            % hoje_txt
+        )
+    link = "https://www.gigaeletro.com.br/admin.html"
+    assunto = "Alerta GigaEletro: Tabela de Preços NÃO atualizada hoje (%s)" % hoje_txt
+    texto = (
+        "%s\n\n"
+        "Última atualização registrada: %s\n"
+        "Operador/origem: %s (%s)\n\n"
+        "Acesse a Área Restrita para atualizar: %s\n"
+        % (intro_txt, ultima, operador, origem, link)
+    )
+    corpo_html = (
+        "<div style=\"font-family:Arial,sans-serif;font-size:15px;line-height:1.45;color:#111\">"
+        "<p>%s</p>"
+        "<p><strong>Última atualização registrada:</strong> %s<br>"
+        "<strong>Operador:</strong> %s<br>"
+        "<strong>Origem:</strong> %s</p>"
+        "<p><a href=\"%s\">Abrir Área Restrita (admin.html)</a></p>"
+        "</div>"
+        % (intro, html.escape(ultima), html.escape(operador), html.escape(origem), link)
+    )
+    payload = {
+        "from": remetente_email(),
+        "to": [ALERTA_SYNC_DESTINO],
+        "subject": assunto,
+        "html": corpo_html,
+        "text": texto,
+    }
+    try:
+        disparar_resend(chave, payload)
+        return True, ""
+    except Exception as erro:
+        print("alerta-diario: falha Resend (%s)" % erro, file=sys.stderr, flush=True)
+        return False, str(erro)
+
+
+def responder_verificar_atualizacao_diaria(saida):
+    """Cron Vercel (seg–sáb): alerta se a tabela não foi atualizada hoje. Sem auth de sessão."""
+    agora = agora_painel()
+    hoje = agora.date()
+    hoje_txt = hoje.strftime("%d/%m/%Y")
+    dia_iso = hoje.strftime("%Y-%m-%d")
+    simular = parametro_consulta(saida.path, "simularAtraso") == "1"
+    forcar = parametro_consulta(saida.path, "forcar") == "1"
+
+    # Domingo: não alerta (exceto simulação de atraso).
+    if agora.weekday() == 6 and not simular:
+        escrever_json(saida, {"ok": True, "ignorado": "domingo", "data": hoje_txt})
+        return
+
+    status = ler_ultima_sync()
+    data_sync = data_ultima_sync_sp(status)
+    atualizado_hoje = bool(data_sync and data_sync == hoje)
+
+    if atualizado_hoje and not simular:
+        escrever_json(saida, {
+            "ok": True,
+            "atualizadoHoje": True,
+            "ultimaSync": (status or {}).get("dataHora") or (status or {}).get("dataHoraIso") or "",
+            "data": hoje_txt,
+        })
+        return
+
+    ignorar_trava = simular or forcar
+    if not ignorar_trava and alerta_diario_ja_enviado(dia_iso):
+        escrever_json(saida, {
+            "ok": True,
+            "atualizadoHoje": False,
+            "alertaJaEnviado": True,
+            "ultimaSync": (status or {}).get("dataHora") or "",
+            "data": hoje_txt,
+        })
+        return
+
+    ok_envio, erro_envio = enviar_email_alerta_nao_atualizado(hoje_txt, status, simulado=simular)
+    if not ok_envio:
+        escrever_json(saida, {
+            "ok": False,
+            "atualizadoHoje": False,
+            "erro": "Falha ao enviar alerta por e-mail.",
+            "detalhe": erro_envio,
+            "ultimaSync": (status or {}).get("dataHora") or "",
+            "data": hoje_txt,
+            "simulado": simular,
+        }, 502)
+        return
+
+    # Simulação não grava trava (permite retestar). forcar=1 ainda grava após o envio.
+    if not simular:
+        marcar_alerta_diario_enviado(dia_iso)
+
+    escrever_json(saida, {
+        "ok": True,
+        "atualizadoHoje": False,
+        "alertaEnviado": True,
+        "enviado_para": ALERTA_SYNC_DESTINO,
+        "ultimaSync": (status or {}).get("dataHora") or "",
+        "data": hoje_txt,
+        "simulado": simular,
+        "forcado": forcar,
+    })
 
 
 def celula_matriz(linha, indice, padrao=""):
@@ -2283,11 +2505,20 @@ def id_pdf_valido(ident):
 
 
 def parametro_consulta(caminho, chave):
-    """Lê ?chave= da URL. Na Vercel o query às vezes vem só em QUERY_STRING."""
-    consulta = urlparse(caminho or "").query
-    if not consulta:
-        consulta = os.environ.get("QUERY_STRING") or ""
-    valores = parse_qs(consulta)
+    """Lê ?chave= da URL. Na Vercel o query às vezes vem só em QUERY_STRING.
+
+    Quando o rewrite define ?acao=..., o path perde os params originais
+    (ex.: simularAtraso); mesclamos com QUERY_STRING do ambiente.
+    """
+    valores = {}
+    consulta_path = urlparse(caminho or "").query
+    if consulta_path:
+        valores.update(parse_qs(consulta_path))
+    consulta_env = os.environ.get("QUERY_STRING") or ""
+    if consulta_env and consulta_env != consulta_path:
+        for k, v in parse_qs(consulta_env).items():
+            if k not in valores:
+                valores[k] = v
     return (valores.get(chave) or [""])[0]
 
 
@@ -5203,6 +5434,11 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         caminho = self.path.split("?", 1)[0].rstrip("/") or "/"
         acao_catalogo = parametro_consulta(self.path, "acao")
+        if caminho in ("/api/catalogo/verificar-atualizacao-diaria",) or (
+            caminho == "/api/catalogo" and acao_catalogo == "verificar-atualizacao-diaria"
+        ):
+            responder_verificar_atualizacao_diaria(self)
+            return
         if caminho in ("/api/catalogo/status-sync",) or (
             caminho == "/api/catalogo" and acao_catalogo == "status-sync"
         ):
@@ -5274,6 +5510,9 @@ class Handler(SimpleHTTPRequestHandler):
             responder_equipe_post(self)
             return
         acao_catalogo = parametro_consulta(self.path, "acao")
+        if caminho in ("/api/catalogo/verificar-atualizacao-diaria",) or acao_catalogo == "verificar-atualizacao-diaria":
+            responder_verificar_atualizacao_diaria(self)
+            return
         if caminho in ("/api/catalogo/alerta-sync",) or acao_catalogo == "alerta-sync":
             responder_alerta_sync(self)
             return
